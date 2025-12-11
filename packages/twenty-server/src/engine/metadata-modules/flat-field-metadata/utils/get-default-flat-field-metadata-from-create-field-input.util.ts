@@ -22,7 +22,7 @@ export const getDefaultFlatFieldMetadata = ({
     ['defaultValue', 'settings'],
   );
 
-  const createdAt = new Date();
+  const createdAt = new Date().toISOString();
 
   return {
     calendarViewIds: [],
@@ -39,7 +39,7 @@ export const getDefaultFlatFieldMetadata = ({
       createFieldInput.isRemoteCreation,
     ),
     isSystem: false,
-    isUnique: createFieldInput.isUnique ?? null,
+    isUnique: createFieldInput.isUnique ?? false,
     label: createFieldInput.label,
     name: createFieldInput.name,
     objectMetadataId: createFieldInput.objectMetadataId,

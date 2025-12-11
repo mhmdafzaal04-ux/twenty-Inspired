@@ -30,6 +30,7 @@ import { WorkspaceCustomApplicationIdNonNullableCommand } from 'src/database/com
 import { BackfillPageLayoutUniversalIdentifiersCommand } from 'src/database/commands/upgrade-version-command/1-13/1-13-backfill-page-layout-universal-identifiers.command';
 import { DeduplicateRoleTargetsCommand } from 'src/database/commands/upgrade-version-command/1-13/1-13-deduplicate-role-targets.command';
 import { MigrateStandardInvalidEntitiesCommand } from 'src/database/commands/upgrade-version-command/1-13/1-13-migrate-standard-invalid-entities.command';
+import { MigrateTimelineActivityToMorphRelationsCommand } from 'src/database/commands/upgrade-version-command/1-13/1-13-migrate-timeline-activity-to-morph-relations.command';
 import { UpdateRoleTargetsUniqueConstraintMigrationCommand } from 'src/database/commands/upgrade-version-command/1-13/1-13-update-role-targets-unique-constraint-migration.command';
 import { FixLabelIdentifierPositionAndVisibilityCommand } from 'src/database/commands/upgrade-version-command/1-6/1-6-fix-label-identifier-position-and-visibility.command';
 import { BackfillWorkflowManualTriggerAvailabilityCommand } from 'src/database/commands/upgrade-version-command/1-7/1-7-backfill-workflow-manual-trigger-availability.command';
@@ -41,7 +42,7 @@ import { RegeneratePersonSearchVectorWithPhonesCommand } from 'src/database/comm
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { DataSourceService } from 'src/engine/metadata-modules/data-source/data-source.service';
-import { TwentyORMGlobalManager } from 'src/engine/twenty-orm/twenty-orm-global.manager';
+import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { SyncWorkspaceMetadataCommand } from 'src/engine/workspace-manager/workspace-sync-metadata/commands/sync-workspace-metadata.command';
 
 @Command({
@@ -55,7 +56,7 @@ export class UpgradeCommand extends UpgradeCommandRunner {
     @InjectRepository(WorkspaceEntity)
     protected readonly workspaceRepository: Repository<WorkspaceEntity>,
     protected readonly twentyConfigService: TwentyConfigService,
-    protected readonly twentyORMGlobalManager: TwentyORMGlobalManager,
+    protected readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
     protected readonly dataSourceService: DataSourceService,
     protected readonly syncWorkspaceMetadataCommand: SyncWorkspaceMetadataCommand,
 
@@ -98,6 +99,7 @@ export class UpgradeCommand extends UpgradeCommandRunner {
     protected readonly cleanNullEquivalentValuesCommand: CleanNullEquivalentValuesCommand,
 
     // 1.13 Commands
+    protected readonly migrateTimelineActivityToMorphRelationsCommand: MigrateTimelineActivityToMorphRelationsCommand,
     protected readonly deduplicateRoleTargetsCommand: DeduplicateRoleTargetsCommand,
     protected readonly updateRoleTargetsUniqueConstraintMigrationCommand: UpdateRoleTargetsUniqueConstraintMigrationCommand,
     protected readonly backfillPageLayoutUniversalIdentifiersCommand: BackfillPageLayoutUniversalIdentifiersCommand,
@@ -106,7 +108,7 @@ export class UpgradeCommand extends UpgradeCommandRunner {
     super(
       workspaceRepository,
       twentyConfigService,
-      twentyORMGlobalManager,
+      globalWorkspaceOrmManager,
       dataSourceService,
       syncWorkspaceMetadataCommand,
     );
@@ -173,6 +175,7 @@ export class UpgradeCommand extends UpgradeCommandRunner {
       beforeSyncMetadata: [
         this.deduplicateRoleTargetsCommand,
         this.updateRoleTargetsUniqueConstraintMigrationCommand,
+        this.migrateTimelineActivityToMorphRelationsCommand,
         this.backfillPageLayoutUniversalIdentifiersCommand,
         this.migrateStandardInvalidEntitiesCommand,
       ],
