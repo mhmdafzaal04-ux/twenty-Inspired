@@ -19,8 +19,8 @@ import {
 import {
   CUSTOM_OBJECT_STANDARD_FIELD_IDS,
   TIMELINE_ACTIVITY_STANDARD_FIELD_IDS,
-} from 'src/engine/workspace-manager/workspace-sync-metadata/constants/standard-field-ids';
-import { STANDARD_OBJECT_ICONS } from 'src/engine/workspace-manager/workspace-sync-metadata/constants/standard-object-icons';
+} from 'src/engine/workspace-manager/workspace-migration/constant/standard-field-ids';
+import { STANDARD_OBJECT_ICONS } from 'src/engine/workspace-manager/workspace-migration/constant/standard-object-icons';
 
 const DEFAULT_RELATIONS_OBJECTS_STANDARD_IDS = [
   'timelineActivity',
@@ -164,6 +164,7 @@ export const buildDefaultRelationFlatFieldMetadatasForCustomObject = ({
               label: capitalize(targetFlatObjectMetadata.labelPlural),
               objectMetadataId: sourceFlatObjectMetadata.id,
               standardId,
+              isSystem: true,
               relationCreationPayload: {
                 type: RelationType.ONE_TO_MANY,
                 targetObjectMetadataId: targetFlatObjectMetadata.id,

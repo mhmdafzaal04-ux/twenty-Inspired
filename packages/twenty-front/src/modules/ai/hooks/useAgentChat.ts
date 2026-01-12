@@ -3,6 +3,7 @@ import { useRecoilState, useRecoilValue, useSetRecoilState } from 'recoil';
 import { useGetBrowsingContext } from '@/ai/hooks/useBrowsingContext';
 import { agentChatSelectedFilesState } from '@/ai/states/agentChatSelectedFilesState';
 import { agentChatUploadedFilesState } from '@/ai/states/agentChatUploadedFilesState';
+import { agentChatUsageState } from '@/ai/states/agentChatUsageState';
 import { currentAIChatThreadState } from '@/ai/states/currentAIChatThreadState';
 
 import { getTokenPair } from '@/apollo/utils/getTokenPair';
@@ -14,11 +15,12 @@ import { type ExtendedUIMessage } from 'twenty-shared/ai';
 import { isDefined } from 'twenty-shared/utils';
 import { REACT_APP_SERVER_BASE_URL } from '~/config';
 import { cookieStorage } from '~/utils/cookie-storage';
-import { REST_API_BASE_URL } from '../../apollo/constant/rest-api-base-url';
-import { agentChatInputState } from '../states/agentChatInputState';
+import { REST_API_BASE_URL } from '@/apollo/constant/rest-api-base-url';
+import { agentChatInputState } from '@/ai/states/agentChatInputState';
 
 export const useAgentChat = (uiMessages: ExtendedUIMessage[]) => {
   const setTokenPair = useSetRecoilState(tokenPairState);
+  const setAgentChatUsage = useSetRecoilState(agentChatUsageState);
 
   const { getBrowsingContext } = useGetBrowsingContext();
 
@@ -87,18 +89,60 @@ export const useAgentChat = (uiMessages: ExtendedUIMessage[]) => {
       fetch: async (input, init) => {
         const response = await fetch(input, init);
 
-        if (response.status !== 401) {
-          return response;
+        if (response.status === 401) {
+          const retriedResponse = await retryFetchWithRenewedToken(input, init);
+
+          return retriedResponse ?? response;
         }
 
-        const retriedResponse = await retryFetchWithRenewedToken(input, init);
+        // For non-2xx responses, parse the error body and throw with the code
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({}));
+          const error = new Error(
+            errorBody.messages?.[0] ||
+              `Request failed with status ${response.status}`,
+          ) as Error & { code?: string };
 
-        return retriedResponse ?? response;
+          if (isDefined(errorBody.code)) {
+            error.code = errorBody.code;
+          }
+          throw error;
+        }
+
+        return response;
       },
     }),
     messages: uiMessages,
     id: `${currentAIChatThread}-${uiMessages.length}`,
     experimental_throttle: 100,
+    onFinish: ({ message }) => {
+      type UsageMetadata = {
+        inputTokens: number;
+        outputTokens: number;
+        inputCredits: number;
+        outputCredits: number;
+      };
+      type ModelMetadata = {
+        contextWindowTokens: number;
+      };
+      const metadata = message.metadata as
+        | { usage?: UsageMetadata; model?: ModelMetadata }
+        | undefined;
+      const usage = metadata?.usage;
+      const model = metadata?.model;
+
+      if (isDefined(usage) && isDefined(model)) {
+        setAgentChatUsage((prev) => ({
+          inputTokens: (prev?.inputTokens ?? 0) + usage.inputTokens,
+          outputTokens: (prev?.outputTokens ?? 0) + usage.outputTokens,
+          totalTokens:
+            (prev?.totalTokens ?? 0) + usage.inputTokens + usage.outputTokens,
+          contextWindowTokens: model.contextWindowTokens,
+          inputCredits: (prev?.inputCredits ?? 0) + usage.inputCredits,
+          outputCredits: (prev?.outputCredits ?? 0) + usage.outputCredits,
+        }));
+      }
+    },
   });
 
   const isStreaming = status === 'streaming';

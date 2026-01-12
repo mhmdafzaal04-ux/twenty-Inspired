@@ -70,6 +70,7 @@ export class GoogleAPIsService {
     refreshToken: string;
     calendarVisibility: CalendarChannelVisibility | undefined;
     messageVisibility: MessageChannelVisibility | undefined;
+    skipMessageChannelConfiguration?: boolean;
   }): Promise<string> {
     const {
       handle,
@@ -77,6 +78,7 @@ export class GoogleAPIsService {
       workspaceMemberId,
       calendarVisibility,
       messageVisibility,
+      skipMessageChannelConfiguration,
     } = input;
 
     const isCalendarEnabled = this.twentyConfigService.get(
@@ -126,9 +128,7 @@ export class GoogleAPIsService {
           );
 
         const workspaceDataSource =
-          await this.globalWorkspaceOrmManager.getDataSourceForWorkspace(
-            workspaceId,
-          );
+          await this.globalWorkspaceOrmManager.getGlobalWorkspaceDataSource();
 
         await workspaceDataSource.transaction(
           async (manager: WorkspaceEntityManager) => {
@@ -151,6 +151,7 @@ export class GoogleAPIsService {
                 handle,
                 messageVisibility,
                 manager,
+                skipMessageChannelConfiguration,
               });
 
               if (isCalendarEnabled) {
@@ -160,6 +161,7 @@ export class GoogleAPIsService {
                   handle,
                   calendarVisibility,
                   manager,
+                  skipMessageChannelConfiguration,
                 });
               }
             } else {

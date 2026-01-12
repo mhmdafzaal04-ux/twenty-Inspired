@@ -7,15 +7,14 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
-  Relation,
+  type Relation,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
 
-import { SyncableEntity } from 'src/engine/workspace-manager/workspace-sync/interfaces/syncable-entity.interface';
-
 import { ApiKeyEntity } from 'src/engine/core-modules/api-key/api-key.entity';
 import { RoleEntity } from 'src/engine/metadata-modules/role/role.entity';
+import { SyncableEntity } from 'src/engine/workspace-manager/types/syncable-entity.interface';
 
 @Entity('roleTarget')
 @Unique('IDX_ROLE_TARGET_UNIQUE_USER_WORKSPACE', [
@@ -36,9 +35,6 @@ export class RoleTargetEntity extends SyncableEntity {
   id: string;
 
   @Column({ nullable: false, type: 'uuid' })
-  workspaceId: string;
-
-  @Column({ nullable: false, type: 'uuid' })
   roleId: string;
 
   @ManyToOne(() => RoleEntity, (role) => role.roleTargets, {
@@ -55,9 +51,6 @@ export class RoleTargetEntity extends SyncableEntity {
 
   @Column({ nullable: true, type: 'uuid' })
   apiKeyId: string | null;
-
-  @Column({ nullable: true, type: 'uuid' })
-  targetApplicationId: string | null;
 
   @ManyToOne(() => ApiKeyEntity, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'apiKeyId' })

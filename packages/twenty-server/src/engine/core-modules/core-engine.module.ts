@@ -18,6 +18,8 @@ import { TimelineCalendarEventModule } from 'src/engine/core-modules/calendar/ti
 import { CaptchaModule } from 'src/engine/core-modules/captcha/captcha.module';
 import { captchaModuleFactory } from 'src/engine/core-modules/captcha/captcha.module-factory';
 import { CloudflareModule } from 'src/engine/core-modules/cloudflare/cloudflare.module';
+import { codeInterpreterModuleFactory } from 'src/engine/core-modules/code-interpreter/code-interpreter-module.factory';
+import { CodeInterpreterModule } from 'src/engine/core-modules/code-interpreter/code-interpreter.module';
 import { DnsManagerModule } from 'src/engine/core-modules/dns-manager/dns-manager.module';
 import { EmailModule } from 'src/engine/core-modules/email/email.module';
 import { EmailingDomainModule } from 'src/engine/core-modules/emailing-domain/emailing-domain.module';
@@ -36,6 +38,8 @@ import { loggerModuleFactory } from 'src/engine/core-modules/logger/logger.modul
 import { MessageQueueModule } from 'src/engine/core-modules/message-queue/message-queue.module';
 import { messageQueueModuleFactory } from 'src/engine/core-modules/message-queue/message-queue.module-factory';
 import { TimelineMessagingModule } from 'src/engine/core-modules/messaging/timeline-messaging.module';
+import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
+import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { OpenApiModule } from 'src/engine/core-modules/open-api/open-api.module';
 import { PostgresCredentialsModule } from 'src/engine/core-modules/postgres-credentials/postgres-credentials.module';
 import { PublicDomainModule } from 'src/engine/core-modules/public-domain/public-domain.module';
@@ -58,6 +62,7 @@ import { AiModelsModule } from 'src/engine/metadata-modules/ai/ai-models/ai-mode
 import { FlatPageLayoutTabModule } from 'src/engine/metadata-modules/flat-page-layout-tab/flat-page-layout-tab.module';
 import { PageLayoutModule } from 'src/engine/metadata-modules/page-layout/page-layout.module';
 import { RoleModule } from 'src/engine/metadata-modules/role/role.module';
+import { RowLevelPermissionModule } from 'src/engine/metadata-modules/row-level-permission-predicate/row-level-permission.module';
 import { SubscriptionsModule } from 'src/engine/subscriptions/subscriptions.module';
 import { TrashCleanupModule } from 'src/engine/trash-cleanup/trash-cleanup.module';
 import { WorkspaceEventEmitterModule } from 'src/engine/workspace-event-emitter/workspace-event-emitter.module';
@@ -79,6 +84,7 @@ import { FileModule } from './file/file.module';
     ClientConfigModule,
     FeatureFlagModule,
     FileModule,
+    RowLevelPermissionModule,
     OpenApiModule,
     ApplicationModule,
     ApplicationSyncModule,
@@ -113,9 +119,10 @@ import { FileModule } from './file/file.module';
       useFactory: loggerModuleFactory,
       inject: [TwentyConfigService],
     }),
+    MetricsModule,
     MessageQueueModule.registerAsync({
       useFactory: messageQueueModuleFactory,
-      inject: [TwentyConfigService, RedisClientService],
+      inject: [TwentyConfigService, RedisClientService, MetricsService],
     }),
     ExceptionHandlerModule.forRootAsync({
       useFactory: exceptionHandlerModuleFactory,
@@ -136,6 +143,10 @@ import { FileModule } from './file/file.module';
       useFactory: serverlessModuleFactory,
       inject: [TwentyConfigService, FileStorageService],
     }),
+    CodeInterpreterModule.forRootAsync({
+      useFactory: codeInterpreterModuleFactory,
+      inject: [TwentyConfigService],
+    }),
     SearchModule,
     ApiKeyModule,
     WebhookModule,
@@ -144,6 +155,7 @@ import { FileModule } from './file/file.module';
     ImpersonationModule,
     TrashCleanupModule,
     DashboardModule,
+    RowLevelPermissionModule,
   ],
   exports: [
     AuditModule,

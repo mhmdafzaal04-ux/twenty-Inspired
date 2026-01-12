@@ -9,8 +9,11 @@ import { useCommandMenu } from '@/command-menu/hooks/useCommandMenu';
 import { CommandMenuPages } from '@/command-menu/types/CommandMenuPages';
 import { ScrollWrapper } from '@/ui/utilities/scroll/components/ScrollWrapper';
 
+import { AgentMessageRole } from '@/ai/constants/AgentMessageRole';
 import { AIChatEmptyState } from '@/ai/components/AIChatEmptyState';
 import { AIChatMessage } from '@/ai/components/AIChatMessage';
+import { AIChatStandaloneError } from '@/ai/components/AIChatStandaloneError';
+import { AIChatContextUsageButton } from '@/ai/components/internal/AIChatContextUsageButton';
 import { AIChatSkeletonLoader } from '@/ai/components/internal/AIChatSkeletonLoader';
 import { AgentChatContextPreview } from '@/ai/components/internal/AgentChatContextPreview';
 import { SendMessageButton } from '@/ai/components/internal/SendMessageButton';
@@ -92,7 +95,9 @@ export const AIChatTab = () => {
               {messages.map((message, index) => {
                 const isLastMessage = index === messages.length - 1;
                 const isLastMessageStreaming = isStreaming && isLastMessage;
-                const shouldShowError = error && isLastMessage;
+                const isLastAssistantMessage =
+                  isLastMessage && message.role === AgentMessageRole.ASSISTANT;
+                const shouldShowError = error && isLastAssistantMessage;
 
                 return (
                   <AIChatMessage
@@ -103,9 +108,17 @@ export const AIChatTab = () => {
                   />
                 );
               })}
+              {error &&
+                !isStreaming &&
+                messages.at(-1)?.role === AgentMessageRole.USER && (
+                  <AIChatStandaloneError error={error} />
+                )}
             </StyledScrollWrapper>
           )}
-          {messages.length === 0 && <AIChatEmptyState />}
+          {messages.length === 0 && !error && <AIChatEmptyState />}
+          {messages.length === 0 && error && !isLoading && (
+            <AIChatStandaloneError error={error} />
+          )}
           {isLoading && messages.length === 0 && <AIChatSkeletonLoader />}
 
           <StyledInputArea>
@@ -138,6 +151,7 @@ export const AIChatTab = () => {
                 onClick={() => createChatThread()}
               />
               <AgentChatFileUploadButton />
+              <AIChatContextUsageButton />
               <SendMessageButton />
             </StyledButtonsContainer>
           </StyledInputArea>

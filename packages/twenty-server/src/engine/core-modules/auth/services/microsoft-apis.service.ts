@@ -65,6 +65,7 @@ export class MicrosoftAPIsService {
     refreshToken: string;
     calendarVisibility: CalendarChannelVisibility | undefined;
     messageVisibility: MessageChannelVisibility | undefined;
+    skipMessageChannelConfiguration?: boolean;
   }): Promise<string> {
     const {
       handle,
@@ -72,6 +73,7 @@ export class MicrosoftAPIsService {
       workspaceMemberId,
       calendarVisibility,
       messageVisibility,
+      skipMessageChannelConfiguration,
     } = input;
 
     const scopes = getMicrosoftApisOauthScopes();
@@ -107,9 +109,7 @@ export class MicrosoftAPIsService {
           );
 
         const workspaceDataSource =
-          await this.globalWorkspaceOrmManager.getDataSourceForWorkspace(
-            workspaceId,
-          );
+          await this.globalWorkspaceOrmManager.getGlobalWorkspaceDataSource();
 
         await workspaceDataSource.transaction(
           async (manager: WorkspaceEntityManager) => {
@@ -132,6 +132,7 @@ export class MicrosoftAPIsService {
                 handle,
                 messageVisibility,
                 manager,
+                skipMessageChannelConfiguration,
               });
 
               if (
@@ -145,6 +146,7 @@ export class MicrosoftAPIsService {
                   handle,
                   calendarVisibility,
                   manager,
+                  skipMessageChannelConfiguration,
                 });
               }
             } else {

@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 
 const StyledContainer = styled.div<{ $isEditMode: boolean }>`
+  box-sizing: border-box;
   border-radius: ${({ theme }) => theme.border.radius.md};
   background: ${({ theme }) => theme.background.primary};
   display: flex;
@@ -84,7 +85,7 @@ export const IframeWidget = ({ widget }: IframeWidgetProps) => {
     return (
       <StyledContainer $isEditMode={isPageLayoutInEditMode}>
         <StyledErrorContainer>
-          <PageLayoutWidgetNoDataDisplay widgetId={widget.id} />
+          <PageLayoutWidgetNoDataDisplay />
         </StyledErrorContainer>
       </StyledContainer>
     );

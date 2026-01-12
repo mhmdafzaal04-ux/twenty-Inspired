@@ -1,3 +1,4 @@
+import { msg } from '@lingui/core/macro';
 import { compositeTypeDefinitions } from 'twenty-shared/types';
 import { capitalize, isDefined } from 'twenty-shared/utils';
 import { type WhereExpressionBuilder } from 'typeorm';
@@ -7,12 +8,12 @@ import {
   GraphqlQueryRunnerExceptionCode,
 } from 'src/engine/api/graphql/graphql-query-runner/errors/graphql-query-runner.exception';
 import { computeWhereConditionParts } from 'src/engine/api/graphql/graphql-query-runner/utils/compute-where-condition-parts';
+import { type CompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/types/composite-field-metadata-type.type';
 import { isCompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/utils/is-composite-field-metadata-type.util';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { buildFieldMapsFromFlatObjectMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/build-field-maps-from-flat-object-metadata.util';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
-import { type CompositeFieldMetadataType } from 'src/engine/metadata-modules/workspace-migration/factories/composite-column-action.factory';
 
 const ARRAY_OPERATORS = ['in', 'contains', 'notContains'];
 
@@ -73,6 +74,7 @@ export class GraphqlQueryFilterFieldParser {
       throw new GraphqlQueryRunnerException(
         `Invalid filter value for field ${key}. Expected non-empty array`,
         GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+        { userFriendlyMessage: msg`Invalid filter value: "${value}"` },
       );
     }
     const { sql, params } = computeWhereConditionParts({
@@ -133,6 +135,7 @@ export class GraphqlQueryFilterFieldParser {
         throw new GraphqlQueryRunnerException(
           `Invalid filter value for field ${subFieldKey}. Expected non-empty array`,
           GraphqlQueryRunnerExceptionCode.INVALID_QUERY_INPUT,
+          { userFriendlyMessage: msg`Invalid filter value: "${value}"` },
         );
       }
 

@@ -13,8 +13,8 @@ import { FlatAgentWithRoleId } from 'src/engine/metadata-modules/flat-agent/type
 import { findFlatEntityByIdInFlatEntityMapsOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps-or-throw.util';
 import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
-import { WorkspaceMigrationBuilderExceptionV2 } from 'src/engine/workspace-manager/workspace-migration-v2/exceptions/workspace-migration-builder-exception-v2';
-import { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration-v2/services/workspace-migration-validate-build-and-run-service';
+import { WorkspaceMigrationBuilderException } from 'src/engine/workspace-manager/workspace-migration/exceptions/workspace-migration-builder-exception';
+import { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
 
 import { AgentException, AgentExceptionCode } from './agent.exception';
 
@@ -146,7 +146,7 @@ export class AgentService {
       );
 
     if (isDefined(validateAndBuildResult)) {
-      throw new WorkspaceMigrationBuilderExceptionV2(
+      throw new WorkspaceMigrationBuilderException(
         validateAndBuildResult,
         'Multiple validation errors occurred while creating agent',
       );
@@ -219,7 +219,7 @@ export class AgentService {
       );
 
     if (isDefined(validateAndBuildResult)) {
-      throw new WorkspaceMigrationBuilderExceptionV2(
+      throw new WorkspaceMigrationBuilderException(
         validateAndBuildResult,
         'Multiple validation errors occurred while updating agent',
       );
@@ -251,27 +251,58 @@ export class AgentService {
     id: string,
     workspaceId: string,
   ): Promise<FlatAgentWithRoleId> {
-    const {
-      flatAgentMaps: existingFlatAgentMaps,
-      flatRoleTargetByAgentIdMaps,
-    } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
-      'flatAgentMaps',
-      'flatRoleTargetByAgentIdMaps',
-    ]);
-
-    const agentToDelete = findFlatEntityByIdInFlatEntityMaps({
-      flatEntityId: id,
-      flatEntityMaps: existingFlatAgentMaps,
+    const deletedAgents = await this.deleteManyAgents({
+      ids: [id],
+      workspaceId,
     });
 
-    if (!isDefined(agentToDelete)) {
+    if (deletedAgents.length !== 1) {
       throw new AgentException(
-        `Agent not found`,
+        'Could not retrieve deleted agent',
         AgentExceptionCode.AGENT_NOT_FOUND,
       );
     }
 
-    const roleId = flatRoleTargetByAgentIdMaps[agentToDelete.id]?.roleId;
+    const [deletedAgent] = deletedAgents;
+
+    return deletedAgent;
+  }
+
+  async deleteManyAgents({
+    ids,
+    workspaceId,
+    isSystemBuild = false,
+  }: {
+    ids: string[];
+    workspaceId: string;
+    isSystemBuild?: boolean;
+  }): Promise<FlatAgentWithRoleId[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const { flatAgentMaps, flatRoleTargetByAgentIdMaps } =
+      await this.workspaceCacheService.getOrRecompute(workspaceId, [
+        'flatAgentMaps',
+        'flatRoleTargetByAgentIdMaps',
+      ]);
+
+    const agentsToDelete = ids
+      .map((id) =>
+        findFlatEntityByIdInFlatEntityMaps({
+          flatEntityId: id,
+          flatEntityMaps: flatAgentMaps,
+        }),
+      )
+      .filter(isDefined);
+
+    if (agentsToDelete.length === 0) {
+      return [];
+    }
+
+    const roleTargetsToDelete = agentsToDelete
+      .map((agent) => flatRoleTargetByAgentIdMaps[agent.id])
+      .filter(isDefined);
 
     const validateAndBuildResult =
       await this.workspaceMigrationValidateBuildAndRunService.validateBuildAndRunWorkspaceMigration(
@@ -279,26 +310,31 @@ export class AgentService {
           allFlatEntityOperationByMetadataName: {
             agent: {
               flatEntityToCreate: [],
-              flatEntityToDelete: [agentToDelete],
+              flatEntityToDelete: agentsToDelete,
+              flatEntityToUpdate: [],
+            },
+            roleTarget: {
+              flatEntityToCreate: [],
+              flatEntityToDelete: roleTargetsToDelete,
               flatEntityToUpdate: [],
             },
           },
           workspaceId,
-          isSystemBuild: false,
+          isSystemBuild,
         },
       );
 
     if (isDefined(validateAndBuildResult)) {
-      throw new WorkspaceMigrationBuilderExceptionV2(
+      throw new WorkspaceMigrationBuilderException(
         validateAndBuildResult,
-        'Multiple validation errors occurred while deleting agent',
+        `Multiple validation errors occurred while deleting agent${ids.length > 1 ? 's' : ''}`,
       );
     }
 
-    return {
-      ...agentToDelete,
-      roleId: roleId ?? null,
-    };
+    return agentsToDelete.map((agent) => ({
+      ...agent,
+      roleId: flatRoleTargetByAgentIdMaps[agent.id]?.roleId ?? null,
+    }));
   }
 
   async searchAgents(
