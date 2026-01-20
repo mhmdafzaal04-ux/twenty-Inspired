@@ -5,6 +5,7 @@ import { parse } from 'path';
 import {
   ApplicationManifest,
   FieldManifest,
+  ObjectExtensionManifest,
   ObjectManifest,
   RelationFieldManifest,
   RoleManifest,
@@ -95,6 +96,14 @@ export class ApplicationSyncService {
       workspaceId,
       applicationId: application.id,
     });
+
+    if (manifest.objectExtensions && manifest.objectExtensions.length > 0) {
+      await this.syncObjectExtensionsOrThrow({
+        objectExtensionsToSync: manifest.objectExtensions,
+        workspaceId,
+        applicationId: application.id,
+      });
+    }
 
     if (manifest.serverlessFunctions.length > 0) {
       if (!isDefined(application.serverlessFunctionLayerId)) {
@@ -360,12 +369,16 @@ export class ApplicationSyncService {
   private isRelationFieldManifest(
     field: FieldManifest | RelationFieldManifest,
   ): field is RelationFieldManifest {
-    return field.type === FieldMetadataType.RELATION;
+    return this.isFieldTypeRelation(field.type);
   }
 
-  private async syncFields({
+  private isFieldTypeRelation(type: FieldMetadataType): boolean {
+    return type === FieldMetadataType.RELATION;
+  }
+
+  private async syncFieldsWithoutRelations({
     objectId,
-    fieldsToSync,
+    fieldsToSync: allFieldsToSync,
     workspaceId,
     applicationId,
   }: {
@@ -374,33 +387,14 @@ export class ApplicationSyncService {
     applicationId: string;
     fieldsToSync?: (FieldManifest | RelationFieldManifest)[];
   }) {
-    if (!isDefined(fieldsToSync)) {
+    if (!isDefined(allFieldsToSync)) {
       return;
     }
 
-    const regularFields = fieldsToSync.filter(
+    const fieldsToSync = allFieldsToSync.filter(
       (field): field is FieldManifest => !this.isRelationFieldManifest(field),
     );
 
-    await this.syncRegularFields({
-      objectId,
-      fieldsToSync: regularFields,
-      workspaceId,
-      applicationId,
-    });
-  }
-
-  private async syncRegularFields({
-    objectId,
-    fieldsToSync,
-    workspaceId,
-    applicationId,
-  }: {
-    objectId: string;
-    workspaceId: string;
-    applicationId: string;
-    fieldsToSync: FieldManifest[];
-  }) {
     if (fieldsToSync.length === 0) {
       return;
     }
@@ -416,7 +410,10 @@ export class ApplicationSyncService {
     const existingFields = Object.values(
       existingFlatFieldMetadataMaps.byId,
     ).filter(
-      (field) => isDefined(field) && field.objectMetadataId === objectId,
+      (field) =>
+        isDefined(field) &&
+        field.objectMetadataId === objectId &&
+        !this.isFieldTypeRelation(field.type),
     ) as FlatFieldMetadata[];
 
     const fieldsToSyncUniversalIds = fieldsToSync.map(
@@ -431,7 +428,8 @@ export class ApplicationSyncService {
       (field) =>
         isDefined(field.universalIdentifier) &&
         !fieldsToSyncUniversalIds.includes(field.universalIdentifier) &&
-        field.isCustom === true,
+        field.isCustom === true &&
+        field.isSystem === false,
     );
 
     const fieldsToUpdate = existingFields.filter(
@@ -681,7 +679,7 @@ export class ApplicationSyncService {
         workspaceId,
       });
 
-      await this.syncFields({
+      await this.syncFieldsWithoutRelations({
         fieldsToSync: objectToSync.fields,
         objectId: objectToUpdate.id,
         workspaceId,
@@ -703,8 +701,8 @@ export class ApplicationSyncService {
         icon: objectToCreate.icon || undefined,
         description: objectToCreate.description || undefined,
         standardId: objectToCreate.universalIdentifier,
-        universalIdentifier: objectToCreate.universalIdentifier,
         dataSourceId: dataSourceMetadata.id,
+        universalIdentifier: objectToCreate.universalIdentifier,
         applicationId,
       };
 
@@ -714,7 +712,7 @@ export class ApplicationSyncService {
         workspaceId,
       });
 
-      await this.syncFields({
+      await this.syncFieldsWithoutRelations({
         fieldsToSync: objectToCreate.fields,
         objectId: createdObject.id,
         workspaceId,
@@ -769,6 +767,87 @@ export class ApplicationSyncService {
         applicationId,
         flatObjectMetadataMaps,
       });
+    }
+  }
+
+  private async syncObjectExtensionsOrThrow({
+    objectExtensionsToSync,
+    workspaceId,
+    applicationId,
+  }: {
+    objectExtensionsToSync: ObjectExtensionManifest[];
+    workspaceId: string;
+    applicationId: string;
+  }) {
+    const { flatObjectMetadataMaps } =
+      await this.flatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId,
+          flatMapsKeys: ['flatObjectMetadataMaps'],
+        },
+      );
+
+    const { idByNameSingular: objectIdByNameSingular } =
+      buildObjectIdByNameMaps(flatObjectMetadataMaps);
+
+    for (const objectExtension of objectExtensionsToSync) {
+      const { targetObject, fields } = objectExtension;
+
+      let targetObjectId: string | undefined;
+
+      if (isDefined(targetObject.nameSingular)) {
+        targetObjectId = objectIdByNameSingular[targetObject.nameSingular];
+
+        if (!isDefined(targetObjectId)) {
+          throw new ApplicationException(
+            `Failed to find target object with nameSingular "${targetObject.nameSingular}" for object extension`,
+            ApplicationExceptionCode.OBJECT_NOT_FOUND,
+          );
+        }
+      } else if (isDefined(targetObject.universalIdentifier)) {
+        targetObjectId =
+          flatObjectMetadataMaps.idByUniversalIdentifier[
+            targetObject.universalIdentifier
+          ];
+
+        if (!isDefined(targetObjectId)) {
+          throw new ApplicationException(
+            `Failed to find target object with universalIdentifier "${targetObject.universalIdentifier}" for object extension`,
+            ApplicationExceptionCode.OBJECT_NOT_FOUND,
+          );
+        }
+      }
+
+      if (!isDefined(targetObjectId)) {
+        throw new ApplicationException(
+          'Object extension must specify either nameSingular or universalIdentifier in targetObject',
+          ApplicationExceptionCode.INVALID_INPUT,
+        );
+      }
+
+      // Sync regular fields for this extension
+      await this.syncFieldsWithoutRelations({
+        objectId: targetObjectId,
+        fieldsToSync: fields,
+        workspaceId,
+        applicationId,
+      });
+
+      // Sync relation fields for this extension
+      const relationFields = fields.filter(
+        (field): field is RelationFieldManifest =>
+          this.isRelationFieldManifest(field),
+      );
+
+      if (relationFields.length > 0) {
+        await this.syncRelationFields({
+          objectId: targetObjectId,
+          relationsToSync: relationFields,
+          workspaceId,
+          applicationId,
+          flatObjectMetadataMaps,
+        });
+      }
     }
   }
 
@@ -1036,6 +1115,7 @@ export class ApplicationSyncService {
         update: {
           settings: {
             eventName: triggerToSync.eventName,
+            updatedFields: triggerToSync.updatedFields,
           },
         },
       };
@@ -1054,6 +1134,7 @@ export class ApplicationSyncService {
       const createDatabaseEventTriggerInput = {
         settings: {
           eventName: triggerToCreate.eventName,
+          updatedFields: triggerToCreate.updatedFields,
         },
         universalIdentifier: triggerToCreate.universalIdentifier,
         serverlessFunctionId,
@@ -1271,6 +1352,7 @@ export class ApplicationSyncService {
           path: triggerToSync.path,
           httpMethod: triggerToSync.httpMethod as HTTPMethod,
           isAuthRequired: triggerToSync.isAuthRequired,
+          forwardedRequestHeaders: triggerToSync.forwardedRequestHeaders ?? [],
         },
       };
 
@@ -1289,6 +1371,7 @@ export class ApplicationSyncService {
         path: triggerToCreate.path,
         httpMethod: triggerToCreate.httpMethod as HTTPMethod,
         isAuthRequired: triggerToCreate.isAuthRequired,
+        forwardedRequestHeaders: triggerToCreate.forwardedRequestHeaders ?? [],
         serverlessFunctionId,
       };
 

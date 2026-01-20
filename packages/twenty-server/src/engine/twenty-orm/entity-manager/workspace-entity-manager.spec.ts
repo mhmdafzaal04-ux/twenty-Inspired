@@ -117,7 +117,7 @@ describe('WorkspaceEntityManager', () => {
       shortcut: null,
       standardId: null,
       standardOverrides: null,
-      applicationId: null,
+      applicationId: 'test-application-id',
       isLabelSyncedWithName: false,
       isUIReadOnly: false,
       duplicateCriteria: null,
@@ -221,6 +221,8 @@ describe('WorkspaceEntityManager', () => {
         IS_GLOBAL_WORKSPACE_DATASOURCE_ENABLED: false,
         IS_ROW_LEVEL_PERMISSION_PREDICATES_ENABLED: false,
         IS_IF_ELSE_ENABLED: false,
+        IS_SSE_DB_EVENTS_ENABLED: false,
+        IS_COMMAND_MENU_ITEM_ENABLED: false,
       },
       userWorkspaceRoleMap: {},
       eventEmitterService: {
@@ -256,6 +258,8 @@ describe('WorkspaceEntityManager', () => {
           canSoftDeleteObjectRecords: false,
           canDestroyObjectRecords: false,
           restrictedFields: {},
+          rowLevelPermissionPredicates: [],
+          rowLevelPermissionPredicateGroups: [],
         },
       },
     };
