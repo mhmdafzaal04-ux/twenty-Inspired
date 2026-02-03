@@ -15,6 +15,8 @@ import { SettingsPath, type ViewFilterOperand } from 'twenty-shared/types';
 import { getSettingsPath, isDefined } from 'twenty-shared/utils';
 import { Button } from 'twenty-ui/input';
 import {
+  type BillingEntitlement,
+  BillingEntitlementKey,
   FeatureFlagKey,
   useFindOneAgentQuery,
 } from '~/generated-metadata/graphql';
@@ -32,8 +34,7 @@ export const SettingsRolePermissionsObjectLevelObjectForm = ({
   const fromAgentId = searchParams.get('fromAgent');
 
   const currentWorkspace = useRecoilValue(currentWorkspaceState);
-  const hasValidEnterpriseKey =
-    currentWorkspace?.hasValidEnterpriseKey === true;
+
   const settingsDraftRole = useRecoilValue(
     settingsDraftRoleFamilyState(roleId),
   );
@@ -48,10 +49,18 @@ export const SettingsRolePermissionsObjectLevelObjectForm = ({
   });
 
   const featureFlagsMap = useFeatureFlagsMap();
+
+  const workspaceBillingEntitlements = currentWorkspace?.billingEntitlements;
+
+  const isRLSBillingEntitlementEnabled =
+    workspaceBillingEntitlements?.some(
+      (entitlement: BillingEntitlement) =>
+        entitlement.key === BillingEntitlementKey.RLS &&
+        entitlement.value === true,
+    ) ?? false;
+
   const isRowLevelPermissionPredicatesEnabled =
-    featureFlagsMap[
-      FeatureFlagKey.IS_ROW_LEVEL_PERMISSION_PREDICATES_ENABLED
-    ] && hasValidEnterpriseKey;
+    featureFlagsMap[FeatureFlagKey.IS_ROW_LEVEL_PERMISSION_PREDICATES_ENABLED];
 
   const objectMetadataItem = objectMetadata.objectMetadataItem;
 
@@ -159,6 +168,7 @@ export const SettingsRolePermissionsObjectLevelObjectForm = ({
           <SettingsRolePermissionsObjectLevelRecordLevelSection
             objectMetadataItem={objectMetadataItem}
             roleId={roleId}
+            hasOrganizationPlan={isRLSBillingEntitlementEnabled}
           />
         )}
       </SettingsPageContainer>

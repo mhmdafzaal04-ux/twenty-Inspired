@@ -11,39 +11,39 @@ import { getMetadataFlatEntityMapsKey } from 'src/engine/metadata-modules/flat-e
 import { replaceFlatEntityInFlatEntityMapsThroughMutationOrThrow } from 'src/engine/workspace-manager/workspace-migration/utils/replace-flat-entity-in-flat-entity-maps-through-mutation-or-throw.util';
 import { fromFlatEntityPropertiesUpdatesToPartialFlatEntity } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/from-flat-entity-properties-updates-to-partial-flat-entity';
 
-type UpdateAction<TMetadataName extends AllMetadataName> =
-  AllFlatEntityTypesByMetadataName[TMetadataName]['actions']['update'];
+type FlatUpdateAction<TMetadataName extends AllMetadataName> =
+  AllFlatEntityTypesByMetadataName[TMetadataName]['flatActions']['update'];
 
 export type OptimisticallyApplyUpdateActionOnAllFlatEntityMapsArgs<
   TMetadataName extends AllMetadataName,
 > = {
-  action: UpdateAction<TMetadataName>;
+  flatAction: FlatUpdateAction<TMetadataName>;
   allFlatEntityMaps: AllFlatEntityMaps;
 };
 
 export const optimisticallyApplyUpdateActionOnAllFlatEntityMaps = <
   TMetadataName extends AllMetadataName,
 >({
-  action,
+  flatAction,
   allFlatEntityMaps,
 }: OptimisticallyApplyUpdateActionOnAllFlatEntityMapsArgs<TMetadataName>): AllFlatEntityMaps => {
-  switch (action.metadataName) {
+  switch (flatAction.metadataName) {
     case 'index': {
       const flatIndex = findFlatEntityByIdInFlatEntityMapsOrThrow({
-        flatEntityId: action.entityId,
+        flatEntityId: flatAction.entityId,
         flatEntityMaps: allFlatEntityMaps['flatIndexMaps'],
       });
 
       deleteFlatEntityFromFlatEntityAndRelatedEntityMapsThroughMutationOrThrow({
         flatEntity: flatIndex,
         flatEntityAndRelatedMapsToMutate: allFlatEntityMaps,
-        metadataName: action.metadataName,
+        metadataName: flatAction.metadataName,
       });
 
       addFlatEntityToFlatEntityAndRelatedEntityMapsThroughMutationOrThrow({
-        flatEntity: action.updatedFlatEntity,
+        flatEntity: flatAction.updatedFlatEntity,
         flatEntityAndRelatedMapsToMutate: allFlatEntityMaps,
-        metadataName: action.metadataName,
+        metadataName: flatAction.metadataName,
       });
 
       return allFlatEntityMaps;
@@ -56,10 +56,7 @@ export const optimisticallyApplyUpdateActionOnAllFlatEntityMaps = <
     case 'rowLevelPermissionPredicate':
     case 'rowLevelPermissionPredicateGroup':
     case 'viewFilterGroup':
-    case 'serverlessFunction':
-    case 'cronTrigger':
-    case 'databaseEventTrigger':
-    case 'routeTrigger':
+    case 'logicFunction':
     case 'viewFilter':
     case 'role':
     case 'roleTarget':
@@ -69,20 +66,22 @@ export const optimisticallyApplyUpdateActionOnAllFlatEntityMaps = <
     case 'pageLayoutWidget':
     case 'pageLayoutTab':
     case 'commandMenuItem':
-    case 'frontComponent': {
+    case 'frontComponent':
+    case 'navigationMenuItem':
+    case 'webhook': {
       const flatEntityMapsKey = getMetadataFlatEntityMapsKey(
-        action.metadataName,
+        flatAction.metadataName,
       );
       const fromFlatEntity = findFlatEntityByIdInFlatEntityMapsOrThrow<
-        MetadataFlatEntity<typeof action.metadataName>
+        MetadataFlatEntity<typeof flatAction.metadataName>
       >({
-        flatEntityId: action.entityId,
+        flatEntityId: flatAction.entityId,
         flatEntityMaps: allFlatEntityMaps[flatEntityMapsKey],
       });
 
       const toFlatEntity = {
         ...fromFlatEntity,
-        ...fromFlatEntityPropertiesUpdatesToPartialFlatEntity(action),
+        ...fromFlatEntityPropertiesUpdatesToPartialFlatEntity(flatAction),
       };
 
       replaceFlatEntityInFlatEntityMapsThroughMutationOrThrow({
@@ -93,7 +92,7 @@ export const optimisticallyApplyUpdateActionOnAllFlatEntityMaps = <
       return allFlatEntityMaps;
     }
     default: {
-      assertUnreachable(action);
+      assertUnreachable(flatAction);
     }
   }
 };

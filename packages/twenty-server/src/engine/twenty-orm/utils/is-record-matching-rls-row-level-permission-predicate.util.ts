@@ -13,6 +13,7 @@ import {
   type EmailsFilter,
   type FloatFilter,
   type FullNameFilter,
+  type IsFilter,
   type LeafObjectRecordFilter,
   type LinksFilter,
   type MultiSelectFilter,
@@ -77,12 +78,14 @@ export const isRecordMatchingRLSRowLevelPermissionPredicate = ({
   filter,
   flatObjectMetadata,
   flatFieldMetadataMaps,
+  shouldIgnoreSoftDeleteDefaultFilter,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   record: any;
   filter: RecordGqlOperationFilter;
   flatObjectMetadata: FlatObjectMetadata;
   flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
+  shouldIgnoreSoftDeleteDefaultFilter?: boolean;
 }): boolean => {
   if (Object.keys(filter).length === 0 && record.deletedAt === null) {
     return true;
@@ -95,6 +98,7 @@ export const isRecordMatchingRLSRowLevelPermissionPredicate = ({
         filter: { [filterKey]: value },
         flatObjectMetadata,
         flatFieldMetadataMaps,
+        shouldIgnoreSoftDeleteDefaultFilter,
       }),
     );
   }
@@ -116,6 +120,7 @@ export const isRecordMatchingRLSRowLevelPermissionPredicate = ({
           filter: andFilter,
           flatObjectMetadata,
           flatFieldMetadataMaps,
+          shouldIgnoreSoftDeleteDefaultFilter,
         }),
       )
     );
@@ -133,6 +138,7 @@ export const isRecordMatchingRLSRowLevelPermissionPredicate = ({
             filter: orFilter,
             flatObjectMetadata,
             flatFieldMetadataMaps,
+            shouldIgnoreSoftDeleteDefaultFilter,
           }),
         )
       );
@@ -145,6 +151,7 @@ export const isRecordMatchingRLSRowLevelPermissionPredicate = ({
         filter: filterValue,
         flatObjectMetadata,
         flatFieldMetadataMaps,
+        shouldIgnoreSoftDeleteDefaultFilter,
       });
     }
 
@@ -165,14 +172,21 @@ export const isRecordMatchingRLSRowLevelPermissionPredicate = ({
         filter: filterValue,
         flatObjectMetadata,
         flatFieldMetadataMaps,
+        shouldIgnoreSoftDeleteDefaultFilter,
       })
     );
   }
 
-  if (isLeafFilter(filter)) {
-    if (isDefined(record.deletedAt) && filter.deletedAt === undefined) {
-      return false;
-    }
+  const shouldTakeDeletedAtIntoAccount =
+    shouldIgnoreSoftDeleteDefaultFilter !== true;
+
+  const shouldRejectMatchingBecauseRecordIsSoftDeleted =
+    isLeafFilter(filter) &&
+    shouldTakeDeletedAtIntoAccount &&
+    isDefined(record.deletedAt);
+
+  if (shouldRejectMatchingBecauseRecordIsSoftDeleted) {
+    return false;
   }
 
   const objectFields = getFlatFieldsFromFlatObjectMetadata(
@@ -210,6 +224,10 @@ export const isRecordMatchingRLSRowLevelPermissionPredicate = ({
     const recordFieldValue = record[filterKey];
 
     if (!isDefined(recordFieldValue)) {
+      if (isObject(filterValue)) {
+        return (filterValue as { is?: IsFilter })?.is === 'NULL';
+      }
+
       return false;
     }
 

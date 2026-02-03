@@ -18,7 +18,6 @@ const customObjectImageFieldId = 'imageIdentifierFieldMetadataId';
 
 const personFlatObject = getFlatObjectMetadataMock({
   id: '20202020-8dec-43d5-b2ff-6eef05095bec',
-  standardId: '20202020-8dec-43d5-b2ff-6eef05095bec',
   nameSingular: 'person',
   namePlural: 'people',
   labelSingular: 'Person',
@@ -36,14 +35,13 @@ const personFlatObject = getFlatObjectMetadataMock({
   imageIdentifierFieldMetadataId: null,
   workspaceId,
   universalIdentifier: '20202020-8dec-43d5-b2ff-6eef05095bec',
-  fieldMetadataIds: [personNameFieldId],
+  fieldIds: [personNameFieldId],
   indexMetadataIds: [],
   viewIds: [],
 });
 
 const companyFlatObject = getFlatObjectMetadataMock({
   id: '20202020-c03c-45d6-a4b0-04afe1357c5c',
-  standardId: '20202020-c03c-45d6-a4b0-04afe1357c5c',
   nameSingular: 'company',
   namePlural: 'companies',
   labelSingular: 'Company',
@@ -61,14 +59,13 @@ const companyFlatObject = getFlatObjectMetadataMock({
   imageIdentifierFieldMetadataId: null,
   workspaceId,
   universalIdentifier: '20202020-c03c-45d6-a4b0-04afe1357c5c',
-  fieldMetadataIds: [companyNameFieldId, companyDomainNameFieldId],
+  fieldIds: [companyNameFieldId, companyDomainNameFieldId],
   indexMetadataIds: [],
   viewIds: [],
 });
 
 const customObjectFlatObject = getFlatObjectMetadataMock({
   id: '20202020-3d75-4aab-bacd-ee176c5f63ca',
-  standardId: null,
   nameSingular: 'regular-custom-object',
   namePlural: 'regular-custom-objects',
   labelSingular: 'Regular Custom Object',
@@ -86,14 +83,13 @@ const customObjectFlatObject = getFlatObjectMetadataMock({
   imageIdentifierFieldMetadataId: customObjectImageFieldId,
   workspaceId,
   universalIdentifier: '20202020-3d75-4aab-bacd-ee176c5f63ca',
-  fieldMetadataIds: [customObjectNameFieldId, customObjectImageFieldId],
+  fieldIds: [customObjectNameFieldId, customObjectImageFieldId],
   indexMetadataIds: [],
   viewIds: [],
 });
 
 const nonSearchableFlatObject = getFlatObjectMetadataMock({
   id: '20202020-540c-4397-b872-2a90ea2fb809',
-  standardId: '20202020-540c-4397-b872-2a90ea2fb809',
   nameSingular: 'non-searchable-object',
   namePlural: 'non-searchable-objects',
   labelSingular: '',
@@ -111,7 +107,7 @@ const nonSearchableFlatObject = getFlatObjectMetadataMock({
   imageIdentifierFieldMetadataId: null,
   workspaceId,
   universalIdentifier: '20202020-540c-4397-b872-2a90ea2fb809',
-  fieldMetadataIds: [],
+  fieldIds: [],
   indexMetadataIds: [],
   viewIds: [],
 });
