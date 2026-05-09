@@ -1,10 +1,12 @@
 import { PageLayoutComponentInstanceContext } from '@/page-layout/states/contexts/PageLayoutComponentInstanceContext';
 import { pageLayoutDraftComponentState } from '@/page-layout/states/pageLayoutDraftComponentState';
 import { useAvailableComponentInstanceIdOrThrow } from '@/ui/utilities/state/component-state/hooks/useAvailableComponentInstanceIdOrThrow';
-import { useRecoilComponentCallbackState } from '@/ui/utilities/state/component-state/hooks/useRecoilComponentCallbackState';
+import { useAtomComponentStateCallbackState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateCallbackState';
 import { type DropResult } from '@hello-pangea/dnd';
-import { useRecoilCallback } from 'recoil';
+import { useStore } from 'jotai';
+import { useCallback } from 'react';
 import { isDefined } from 'twenty-shared/utils';
+import { PageLayoutTabLayoutMode } from '~/generated-metadata/graphql';
 
 export const useReorderPageLayoutWidgets = (
   tabId: string,
@@ -15,33 +17,43 @@ export const useReorderPageLayoutWidgets = (
     pageLayoutIdFromProps,
   );
 
-  const pageLayoutDraftState = useRecoilComponentCallbackState(
+  const pageLayoutDraftState = useAtomComponentStateCallbackState(
     pageLayoutDraftComponentState,
     pageLayoutId,
   );
 
-  const reorderWidgets = useRecoilCallback(
-    ({ set }) =>
-      (result: DropResult) => {
-        if (!result.destination) return;
+  const store = useStore();
 
-        set(pageLayoutDraftState, (prev) => {
-          const tab = prev.tabs.find((t) => t.id === tabId);
-          if (!isDefined(tab)) return prev;
+  const reorderWidgets = useCallback(
+    (result: DropResult) => {
+      if (!result.destination) return;
 
-          const newWidgets = Array.from(tab.widgets ?? []);
-          const [removed] = newWidgets.splice(result.source.index, 1);
-          newWidgets.splice(result.destination!.index, 0, removed);
+      store.set(pageLayoutDraftState, (prev) => {
+        const tab = prev.tabs.find((t) => t.id === tabId);
+        if (!isDefined(tab)) return prev;
 
-          return {
-            ...prev,
-            tabs: prev.tabs.map((t) =>
-              t.id === tabId ? { ...t, widgets: newWidgets } : t,
-            ),
-          };
-        });
-      },
-    [tabId, pageLayoutDraftState],
+        const newWidgets = Array.from(tab.widgets ?? []);
+        const [removed] = newWidgets.splice(result.source.index, 1);
+        newWidgets.splice(result.destination!.index, 0, removed);
+
+        const reindexedWidgets = newWidgets.map((widget, index) => ({
+          ...widget,
+          position: {
+            __typename: 'PageLayoutWidgetVerticalListPosition' as const,
+            layoutMode: PageLayoutTabLayoutMode.VERTICAL_LIST,
+            index,
+          },
+        }));
+
+        return {
+          ...prev,
+          tabs: prev.tabs.map((t) =>
+            t.id === tabId ? { ...t, widgets: reindexedWidgets } : t,
+          ),
+        };
+      });
+    },
+    [tabId, pageLayoutDraftState, store],
   );
 
   return { reorderWidgets };

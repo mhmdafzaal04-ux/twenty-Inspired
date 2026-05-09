@@ -1,4 +1,3 @@
-import { useTheme } from '@emotion/react';
 import { IconChevronRight, type IconComponent } from '@ui/display';
 import { type LightIconButtonProps } from '@ui/input/button/components/LightIconButton';
 import { LightIconButtonGroup } from '@ui/input/button/components/LightIconButtonGroup';
@@ -7,11 +6,15 @@ import {
   type MouseEvent,
   type ReactElement,
   type ReactNode,
+  useContext,
 } from 'react';
 
-import styled from '@emotion/styled';
+import { styled } from '@linaria/react';
 import { MenuItemHotKeys } from '@ui/navigation/menu/menu-item/components/MenuItemHotKeys';
+import { type ThemeColor } from '@ui/theme';
+import { ThemeContext } from '@ui/theme-constants';
 import { motion } from 'framer-motion';
+import { type Nullable } from 'twenty-shared/types';
 import { MenuItemLeftContent } from '../internals/components/MenuItemLeftContent';
 import {
   StyledHoverableMenuItemBase,
@@ -32,10 +35,12 @@ export type MenuItemProps = {
   accent?: MenuItemAccent;
   className?: string;
   withIconContainer?: boolean;
+  withIconContainerBackground?: boolean;
   iconButtons?: MenuItemIconButton[];
   isIconDisplayedOnHoverOnly?: boolean;
   isTooltipOpen?: boolean;
   LeftIcon?: IconComponent | null;
+  iconThemeColor?: ThemeColor | null;
   LeftComponent?: ReactNode;
   RightIcon?: IconComponent | null;
   RightComponent?: ReactNode;
@@ -49,7 +54,8 @@ export type MenuItemProps = {
   contextualText?: ReactNode;
   hasSubMenu?: boolean;
   focused?: boolean;
-  hotKeys?: string[];
+  selected?: boolean;
+  hotKeys?: Nullable<string[]>;
   isSubMenuOpened?: boolean;
 };
 
@@ -63,9 +69,11 @@ export const MenuItem = ({
   accent = 'default',
   className,
   withIconContainer = false,
+  withIconContainerBackground = true,
   iconButtons,
   isIconDisplayedOnHoverOnly = true,
   LeftIcon,
+  iconThemeColor,
   LeftComponent,
   RightIcon,
   RightComponent,
@@ -79,10 +87,11 @@ export const MenuItem = ({
   hasSubMenu = false,
   disabled = false,
   focused = false,
+  selected = false,
   hotKeys,
   isSubMenuOpened = false,
 }: MenuItemProps) => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
   const showIconButtons = Array.isArray(iconButtons) && iconButtons.length > 0;
 
   const handleMenuItemClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -103,12 +112,14 @@ export const MenuItem = ({
       isIconDisplayedOnHoverOnly={isIconDisplayedOnHoverOnly}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      focused={focused}
+      focused={focused || selected}
     >
       <MenuItemLeftContent
         LeftIcon={LeftIcon ?? undefined}
+        iconThemeColor={iconThemeColor}
         LeftComponent={LeftComponent}
         withIconContainer={withIconContainer}
+        withIconContainerBackground={withIconContainerBackground}
         text={text}
         contextualText={contextualText}
         contextualTextPosition={contextualTextPosition}
@@ -128,10 +139,13 @@ export const MenuItem = ({
           <RightIcon size={theme.icon.size.md} stroke={theme.icon.stroke.sm} />
         )}
         {RightComponent}
-        {hasSubMenu && !disabled && (
+        {hasSubMenu && (
           <StyledSubMenuIcon
             animate={{ rotate: isSubMenuOpened ? 90 : 0 }}
-            transition={{ duration: theme.animation.duration.normal }}
+            transition={{
+              duration: theme.animation.duration.normal,
+            }}
+            style={{ visibility: disabled ? 'hidden' : 'visible' }}
           >
             <IconChevronRight
               size={theme.icon.size.sm}

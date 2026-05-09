@@ -1,14 +1,74 @@
-import { CalendarChannelSyncStatus } from '@/accounts/types/CalendarChannel';
-import { MessageChannelSyncStatus } from '@/accounts/types/MessageChannel';
 import { SyncStatus } from '@/settings/accounts/constants/SyncStatus';
 import { computeSyncStatus } from '@/settings/accounts/utils/computeSyncStatus';
+import {
+  CalendarChannelSyncStage,
+  CalendarChannelSyncStatus,
+  MessageChannelSyncStage,
+  MessageChannelSyncStatus,
+  MessageChannelType,
+} from 'twenty-shared/types';
 
 describe('computeSyncStatus', () => {
+  test('should return PENDING_CONFIGURATION when message channel sync stage is PENDING_CONFIGURATION', () => {
+    expect(
+      computeSyncStatus(
+        {
+          syncStatus: MessageChannelSyncStatus.NOT_SYNCED,
+          syncStage: MessageChannelSyncStage.PENDING_CONFIGURATION,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.NOT_SYNCED,
+          syncStage: CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_PENDING,
+        },
+      ),
+    ).toEqual(SyncStatus.PENDING_CONFIGURATION);
+  });
+
+  test('should return PENDING_CONFIGURATION when calendar channel sync stage is PENDING_CONFIGURATION', () => {
+    expect(
+      computeSyncStatus(
+        {
+          syncStatus: MessageChannelSyncStatus.NOT_SYNCED,
+          syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.NOT_SYNCED,
+          syncStage: CalendarChannelSyncStage.PENDING_CONFIGURATION,
+        },
+      ),
+    ).toEqual(SyncStatus.PENDING_CONFIGURATION);
+  });
+
+  test('should return PENDING_CONFIGURATION even when sync status is ACTIVE', () => {
+    expect(
+      computeSyncStatus(
+        {
+          syncStatus: MessageChannelSyncStatus.ACTIVE,
+          syncStage: MessageChannelSyncStage.PENDING_CONFIGURATION,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.ACTIVE,
+          syncStage: CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_PENDING,
+        },
+      ),
+    ).toEqual(SyncStatus.PENDING_CONFIGURATION);
+  });
+
   test('should return FAILED when both sync statuses are FAILED', () => {
     expect(
       computeSyncStatus(
-        MessageChannelSyncStatus.FAILED_UNKNOWN,
-        CalendarChannelSyncStatus.FAILED_UNKNOWN,
+        {
+          syncStatus: MessageChannelSyncStatus.FAILED_UNKNOWN,
+          syncStage: MessageChannelSyncStage.FAILED,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.FAILED_UNKNOWN,
+          syncStage: CalendarChannelSyncStage.FAILED,
+        },
       ),
     ).toEqual(SyncStatus.FAILED);
   });
@@ -16,8 +76,15 @@ describe('computeSyncStatus', () => {
   test('should return FAILED when message channel sync status is FAILED_UNKNOWN', () => {
     expect(
       computeSyncStatus(
-        MessageChannelSyncStatus.FAILED_UNKNOWN,
-        CalendarChannelSyncStatus.ACTIVE,
+        {
+          syncStatus: MessageChannelSyncStatus.FAILED_UNKNOWN,
+          syncStage: MessageChannelSyncStage.FAILED,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.ACTIVE,
+          syncStage: CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_PENDING,
+        },
       ),
     ).toEqual(SyncStatus.FAILED);
   });
@@ -25,8 +92,15 @@ describe('computeSyncStatus', () => {
   test('should return FAILED when message channel sync status is FAILED_INSUFFICIENT_PERMISSIONS', () => {
     expect(
       computeSyncStatus(
-        MessageChannelSyncStatus.FAILED_INSUFFICIENT_PERMISSIONS,
-        CalendarChannelSyncStatus.ACTIVE,
+        {
+          syncStatus: MessageChannelSyncStatus.FAILED_INSUFFICIENT_PERMISSIONS,
+          syncStage: MessageChannelSyncStage.FAILED,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.ACTIVE,
+          syncStage: CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_PENDING,
+        },
       ),
     ).toEqual(SyncStatus.FAILED);
   });
@@ -34,8 +108,15 @@ describe('computeSyncStatus', () => {
   test('should return FAILED when calendar channel sync status is FAILED_UNKNOWN', () => {
     expect(
       computeSyncStatus(
-        MessageChannelSyncStatus.ACTIVE,
-        CalendarChannelSyncStatus.FAILED_UNKNOWN,
+        {
+          syncStatus: MessageChannelSyncStatus.ACTIVE,
+          syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.FAILED_UNKNOWN,
+          syncStage: CalendarChannelSyncStage.FAILED,
+        },
       ),
     ).toEqual(SyncStatus.FAILED);
   });
@@ -43,8 +124,15 @@ describe('computeSyncStatus', () => {
   test('should return FAILED when calendar channel sync status is FAILED_INSUFFICIENT_PERMISSIONS', () => {
     expect(
       computeSyncStatus(
-        MessageChannelSyncStatus.ACTIVE,
-        CalendarChannelSyncStatus.FAILED_INSUFFICIENT_PERMISSIONS,
+        {
+          syncStatus: MessageChannelSyncStatus.ACTIVE,
+          syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.FAILED_INSUFFICIENT_PERMISSIONS,
+          syncStage: CalendarChannelSyncStage.FAILED,
+        },
       ),
     ).toEqual(SyncStatus.FAILED);
   });
@@ -52,8 +140,16 @@ describe('computeSyncStatus', () => {
   test('should return IMPORTING when message channel sync status is ONGOING', () => {
     expect(
       computeSyncStatus(
-        MessageChannelSyncStatus.ONGOING,
-        CalendarChannelSyncStatus.ACTIVE,
+        {
+          syncStatus: MessageChannelSyncStatus.ONGOING,
+          syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_ONGOING,
+          type: MessageChannelType.EMAIL,
+        },
+
+        {
+          syncStatus: CalendarChannelSyncStatus.ACTIVE,
+          syncStage: CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_PENDING,
+        },
       ),
     ).toEqual(SyncStatus.IMPORTING);
   });
@@ -61,27 +157,66 @@ describe('computeSyncStatus', () => {
   test('should return IMPORTING when calendar channel sync status is ONGOING', () => {
     expect(
       computeSyncStatus(
-        MessageChannelSyncStatus.ACTIVE,
-        CalendarChannelSyncStatus.ONGOING,
+        {
+          syncStatus: MessageChannelSyncStatus.ACTIVE,
+          syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.ONGOING,
+          syncStage: CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_ONGOING,
+        },
       ),
     ).toEqual(SyncStatus.IMPORTING);
   });
 
-  test('should return SYNCED when one channel is ACTIVE and the other is NOT_SYNCED', () => {
+  test('should return NOT_SYNCED when both channels are NOT_SYNCED', () => {
     expect(
       computeSyncStatus(
-        MessageChannelSyncStatus.NOT_SYNCED,
-        CalendarChannelSyncStatus.ACTIVE,
+        {
+          syncStatus: MessageChannelSyncStatus.NOT_SYNCED,
+          syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.NOT_SYNCED,
+          syncStage: CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_PENDING,
+        },
+      ),
+    ).toEqual(SyncStatus.NOT_SYNCED);
+  });
+
+  test('should return SYNCED when message channel is ACTIVE and calendar is NOT_SYNCED', () => {
+    expect(
+      computeSyncStatus(
+        {
+          syncStatus: MessageChannelSyncStatus.ACTIVE,
+          syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.NOT_SYNCED,
+          syncStage: CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_PENDING,
+        },
       ),
     ).toEqual(SyncStatus.SYNCED);
   });
 
-  test('should return SYNCED when one channel is ACTIVE and the other is NOT_SYNCED', () => {
+  test('should return SYNCED when calendar channel is ACTIVE and message is NOT_SYNCED', () => {
     expect(
       computeSyncStatus(
-        MessageChannelSyncStatus.ACTIVE,
-        CalendarChannelSyncStatus.NOT_SYNCED,
+        {
+          syncStatus: MessageChannelSyncStatus.NOT_SYNCED,
+          syncStage: MessageChannelSyncStage.MESSAGE_LIST_FETCH_PENDING,
+          type: MessageChannelType.EMAIL,
+        },
+        {
+          syncStatus: CalendarChannelSyncStatus.ACTIVE,
+          syncStage: CalendarChannelSyncStage.CALENDAR_EVENT_LIST_FETCH_PENDING,
+        },
       ),
     ).toEqual(SyncStatus.SYNCED);
   });
+
+  test('should return NOT_SYNCED when channels are empty', () => {});
 });

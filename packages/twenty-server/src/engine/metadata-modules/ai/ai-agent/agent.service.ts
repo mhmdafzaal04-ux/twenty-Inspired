@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { isDefined } from 'twenty-shared/utils';
 import { ILike, IsNull, Repository } from 'typeorm';
 
-import { ApplicationService } from 'src/engine/core-modules/application/services/application.service';
+import { ApplicationService } from 'src/engine/core-modules/application/application.service';
 import { type CreateAgentInput } from 'src/engine/metadata-modules/ai/ai-agent/dtos/create-agent.input';
 import { type UpdateAgentInput } from 'src/engine/metadata-modules/ai/ai-agent/dtos/update-agent.input';
 import { fromCreateAgentInputToFlatAgent } from 'src/engine/metadata-modules/ai/ai-agent/utils/from-create-agent-input-to-flat-agent.util';
@@ -16,7 +16,10 @@ import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/works
 import { WorkspaceMigrationBuilderException } from 'src/engine/workspace-manager/workspace-migration/exceptions/workspace-migration-builder-exception';
 import { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
 
-import { AgentException, AgentExceptionCode } from './agent.exception';
+import {
+  AiException,
+  AiExceptionCode,
+} from 'src/engine/metadata-modules/ai/ai.exception';
 
 import { AgentEntity } from './entities/agent.entity';
 
@@ -37,7 +40,7 @@ export class AgentService {
         'flatRoleTargetByAgentIdMaps',
       ]);
 
-    return Object.values(flatAgentMaps.byId)
+    return Object.values(flatAgentMaps.byUniversalIdentifier)
       .filter(isDefined)
       .map((flatAgent) => {
         const roleId = flatRoleTargetByAgentIdMaps[flatAgent.id]?.roleId;
@@ -63,9 +66,9 @@ export class AgentService {
     if (!agent) {
       const identifier = `name "${name}"`;
 
-      throw new AgentException(
+      throw new AiException(
         `Agent with ${identifier} not found`,
-        AgentExceptionCode.AGENT_NOT_FOUND,
+        AiExceptionCode.AGENT_NOT_FOUND,
       );
     }
 
@@ -91,10 +94,7 @@ export class AgentService {
     });
 
     if (!isDefined(flatAgent)) {
-      throw new AgentException(
-        `Agent not found`,
-        AgentExceptionCode.AGENT_NOT_FOUND,
-      );
+      throw new AiException(`Agent not found`, AiExceptionCode.AGENT_NOT_FOUND);
     }
 
     const roleId = flatRoleTargetByAgentIdMaps[flatAgent.id]?.roleId;
@@ -106,6 +106,12 @@ export class AgentService {
     input: CreateAgentInput & { isCustom: boolean },
     workspaceId: string,
   ): Promise<FlatAgentWithRoleId> {
+    const { flatApplicationMaps, flatRoleMaps } =
+      await this.workspaceCacheService.getOrRecompute(workspaceId, [
+        'flatApplicationMaps',
+        'flatRoleMaps',
+      ]);
+
     const { workspaceCustomFlatApplication } =
       await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
         {
@@ -113,14 +119,19 @@ export class AgentService {
         },
       );
 
+    const flatApplication = isDefined(input.applicationId)
+      ? flatApplicationMaps.byId[input.applicationId]
+      : undefined;
+
+    const resolvedFlatApplication =
+      flatApplication ?? workspaceCustomFlatApplication;
+
     const { flatAgentToCreate, flatRoleTargetToCreate } =
       fromCreateAgentInputToFlatAgent({
-        createAgentInput: {
-          ...input,
-          applicationId:
-            input.applicationId ?? workspaceCustomFlatApplication.id,
-        },
+        createAgentInput: input,
         workspaceId,
+        flatApplication: resolvedFlatApplication,
+        flatRoleMaps,
       });
 
     const validateAndBuildResult =
@@ -147,7 +158,7 @@ export class AgentService {
         },
       );
 
-    if (isDefined(validateAndBuildResult)) {
+    if (validateAndBuildResult.status === 'fail') {
       throw new WorkspaceMigrationBuilderException(
         validateAndBuildResult,
         'Multiple validation errors occurred while creating agent',
@@ -184,10 +195,11 @@ export class AgentService {
         },
       );
 
-    const { flatRoleTargetByAgentIdMaps, flatAgentMaps } =
+    const { flatRoleTargetByAgentIdMaps, flatAgentMaps, flatRoleMaps } =
       await this.workspaceCacheService.getOrRecompute(workspaceId, [
         'flatRoleTargetByAgentIdMaps',
         'flatAgentMaps',
+        'flatRoleMaps',
       ]);
 
     const {
@@ -199,6 +211,7 @@ export class AgentService {
       updateAgentInput: input,
       flatAgentMaps,
       flatRoleTargetByAgentIdMaps,
+      flatRoleMaps,
     });
 
     const validateAndBuildResult =
@@ -229,7 +242,7 @@ export class AgentService {
         },
       );
 
-    if (isDefined(validateAndBuildResult)) {
+    if (validateAndBuildResult.status === 'fail') {
       throw new WorkspaceMigrationBuilderException(
         validateAndBuildResult,
         'Multiple validation errors occurred while updating agent',
@@ -238,7 +251,7 @@ export class AgentService {
 
     const {
       flatAgentMaps: recomputedFlatAgentMaps,
-      flatRoleTargetByAgentIdMaps: recmputedFlatRoleTargetByAgentIdMaps,
+      flatRoleTargetByAgentIdMaps: recomputedFlatRoleTargetByAgentIdMaps,
     } = await this.workspaceCacheService.getOrRecompute(workspaceId, [
       'flatAgentMaps',
       'flatRoleTargetByAgentIdMaps',
@@ -250,7 +263,7 @@ export class AgentService {
     });
 
     const existingRoleTarget =
-      recmputedFlatRoleTargetByAgentIdMaps[flatAgentToUpdate.id];
+      recomputedFlatRoleTargetByAgentIdMaps[flatAgentToUpdate.id];
 
     return {
       ...updatedAgent,
@@ -268,9 +281,9 @@ export class AgentService {
     });
 
     if (deletedAgents.length !== 1) {
-      throw new AgentException(
+      throw new AiException(
         'Could not retrieve deleted agent',
-        AgentExceptionCode.AGENT_NOT_FOUND,
+        AiExceptionCode.AGENT_NOT_FOUND,
       );
     }
 
@@ -344,7 +357,7 @@ export class AgentService {
         },
       );
 
-    if (isDefined(validateAndBuildResult)) {
+    if (validateAndBuildResult.status === 'fail') {
       throw new WorkspaceMigrationBuilderException(
         validateAndBuildResult,
         `Multiple validation errors occurred while deleting agent${ids.length > 1 ? 's' : ''}`,

@@ -1,6 +1,6 @@
 import { mapDBPartToUIMessagePart } from '@/ai/utils/mapDBPartToUIMessagePart';
 import { type ExtendedUIMessage } from 'twenty-shared/ai';
-import { type AgentMessage } from '~/generated/graphql';
+import { type AgentMessage } from '~/generated-metadata/graphql';
 
 export const mapDBMessagesToUIMessages = (
   dbMessages: AgentMessage[],
@@ -8,9 +8,11 @@ export const mapDBMessagesToUIMessages = (
   return dbMessages.map((dbMessage) => ({
     id: dbMessage.id,
     role: dbMessage.role as ExtendedUIMessage['role'],
+    status: dbMessage.status as 'queued' | 'sent',
     parts: dbMessage.parts.map(mapDBPartToUIMessagePart),
     metadata: {
       createdAt: dbMessage.createdAt,
     },
+    threadId: dbMessage.threadId,
   }));
 };

@@ -3,9 +3,12 @@ import { Injectable } from '@nestjs/common';
 import { FieldMetadataType, RelationType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
-import { type DataSourceEntity } from 'src/engine/metadata-modules/data-source/data-source.entity';
 import { FieldMetadataService } from 'src/engine/metadata-modules/field-metadata/services/field-metadata.service';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
+import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
+import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
+import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
+import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { buildObjectIdByNameMaps } from 'src/engine/metadata-modules/flat-object-metadata/utils/build-object-id-by-name-maps.util';
 import { ObjectMetadataService } from 'src/engine/metadata-modules/object-metadata/object-metadata.service';
 import {
@@ -47,10 +50,17 @@ type JunctionConfigSeed = {
   label?: string;
 };
 
-// Helper type for flat entity maps
+type WorkspaceSeedConfig = {
+  objects: { seed: ObjectMetadataSeed; fields?: FieldMetadataSeed[] }[];
+  fields: { objectName: string; seeds: FieldMetadataSeed[] }[];
+  morphRelations?: { objectName: string; seeds: MorphRelationSeed[] }[];
+  junctionFields?: JunctionFieldSeed[];
+  junctionConfigs?: JunctionConfigSeed[];
+};
+
 type FlatMaps = {
-  fieldMaps: { byId: Record<string, { name: string; morphId?: string }> };
-  objectMaps: { byId: Record<string, { fieldIds: string[] }> };
+  flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
+  flatObjectMetadataMaps: FlatEntityMaps<FlatObjectMetadata>;
   objectIdByName: Record<string, string>;
 };
 
@@ -62,18 +72,7 @@ export class DevSeederMetadataService {
     private readonly flatEntityMapsCacheService: WorkspaceManyOrAllFlatEntityMapsCacheService,
   ) {}
 
-  private readonly workspaceConfigs: Record<
-    string,
-    {
-      objects: { seed: ObjectMetadataSeed; fields?: FieldMetadataSeed[] }[];
-      fields: { objectName: string; seeds: FieldMetadataSeed[] }[];
-      morphRelations?: { objectName: string; seeds: MorphRelationSeed[] }[];
-      // Junction fields create relations to junction objects (inverses auto-created)
-      junctionFields?: JunctionFieldSeed[];
-      // Configure junction settings on fields after all relations exist
-      junctionConfigs?: JunctionConfigSeed[];
-    }
-  > = {
+  private readonly workspaceConfigs: Record<string, WorkspaceSeedConfig> = {
     [SEED_APPLE_WORKSPACE_ID]: {
       objects: [
         { seed: ROCKET_CUSTOM_OBJECT_SEED },
@@ -175,13 +174,14 @@ export class DevSeederMetadataService {
     },
   };
 
-  public async seed({
-    dataSourceMetadata,
-    workspaceId,
-  }: {
-    dataSourceMetadata: DataSourceEntity;
-    workspaceId: string;
-  }) {
+  private getLightConfig(_config: WorkspaceSeedConfig): WorkspaceSeedConfig {
+    return {
+      objects: [],
+      fields: [],
+    };
+  }
+
+  private getConfig(workspaceId: string, light: boolean): WorkspaceSeedConfig {
     const config = this.workspaceConfigs[workspaceId];
 
     if (!config) {
@@ -190,9 +190,20 @@ export class DevSeederMetadataService {
       );
     }
 
+    return light ? this.getLightConfig(config) : config;
+  }
+
+  public async seed({
+    workspaceId,
+    light = false,
+  }: {
+    workspaceId: string;
+    light?: boolean;
+  }) {
+    const config = this.getConfig(workspaceId, light);
+
     for (const obj of config.objects) {
       await this.seedCustomObject({
-        dataSourceId: dataSourceMetadata.id,
         workspaceId,
         objectMetadataSeed: obj.seed,
       });
@@ -216,19 +227,14 @@ export class DevSeederMetadataService {
   }
 
   private async seedCustomObject({
-    dataSourceId,
     workspaceId,
     objectMetadataSeed,
   }: {
-    dataSourceId: string;
     workspaceId: string;
     objectMetadataSeed: ObjectMetadataSeed;
   }): Promise<void> {
     await this.objectMetadataService.createOneObject({
-      createObjectInput: {
-        ...objectMetadataSeed,
-        dataSourceId,
-      },
+      createObjectInput: objectMetadataSeed,
       workspaceId,
     });
   }
@@ -263,14 +269,14 @@ export class DevSeederMetadataService {
     });
   }
 
-  public async seedRelations({ workspaceId }: { workspaceId: string }) {
-    const config = this.workspaceConfigs[workspaceId];
-
-    if (!config) {
-      throw new Error(
-        `Workspace configuration not found for workspaceId: ${workspaceId}`,
-      );
-    }
+  public async seedRelations({
+    workspaceId,
+    light = false,
+  }: {
+    workspaceId: string;
+    light?: boolean;
+  }) {
+    const config = this.getConfig(workspaceId, light);
 
     // 1. Seed morph relations (creates inverses on target objects)
     let maps = await this.getFreshFlatMaps(workspaceId);
@@ -284,7 +290,6 @@ export class DevSeederMetadataService {
     }
 
     // 2. Seed junction fields (creates relations + inverses on junction objects)
-    // Use same maps for all - matches original working behavior
     maps = await this.getFreshFlatMaps(workspaceId);
 
     for (const field of config.junctionFields ?? []) {
@@ -324,8 +329,8 @@ export class DevSeederMetadataService {
     );
 
     return {
-      fieldMaps: flatFieldMetadataMaps as FlatMaps['fieldMaps'],
-      objectMaps: flatObjectMetadataMaps as FlatMaps['objectMaps'],
+      flatFieldMetadataMaps,
+      flatObjectMetadataMaps,
       objectIdByName: idByNameSingular,
     };
   }
@@ -476,14 +481,22 @@ export class DevSeederMetadataService {
       throw new Error(`Object not found: ${objectName}`);
     }
 
-    const objectMetadata = flatMaps.objectMaps.byId[objectId];
+    const objectMetadata = findFlatEntityByIdInFlatEntityMaps({
+      flatEntityId: objectId,
+      flatEntityMaps: flatMaps.flatObjectMetadataMaps,
+    });
 
     if (!isDefined(objectMetadata)) {
       throw new Error(`Object metadata not found: ${objectName}`);
     }
 
     for (const fieldId of objectMetadata.fieldIds) {
-      if (flatMaps.fieldMaps.byId[fieldId]?.name === fieldName) {
+      const field = findFlatEntityByIdInFlatEntityMaps({
+        flatEntityId: fieldId,
+        flatEntityMaps: flatMaps.flatFieldMetadataMaps,
+      });
+
+      if (field?.name === fieldName) {
         return fieldId;
       }
     }

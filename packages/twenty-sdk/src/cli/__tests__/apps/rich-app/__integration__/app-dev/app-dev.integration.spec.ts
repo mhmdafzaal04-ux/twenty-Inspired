@@ -1,25 +1,28 @@
-import { runAppDev } from '@/cli/__tests__/integration/utils/run-app-dev.util';
-import { type RunCliCommandResult } from '@/cli/__tests__/integration/utils/run-cli-command.util';
-import { join } from 'path';
+import { runAppDevInProcess } from '@/cli/__tests__/integration/utils/run-app-dev-in-process.util';
+import { RICH_APP_PATH } from '@/cli/__tests__/apps/fixture-paths';
 
-import { defineConsoleOutputTests } from './tests/console-output.tests';
-import { defineManifestTests } from './tests/manifest.tests';
 import { defineEntitiesTests } from './tests/entities.tests';
+import { defineFieldOptionIdsTests } from './tests/field-option-ids.tests';
+import { defineManifestTests } from './tests/manifest.tests';
 
-const APP_PATH = join(__dirname, '../..');
-
-describe('rich-app app:dev', () => {
-  let result: RunCliCommandResult;
-
+describe('rich-app dev', () => {
   beforeAll(async () => {
-    result = await runAppDev({ appPath: APP_PATH });
+    const result = await runAppDevInProcess({ appPath: RICH_APP_PATH });
+
     if (!result.success) {
-      console.log(result.output);
+      const diagnostics = JSON.stringify(
+        { events: result.events, stepStatuses: result.stepStatuses },
+        null,
+        2,
+      );
+
+      throw new Error(
+        `dev did not produce manifest.json within timeout.\n${diagnostics}`,
+      );
     }
-    expect(result.success).toBe(true);
   }, 60000);
 
-  defineConsoleOutputTests(() => result);
-  defineManifestTests(APP_PATH);
-  defineEntitiesTests(APP_PATH);
+  defineManifestTests(RICH_APP_PATH);
+  defineEntitiesTests(RICH_APP_PATH);
+  defineFieldOptionIdsTests(RICH_APP_PATH);
 });

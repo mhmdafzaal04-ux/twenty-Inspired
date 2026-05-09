@@ -3,10 +3,12 @@ import {
   Breadcrumb,
   type BreadcrumbProps,
 } from '@/ui/navigation/bread-crumb/components/Breadcrumb';
-import styled from '@emotion/styled';
+import { isDefined } from 'twenty-shared/utils';
+import { styled } from '@linaria/react';
 import { type JSX, type ReactNode } from 'react';
 import { PageBody } from './PageBody';
 import { PageHeader } from './PageHeader';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 type SubMenuTopBarContainerProps = {
   children: JSX.Element | JSX.Element[];
@@ -15,6 +17,7 @@ type SubMenuTopBarContainerProps = {
   actionButton?: ReactNode;
   className?: string;
   links: BreadcrumbProps['links'];
+  tag?: JSX.Element;
 };
 
 const StyledContainer = styled.div`
@@ -23,19 +26,23 @@ const StyledContainer = styled.div`
   width: 100%;
 `;
 
-const StyledTitle = styled.h3<{ reserveTitleSpace?: boolean }>`
-  color: ${({ theme }) => theme.font.color.primary};
-  font-size: ${({ theme }) => theme.font.size.lg};
-  font-weight: ${({ theme }) => theme.font.weight.semiBold};
+const StyledTitle = styled.span<{ reserveTitleSpace?: boolean }>`
+  color: ${themeCssVariables.font.color.primary};
+  display: flex;
+  font-size: ${themeCssVariables.font.size.lg};
+  font-weight: ${themeCssVariables.font.weight.semiBold};
+  gap: ${themeCssVariables.spacing[2]};
   line-height: 1.2;
-  margin: ${({ theme }) => theme.spacing(8, 8, 2)};
-  min-height: ${({ theme, reserveTitleSpace }) =>
-    reserveTitleSpace ? theme.spacing(5) : 'none'};
+  margin: ${themeCssVariables.spacing[8]} ${themeCssVariables.spacing[8]}
+    ${themeCssVariables.spacing[2]};
+  min-height: ${({ reserveTitleSpace }) =>
+    reserveTitleSpace ? themeCssVariables.spacing[5] : 'none'};
 `;
 
 export const SubMenuTopBarContainer = ({
   children,
   title,
+  tag,
   reserveTitleSpace,
   actionButton,
   className,
@@ -48,9 +55,10 @@ export const SubMenuTopBarContainer = ({
       </PageHeader>
       <PageBody>
         <InformationBannerWrapper />
-        {(title || reserveTitleSpace) && (
+        {(isDefined(title) || reserveTitleSpace === true) && (
           <StyledTitle reserveTitleSpace={reserveTitleSpace}>
             {title}
+            {tag}
           </StyledTitle>
         )}
         {children}

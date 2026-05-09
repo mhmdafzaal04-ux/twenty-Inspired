@@ -1,4 +1,4 @@
-import { Scope } from '@nestjs/common';
+import { Logger, Scope } from '@nestjs/common';
 
 import { isDefined } from 'twenty-shared/utils';
 
@@ -11,6 +11,7 @@ import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspac
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { WorkflowRunStatus } from 'src/modules/workflow/common/standard-objects/workflow-run.workspace-entity';
 import { WorkflowCommonWorkspaceService } from 'src/modules/workflow/common/workspace-services/workflow-common.workspace-service';
+import { CodeStepBuildService } from 'src/modules/workflow/workflow-builder/workflow-version-step/code-step/services/code-step-build.service';
 import { WorkflowExecutorWorkspaceService } from 'src/modules/workflow/workflow-executor/workspace-services/workflow-executor.workspace-service';
 import { RUN_WORKFLOW_JOB_NAME } from 'src/modules/workflow/workflow-runner/constants/run-workflow-job-name';
 import {
@@ -23,8 +24,11 @@ import { WorkflowTriggerType } from 'src/modules/workflow/workflow-trigger/types
 
 @Processor({ queueName: MessageQueue.workflowQueue, scope: Scope.REQUEST })
 export class RunWorkflowJob {
+  private readonly logger = new Logger(RunWorkflowJob.name);
+
   constructor(
     private readonly workflowCommonWorkspaceService: WorkflowCommonWorkspaceService,
+    private readonly codeStepBuildService: CodeStepBuildService,
     private readonly workflowExecutorWorkspaceService: WorkflowExecutorWorkspaceService,
     private readonly workflowRunWorkspaceService: WorkflowRunWorkspaceService,
     private readonly metricsService: MetricsService,
@@ -37,6 +41,9 @@ export class RunWorkflowJob {
     lastExecutedStepId,
     workspaceId,
   }: RunWorkflowJobData): Promise<void> {
+    this.logger.log(
+      `Running workflow run ${workflowRunId} in workspace ${workspaceId}`,
+    );
     const authContext = buildSystemAuthContext(workspaceId);
 
     await this.globalWorkspaceOrmManager.executeInWorkspaceContext(async () => {
@@ -59,7 +66,10 @@ export class RunWorkflowJob {
           workflowRunId,
           status: WorkflowRunStatus.FAILED,
           error: error.message,
+          isSystemError: true,
         });
+
+        throw error;
       }
     }, authContext);
   }
@@ -96,6 +106,11 @@ export class RunWorkflowJob {
         WorkflowRunExceptionCode.WORKFLOW_RUN_INVALID,
       );
     }
+
+    await this.codeStepBuildService.buildCodeStepsFromSourceForSteps({
+      workspaceId,
+      steps: workflowVersion.steps,
+    });
 
     await this.workflowRunWorkspaceService.startWorkflowRun({
       workflowRunId,
@@ -149,13 +164,19 @@ export class RunWorkflowJob {
     const lastExecutedStepOutput =
       workflowRun.state?.stepInfos[lastExecutedStepId];
 
-    const nextStepIdsToExecute =
+    const { nextStepIdsToExecute, nextStepIdsToSkip, nextStepIdsToFailSafely } =
       await this.workflowExecutorWorkspaceService.getNextStepIdsToExecute({
         executedStep: lastExecutedStep,
         executedStepOutput: lastExecutedStepOutput,
       });
 
-    if (!isDefined(nextStepIdsToExecute) || nextStepIdsToExecute.length === 0) {
+    const hasStepsToSkipOrFailSafely =
+      isDefined(nextStepIdsToSkip) || isDefined(nextStepIdsToFailSafely);
+
+    const hasStepsToExecute =
+      isDefined(nextStepIdsToExecute) && nextStepIdsToExecute.length > 0;
+
+    if (!hasStepsToSkipOrFailSafely && !hasStepsToExecute) {
       await this.workflowRunWorkspaceService.endWorkflowRun({
         workflowRunId,
         workspaceId,
@@ -165,11 +186,28 @@ export class RunWorkflowJob {
       return;
     }
 
-    await this.workflowExecutorWorkspaceService.executeFromSteps({
-      stepIds: nextStepIdsToExecute,
-      workflowRunId,
-      workspaceId,
-    });
+    const steps = workflowRun.state?.flow?.steps ?? [];
+
+    if (hasStepsToSkipOrFailSafely) {
+      await this.workflowExecutorWorkspaceService.skipAndFailSafelyStepsThenContinue(
+        {
+          stepIdsToSkip: nextStepIdsToSkip ?? [],
+          stepIdsToFailSafely: nextStepIdsToFailSafely ?? [],
+          steps,
+          workflowRunId,
+          workspaceId,
+          executedStepsCount: 0,
+        },
+      );
+    }
+
+    if (hasStepsToExecute) {
+      await this.workflowExecutorWorkspaceService.executeFromSteps({
+        stepIds: nextStepIdsToExecute,
+        workflowRunId,
+        workspaceId,
+      });
+    }
   }
 
   private async incrementTriggerMetrics({

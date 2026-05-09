@@ -1,3 +1,5 @@
+import { type FieldFilesValue } from '@/object-record/record-field/ui/types/FieldMetadata';
+
 import { type AttachmentFileCategory } from './AttachmentFileCategory';
 
 export type { AttachmentFileCategory };
@@ -5,8 +7,11 @@ export type { AttachmentFileCategory };
 export type Attachment = {
   id: string;
   name: string;
+  /** @deprecated Use `file[0].url` field instead */
   fullPath: string;
+  /** @deprecated Use `file[0].extension` field instead */
   fileCategory: AttachmentFileCategory;
+  file: FieldFilesValue[] | null;
   companyId?: string | null;
   personId?: string | null;
   taskId?: string | null;

@@ -7,7 +7,7 @@ import {
   type CatalogStory,
   ComponentDecorator,
 } from '@ui/testing';
-import { MAIN_COLOR_NAMES, type ThemeColor } from '@ui/theme';
+import { type ThemeColor, MAIN_COLOR_NAMES } from '@ui/theme';
 
 import { Tag } from '../Tag';
 
@@ -31,7 +31,7 @@ export const Default: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
 
-    const tag = canvas.getByRole('heading', { level: 3 });
+    const tag = canvas.getByText('Urgent');
 
     await userEvent.click(tag);
     await expect(args.onClick).toHaveBeenCalled();

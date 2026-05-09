@@ -1,23 +1,23 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 
+import { isDefined } from 'twenty-shared/utils';
+import { Repository } from 'typeorm';
+
+import { MessageChannelSyncStatus } from 'twenty-shared/types';
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import {
   type TwentyORMException,
   TwentyORMExceptionCode,
 } from 'src/engine/twenty-orm/exceptions/twenty-orm.exception';
-import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
-import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { MessageChannelSyncStatusService } from 'src/modules/messaging/common/services/message-channel-sync-status.service';
-import {
-  MessageChannelSyncStatus,
-  type MessageChannelWorkspaceEntity,
-} from 'src/modules/messaging/common/standard-objects/message-channel.workspace-entity';
 import { MESSAGING_THROTTLE_MAX_ATTEMPTS } from 'src/modules/messaging/message-import-manager/constants/messaging-throttle-max-attempts';
 import {
   MessageImportDriverException,
   MessageImportDriverExceptionCode,
 } from 'src/modules/messaging/message-import-manager/drivers/exceptions/message-import-driver.exception';
 import { MessageNetworkExceptionCode } from 'src/modules/messaging/message-import-manager/drivers/exceptions/message-network.exception';
+import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 
 export enum MessageImportSyncStep {
   MESSAGE_LIST_FETCH = 'MESSAGE_LIST_FETCH',
@@ -28,7 +28,8 @@ export enum MessageImportSyncStep {
 @Injectable()
 export class MessageImportExceptionHandlerService {
   constructor(
-    private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    @InjectRepository(MessageChannelEntity)
+    private readonly messageChannelRepository: Repository<MessageChannelEntity>,
     private readonly messageChannelSyncStatusService: MessageChannelSyncStatusService,
     private readonly exceptionHandlerService: ExceptionHandlerService,
   ) {}
@@ -36,10 +37,7 @@ export class MessageImportExceptionHandlerService {
   public async handleDriverException(
     exception: MessageImportDriverException | Error | TwentyORMException,
     syncStep: MessageImportSyncStep,
-    messageChannel: Pick<
-      MessageChannelWorkspaceEntity,
-      'id' | 'throttleFailureCount'
-    >,
+    messageChannel: Pick<MessageChannelEntity, 'id' | 'throttleFailureCount'>,
     workspaceId: string,
   ): Promise<void> {
     if (exception instanceof MessageImportDriverException) {
@@ -104,7 +102,7 @@ export class MessageImportExceptionHandlerService {
   }
 
   private async handleSyncCursorErrorException(
-    messageChannel: Pick<MessageChannelWorkspaceEntity, 'id'>,
+    messageChannel: Pick<MessageChannelEntity, 'id'>,
     workspaceId: string,
   ): Promise<void> {
     await this.messageChannelSyncStatusService.resetAndMarkAsMessagesListFetchPending(
@@ -115,10 +113,7 @@ export class MessageImportExceptionHandlerService {
 
   private async handleTemporaryException(
     syncStep: MessageImportSyncStep,
-    messageChannel: Pick<
-      MessageChannelWorkspaceEntity,
-      'id' | 'throttleFailureCount'
-    >,
+    messageChannel: Pick<MessageChannelEntity, 'id' | 'throttleFailureCount'>,
     workspaceId: string,
     exception: { message: string },
   ): Promise<void> {
@@ -150,23 +145,25 @@ export class MessageImportExceptionHandlerService {
       return;
     }
 
-    const authContext = buildSystemAuthContext(workspaceId);
+    await this.messageChannelRepository.increment(
+      { id: messageChannel.id, workspaceId },
+      'throttleFailureCount',
+      1,
+    );
 
-    await this.globalWorkspaceOrmManager.executeInWorkspaceContext(async () => {
-      const messageChannelRepository =
-        await this.globalWorkspaceOrmManager.getRepository<MessageChannelWorkspaceEntity>(
-          workspaceId,
-          'messageChannel',
-        );
+    const throttleRetryAfter =
+      exception instanceof MessageImportDriverException
+        ? exception.throttleRetryAfter
+        : undefined;
 
-      await messageChannelRepository.increment(
-        { id: messageChannel.id },
-        'throttleFailureCount',
-        1,
-        undefined,
-        ['throttleFailureCount', 'id'],
-      );
-    }, authContext);
+    await this.messageChannelRepository.update(
+      { id: messageChannel.id, workspaceId },
+      {
+        throttleRetryAfter: isDefined(throttleRetryAfter)
+          ? throttleRetryAfter.toISOString()
+          : null,
+      },
+    );
 
     switch (syncStep) {
       case MessageImportSyncStep.MESSAGE_LIST_FETCH:
@@ -192,7 +189,7 @@ export class MessageImportExceptionHandlerService {
   }
 
   private async handleInsufficientPermissionsException(
-    messageChannel: Pick<MessageChannelWorkspaceEntity, 'id'>,
+    messageChannel: Pick<MessageChannelEntity, 'id'>,
     workspaceId: string,
   ): Promise<void> {
     await this.messageChannelSyncStatusService.markAsFailed(
@@ -204,7 +201,7 @@ export class MessageImportExceptionHandlerService {
 
   private async handleUnknownException(
     exception: Error,
-    messageChannel: Pick<MessageChannelWorkspaceEntity, 'id'>,
+    messageChannel: Pick<MessageChannelEntity, 'id'>,
     workspaceId: string,
   ): Promise<void> {
     this.exceptionHandlerService.captureExceptions([exception], {
@@ -218,7 +215,7 @@ export class MessageImportExceptionHandlerService {
   }
 
   private async handlePermanentException(
-    messageChannel: Pick<MessageChannelWorkspaceEntity, 'id'>,
+    messageChannel: Pick<MessageChannelEntity, 'id'>,
     workspaceId: string,
   ): Promise<void> {
     await this.messageChannelSyncStatusService.markAsFailed(
@@ -230,7 +227,7 @@ export class MessageImportExceptionHandlerService {
 
   private async handleNotFoundException(
     syncStep: MessageImportSyncStep,
-    messageChannel: Pick<MessageChannelWorkspaceEntity, 'id'>,
+    messageChannel: Pick<MessageChannelEntity, 'id'>,
     workspaceId: string,
   ): Promise<void> {
     if (syncStep === MessageImportSyncStep.MESSAGE_LIST_FETCH) {

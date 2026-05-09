@@ -15,13 +15,15 @@ import { Paragraph } from '@tiptap/extension-paragraph';
 import { Strike } from '@tiptap/extension-strike';
 import { Text } from '@tiptap/extension-text';
 import { Underline } from '@tiptap/extension-underline';
-import { Dropcursor, Placeholder, UndoRedo } from '@tiptap/extensions';
+import { Dropcursor } from '@tiptap/extensions/drop-cursor';
+import { Placeholder } from '@tiptap/extensions/placeholder';
+import { UndoRedo } from '@tiptap/extensions/undo-redo';
 import { type Editor, useEditor } from '@tiptap/react';
 import { marked } from 'marked';
 import { type DependencyList, useMemo } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 
-export type AdvancedTextEditorContentType = 'json' | 'markdown';
+export type AdvancedTextEditorContentType = 'json' | 'html' | 'markdown';
 
 type UseAdvancedTextEditorProps = {
   placeholder: string | undefined;

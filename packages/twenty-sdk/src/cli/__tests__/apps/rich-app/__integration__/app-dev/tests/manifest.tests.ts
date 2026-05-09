@@ -1,54 +1,77 @@
-import * as fs from 'fs-extra';
 import { join } from 'path';
 
 import { normalizeManifestForComparison } from '@/cli/__tests__/integration/utils/normalize-manifest.util';
+import { readJson } from '@/cli/utilities/file/fs-utils';
+import { type Manifest } from 'twenty-shared/application';
+import { NavigationMenuItemType } from 'twenty-shared/types';
 import { EXPECTED_MANIFEST } from '../expected-manifest';
 
 export const defineManifestTests = (appPath: string): void => {
   const manifestOutputPath = join(appPath, '.twenty/output/manifest.json');
 
-  describe('manifest', () => {
-    it('should build manifest matching expected JSON', async () => {
-      const manifest = await fs.readJson(manifestOutputPath);
+  let manifest: Manifest;
 
+  beforeAll(async () => {
+    manifest = await readJson<Manifest>(manifestOutputPath);
+  });
+
+  describe('manifest', () => {
+    it('should build manifest matching expected JSON', () => {
       expect(manifest).not.toBeNull();
 
-      const { sources: _sources, ...sanitizedManifest } = manifest;
+      expect(manifest.objects).toHaveLength(4);
+      expect(manifest.logicFunctions).toHaveLength(6);
+      expect(manifest.frontComponents).toHaveLength(4);
+      expect(manifest.roles).toHaveLength(2);
+      expect(manifest.fields).toHaveLength(23);
+      expect(manifest.views).toHaveLength(5);
+      expect(manifest.navigationMenuItems).toHaveLength(3);
+      expect(manifest.pageLayoutTabs).toHaveLength(1);
 
-      expect(normalizeManifestForComparison(sanitizedManifest)).toEqual(
+      expect(normalizeManifestForComparison(manifest)).toEqual(
         normalizeManifestForComparison(EXPECTED_MANIFEST),
       );
+    });
+  });
 
-      for (const fn of manifest.entities.logicFunctions) {
-        expect(fn.builtHandlerChecksum).toBeDefined();
-        expect(fn.builtHandlerChecksum).not.toBeNull();
-        expect(typeof fn.builtHandlerChecksum).toBe('string');
-      }
+  describe('navigationMenuItems', () => {
+    it('should include all navigation menu items with correct types', () => {
+      expect(manifest.navigationMenuItems).toHaveLength(3);
 
-      for (const component of manifest.entities.frontComponents ?? []) {
-        expect(component.builtComponentChecksum).toBeDefined();
-        expect(component.builtComponentChecksum).not.toBeNull();
-        expect(typeof component.builtComponentChecksum).toBe('string');
+      for (const item of manifest.navigationMenuItems) {
+        expect(item.type).toBe(NavigationMenuItemType.OBJECT);
+        expect(item.universalIdentifier).toBeDefined();
+        expect(typeof item.position).toBe('number');
+        expect(item.targetObjectUniversalIdentifier).toBeDefined();
       }
     });
 
-    it('should have correct application config', async () => {
-      const manifest = await fs.readJson(manifestOutputPath);
-
-      expect(manifest?.application.displayName).toBe('Hello World');
-      expect(manifest?.application.description).toBe(
-        'A simple hello world app',
+    it('should have unique positions', () => {
+      const positions = manifest.navigationMenuItems.map(
+        (item) => item.position,
       );
+
+      expect(new Set(positions).size).toBe(positions.length);
     });
 
-    it('should load all entity types', async () => {
-      const manifest = await fs.readJson(manifestOutputPath);
+    it('should have unique universal identifiers', () => {
+      const identifiers = manifest.navigationMenuItems.map(
+        (item) => item.universalIdentifier,
+      );
 
-      expect(manifest?.entities.objects).toHaveLength(2);
-      expect(manifest?.entities.logicFunctions).toHaveLength(4);
-      expect(manifest?.entities.frontComponents).toHaveLength(4);
-      expect(manifest?.entities.roles).toHaveLength(2);
-      expect(manifest?.entities.objectExtensions).toHaveLength(1);
+      expect(new Set(identifiers).size).toBe(identifiers.length);
+    });
+
+    it('should reference valid object universal identifiers', () => {
+      const objectIdentifiers = new Set(
+        manifest.objects.map((obj) => obj.universalIdentifier),
+      );
+
+      for (const item of manifest.navigationMenuItems) {
+        expect(objectIdentifiers).toContain(
+          item.targetObjectUniversalIdentifier,
+        );
+      }
     });
   });
 };

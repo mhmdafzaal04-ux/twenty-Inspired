@@ -15,13 +15,9 @@ import { RecordFieldComponentInstanceContext } from '@/object-record/record-fiel
 import { useRecordIndexContextOrThrow } from '@/object-record/record-index/contexts/RecordIndexContext';
 import { RecordInlineCell } from '@/object-record/record-inline-cell/components/RecordInlineCell';
 import { getRecordFieldInputInstanceId } from '@/object-record/utils/getRecordFieldInputId';
-import { useRecoilComponentValue } from '@/ui/utilities/state/component-state/hooks/useRecoilComponentValue';
-import { useSetRecoilComponentState } from '@/ui/utilities/state/component-state/hooks/useSetRecoilComponentState';
-import styled from '@emotion/styled';
-
-const StyledRecordCardBodyContainer = styled(RecordCardBodyContainer)`
-  padding: ${({ theme }) => theme.spacing(1)};
-`;
+import { useAtomComponentSelectorValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentSelectorValue';
+import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 type RecordCalendarCardBodyProps = {
   recordId: string;
@@ -52,9 +48,10 @@ export const RecordCalendarCardBody = ({
   const {
     labelIdentifierFieldMetadataItem,
     fieldDefinitionByFieldMetadataItemId,
+    objectPermissionsByObjectMetadataId,
   } = useRecordIndexContextOrThrow();
 
-  const visibleRecordFields = useRecoilComponentValue(
+  const visibleRecordFields = useAtomComponentSelectorValue(
     visibleRecordFieldsComponentSelector,
   );
 
@@ -63,7 +60,7 @@ export const RecordCalendarCardBody = ({
       recordField.fieldMetadataItemId !== labelIdentifierFieldMetadataItem?.id,
   );
 
-  const setRecordCalendarCardHoverPosition = useSetRecoilComponentState(
+  const setRecordCalendarCardHoverPosition = useSetAtomComponentState(
     recordCalendarCardHoverPositionComponentState,
   );
 
@@ -72,7 +69,7 @@ export const RecordCalendarCardBody = ({
   };
 
   return (
-    <StyledRecordCardBodyContainer>
+    <RecordCardBodyContainer padding={themeCssVariables.spacing[1]}>
       {visibleRecordFieldsExceptLabelIdentifier.map((recordField, index) => {
         const correspondingFieldDefinition =
           fieldDefinitionByFieldMetadataItemId[recordField.fieldMetadataItemId];
@@ -86,13 +83,18 @@ export const RecordCalendarCardBody = ({
                 isLabelIdentifier: false,
                 isRecordFieldReadOnly: isRecordFieldReadOnly({
                   isRecordReadOnly,
+                  isSystemObject: objectMetadataItem.isSystem,
                   objectPermissions,
                   fieldMetadataItem: {
                     id: recordField.fieldMetadataItemId,
                     isUIReadOnly:
                       correspondingFieldDefinition.metadata.isUIReadOnly ??
                       false,
+                    isCustom:
+                      correspondingFieldDefinition.metadata.isCustom ?? false,
                   },
+                  fieldDefinition: correspondingFieldDefinition,
+                  objectPermissionsByObjectMetadataId,
                 }),
                 fieldDefinition: correspondingFieldDefinition,
                 useUpdateRecord: useUpdateOneRecordHook,
@@ -119,6 +121,6 @@ export const RecordCalendarCardBody = ({
           </StopPropagationContainer>
         );
       })}
-    </StyledRecordCardBodyContainer>
+    </RecordCardBodyContainer>
   );
 };

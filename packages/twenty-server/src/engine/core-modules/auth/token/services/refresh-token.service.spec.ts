@@ -73,6 +73,7 @@ describe('RefreshTokenService', () => {
       const mockJwtPayload = {
         jti: 'token-id',
         sub: 'user-id',
+        type: JwtTokenTypeEnum.REFRESH,
       };
       const mockAppToken = {
         id: 'token-id',
@@ -84,7 +85,6 @@ describe('RefreshTokenService', () => {
         firstName: 'John',
         lastName: 'Doe',
         email: 'john.doe@example.com',
-        defaultAvatarUrl: '',
       } as UserEntity;
 
       jest
@@ -94,7 +94,7 @@ describe('RefreshTokenService', () => {
       jest
         .spyOn(appTokenRepository, 'findOneBy')
         .mockResolvedValue(mockAppToken);
-      jest.spyOn(userRepository, 'findOne').mockResolvedValue(mockUser);
+      jest.spyOn(userRepository, 'findOneBy').mockResolvedValue(mockUser);
       jest.spyOn(twentyConfigService, 'get').mockReturnValue('1h');
 
       const result = await service.verifyRefreshToken(mockToken);
@@ -203,7 +203,7 @@ describe('RefreshTokenService', () => {
 
     const user = { id: userId } as UserEntity;
 
-    jest.spyOn(userRepository, 'findOne').mockResolvedValue(user);
+    jest.spyOn(userRepository, 'findOneBy').mockResolvedValue(user);
 
     const out = await service.verifyRefreshToken(refreshToken);
 

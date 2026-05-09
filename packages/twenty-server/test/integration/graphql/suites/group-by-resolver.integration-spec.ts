@@ -12,6 +12,7 @@ import { groupByOperationFactory } from 'test/integration/graphql/utils/group-by
 import { makeGraphqlAPIRequestWithMemberRole } from 'test/integration/graphql/utils/make-graphql-api-request-with-member-role.util';
 import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
 import { updateWorkspaceMemberRole } from 'test/integration/graphql/utils/update-workspace-member-role.util';
+import { makeMetadataAPIRequest } from 'test/integration/metadata/suites/utils/make-metadata-api-request.util';
 import { deleteOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/delete-one-field-metadata.util';
 import { updateOneFieldMetadata } from 'test/integration/metadata/suites/field-metadata/utils/update-one-field-metadata.util';
 import { createOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/create-one-object-metadata.util';
@@ -19,13 +20,14 @@ import { createRelationBetweenObjects } from 'test/integration/metadata/suites/o
 import { deleteOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/delete-one-object-metadata.util';
 import { findManyObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/find-many-object-metadata.util';
 import { updateOneObjectMetadata } from 'test/integration/metadata/suites/object-metadata/utils/update-one-object-metadata.util';
-import { createOneCoreViewFilter } from 'test/integration/metadata/suites/view-filter/utils/create-one-core-view-filter.util';
-import { createOneCoreView } from 'test/integration/metadata/suites/view/utils/create-one-core-view.util';
+import { createOneViewFilter } from 'test/integration/metadata/suites/view-filter/utils/create-one-view-filter.util';
+import { createOneView } from 'test/integration/metadata/suites/view/utils/create-one-view.util';
 import { jestExpectToBeDefined } from 'test/utils/jest-expect-to-be-defined.util.test';
 import {
   FieldMetadataType,
   OrderByDirection,
   RelationType,
+  ViewFilterGroupLogicalOperator,
   ViewFilterOperand,
 } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
@@ -34,7 +36,6 @@ import { ErrorCode } from 'src/engine/core-modules/graphql/utils/graphql-errors.
 import { type FieldMetadataDTO } from 'src/engine/metadata-modules/field-metadata/dtos/field-metadata.dto';
 import { type ObjectMetadataDTO } from 'src/engine/metadata-modules/object-metadata/dtos/object-metadata.dto';
 import { PermissionsExceptionMessage } from 'src/engine/metadata-modules/permissions/permissions.exception';
-import { ViewFilterGroupLogicalOperator } from 'src/engine/metadata-modules/view-filter-group/enums/view-filter-group-logical-operator';
 import { WORKSPACE_MEMBER_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev-seeder/data/constants/workspace-member-data-seeds.constant';
 
 const client = request(`http://localhost:${APP_PORT}`);
@@ -862,7 +863,7 @@ describe('group-by resolver (integration)', () => {
       );
 
       // create a view with a filter: city eq cityToKeep
-      const { data: createViewData } = await createOneCoreView({
+      const { data: createViewData } = await createOneView({
         input: {
           name: 'People View City Keep',
           objectMetadataId: personObjectMetadataId,
@@ -871,10 +872,10 @@ describe('group-by resolver (integration)', () => {
         expectToFail: false,
       });
 
-      viewId = createViewData.createCoreView.id;
+      viewId = createViewData.createView.id;
 
       // create a filter group and a filter for the view
-      const viewFilterGroupResponse = await makeGraphqlAPIRequest(
+      const viewFilterGroupResponse = await makeMetadataAPIRequest(
         createViewFilterGroupOperationFactory({
           data: {
             viewId,
@@ -885,10 +886,10 @@ describe('group-by resolver (integration)', () => {
       );
 
       const viewFilterGroupId = viewFilterGroupResponse.body.data
-        .createCoreViewFilterGroup.id as string;
+        .createViewFilterGroup.id as string;
 
       jestExpectToBeDefined(cityFieldMetadataId);
-      await createOneCoreViewFilter({
+      await createOneViewFilter({
         input: {
           viewId,
           viewFilterGroupId,
@@ -952,7 +953,7 @@ describe('group-by resolver (integration)', () => {
       );
 
       // create a view with any field filter
-      const { data: createViewData } = await createOneCoreView({
+      const { data: createViewData } = await createOneView({
         input: {
           name: 'People View City Keep',
           objectMetadataId: personObjectMetadataId,
@@ -962,7 +963,7 @@ describe('group-by resolver (integration)', () => {
         expectToFail: false,
       });
 
-      viewId = createViewData.createCoreView.id;
+      viewId = createViewData.createView.id;
 
       const response = await makeGraphqlAPIRequest(
         groupByOperationFactory({
@@ -1673,7 +1674,7 @@ describe('group-by resolver (integration)', () => {
         };
 
         const rolesResponse = await client
-          .post('/graphql')
+          .post('/metadata')
           .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
           .send(getRolesQuery);
 
@@ -1726,7 +1727,7 @@ describe('group-by resolver (integration)', () => {
         };
 
         const createRoleResponse =
-          await makeGraphqlAPIRequest(createRoleOperation);
+          await makeMetadataAPIRequest(createRoleOperation);
 
         customRoleId = createRoleResponse.body.data.createOneRole.id;
 
@@ -1769,7 +1770,7 @@ describe('group-by resolver (integration)', () => {
           },
         };
 
-        await makeGraphqlAPIRequest(upsertObjectPermissionsOperation);
+        await makeMetadataAPIRequest(upsertObjectPermissionsOperation);
 
         // Assign the custom role to a workspace member
         await updateWorkspaceMemberRole({
@@ -1839,7 +1840,7 @@ describe('group-by resolver (integration)', () => {
         };
 
         await client
-          .post('/graphql')
+          .post('/metadata')
           .set('Authorization', `Bearer ${APPLE_JANE_ADMIN_ACCESS_TOKEN}`)
           .send(restoreMemberRoleQuery);
 

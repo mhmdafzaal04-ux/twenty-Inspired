@@ -15,6 +15,7 @@ describe('isRecordMatchingRLSRowLevelPermissionPredicate', () => {
     labelSingular: 'Test',
     labelPlural: 'Tests',
     icon: 'IconTest',
+    color: null,
     targetTableName: 'test',
     isCustom: false,
     isRemote: false,
@@ -25,6 +26,8 @@ describe('isRecordMatchingRLSRowLevelPermissionPredicate', () => {
     workspaceId: 'test-workspace-id',
     universalIdentifier: 'test-object-id',
     indexMetadataIds: [],
+    objectPermissionIds: [],
+    fieldPermissionIds: [],
     fieldIds,
     viewIds: [],
     applicationId: 'test-application-id',
@@ -40,6 +43,8 @@ describe('isRecordMatchingRLSRowLevelPermissionPredicate', () => {
     duplicateCriteria: null,
     applicationUniversalIdentifier: 'test-application-id',
     fieldUniversalIdentifiers: fieldIds,
+    objectPermissionUniversalIdentifiers: [],
+    fieldPermissionUniversalIdentifiers: [],
     viewUniversalIdentifiers: [],
     indexMetadataUniversalIdentifiers: [],
     labelIdentifierFieldMetadataUniversalIdentifier: null,
@@ -75,17 +80,17 @@ describe('isRecordMatchingRLSRowLevelPermissionPredicate', () => {
   const buildFlatFieldMetadataMaps = (
     fields: FlatFieldMetadata[],
   ): FlatEntityMaps<FlatFieldMetadata> => ({
-    byId: fields.reduce(
+    byUniversalIdentifier: fields.reduce(
       (accumulator, field) => {
-        accumulator[field.id] = field;
+        accumulator[field.universalIdentifier] = field;
 
         return accumulator;
       },
       {} as Record<string, FlatFieldMetadata>,
     ),
-    idByUniversalIdentifier: fields.reduce(
+    universalIdentifierById: fields.reduce(
       (accumulator, field) => {
-        accumulator[field.universalIdentifier] = field.id;
+        accumulator[field.id] = field.universalIdentifier;
 
         return accumulator;
       },

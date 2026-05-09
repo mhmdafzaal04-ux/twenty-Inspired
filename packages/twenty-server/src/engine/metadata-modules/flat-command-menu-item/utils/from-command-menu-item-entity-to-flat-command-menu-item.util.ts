@@ -12,6 +12,7 @@ export const fromCommandMenuItemEntityToFlatCommandMenuItem = ({
   applicationIdToUniversalIdentifierMap,
   objectMetadataIdToUniversalIdentifierMap,
   frontComponentIdToUniversalIdentifierMap,
+  pageLayoutIdToUniversalIdentifierMap,
 }: FromEntityToFlatEntityArgs<'commandMenuItem'>): FlatCommandMenuItem => {
   const applicationUniversalIdentifier =
     applicationIdToUniversalIdentifierMap.get(
@@ -57,13 +58,34 @@ export const fromCommandMenuItemEntityToFlatCommandMenuItem = ({
     }
   }
 
+  let pageLayoutUniversalIdentifier: string | null = null;
+
+  if (isDefined(commandMenuItemEntity.pageLayoutId)) {
+    pageLayoutUniversalIdentifier =
+      pageLayoutIdToUniversalIdentifierMap.get(
+        commandMenuItemEntity.pageLayoutId,
+      ) ?? null;
+
+    if (!isDefined(pageLayoutUniversalIdentifier)) {
+      throw new FlatEntityMapsException(
+        `PageLayout with id ${commandMenuItemEntity.pageLayoutId} not found for commandMenuItem ${commandMenuItemEntity.id}`,
+        FlatEntityMapsExceptionCode.ENTITY_NOT_FOUND,
+      );
+    }
+  }
+
   return {
     id: commandMenuItemEntity.id,
     workflowVersionId: commandMenuItemEntity.workflowVersionId,
     frontComponentId: commandMenuItemEntity.frontComponentId,
+    engineComponentKey: commandMenuItemEntity.engineComponentKey,
     label: commandMenuItemEntity.label,
     icon: commandMenuItemEntity.icon,
+    shortLabel: commandMenuItemEntity.shortLabel,
+    position: commandMenuItemEntity.position,
     isPinned: commandMenuItemEntity.isPinned,
+    payload: commandMenuItemEntity.payload,
+    hotKeys: commandMenuItemEntity.hotKeys,
     availabilityType: commandMenuItemEntity.availabilityType,
     availabilityObjectMetadataId:
       commandMenuItemEntity.availabilityObjectMetadataId,
@@ -72,11 +94,12 @@ export const fromCommandMenuItemEntityToFlatCommandMenuItem = ({
     applicationId: commandMenuItemEntity.applicationId,
     createdAt: commandMenuItemEntity.createdAt.toISOString(),
     updatedAt: commandMenuItemEntity.updatedAt.toISOString(),
-    __universal: {
-      universalIdentifier: commandMenuItemEntity.universalIdentifier,
-      applicationUniversalIdentifier,
-      availabilityObjectMetadataUniversalIdentifier,
-      frontComponentUniversalIdentifier,
-    },
+    applicationUniversalIdentifier,
+    conditionalAvailabilityExpression:
+      commandMenuItemEntity.conditionalAvailabilityExpression,
+    availabilityObjectMetadataUniversalIdentifier,
+    frontComponentUniversalIdentifier,
+    pageLayoutId: commandMenuItemEntity.pageLayoutId,
+    pageLayoutUniversalIdentifier,
   };
 };

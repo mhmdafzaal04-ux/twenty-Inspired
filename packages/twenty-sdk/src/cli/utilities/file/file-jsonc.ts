@@ -1,4 +1,4 @@
-import * as fs from 'fs-extra';
+import { readFile } from 'node:fs/promises';
 import { type ParseError, parse as parseJsonc } from 'jsonc-parser';
 
 export interface JsoncParseOptions {
@@ -43,12 +43,12 @@ export const parseJsoncString = (
   return result;
 };
 
-export const parseJsoncFile = async (
+export const parseJsoncFile = async <T = object>(
   filePath: string,
   options: JsoncParseOptions = {},
-): Promise<any> => {
+): Promise<T> => {
   try {
-    const content = await fs.readFile(filePath, 'utf8');
+    const content = await readFile(filePath, 'utf8');
     return parseJsoncString(content, options);
   } catch (error) {
     if (error instanceof JsoncParseError) {

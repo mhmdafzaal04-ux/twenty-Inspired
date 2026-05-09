@@ -7,6 +7,8 @@ export type SeederFlatPageLayoutWidget = Pick<
   | 'title'
   | 'type'
   | 'gridPosition'
+  | 'position'
   | 'configuration'
   | 'objectMetadataId'
+  | 'overrides'
 >;

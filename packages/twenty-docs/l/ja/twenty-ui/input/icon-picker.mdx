@@ -1,6 +1,5 @@
 ---
 title: アイコンピッカー
-image: /images/user-guide/github/github-header.png
 ---
 
 <Frame>
@@ -12,7 +11,6 @@ image: /images/user-guide/github/github-header.png
 <Tabs>
   <Tab title="使用方法">
     ```jsx
-    import { RecoilRoot } from "recoil";
     import React, { useState } from "react";
     import { IconPicker } from "@/ui/input/components/IconPicker";
 
@@ -25,14 +23,12 @@ image: /images/user-guide/github/github-header.png
        };
 
       return (
-        <RecoilRoot>
           <IconPicker
             disabled={false}
             onChange={handleIconChange}
             selectedIconKey={selectedIcon}
             variant="primary"
           />
-        </RecoilRoot>
       );
     };
     ```

@@ -95,17 +95,17 @@ const mockFieldMetadatas: FlatFieldMetadata[] = [
 
 export const mockPersonFlatFieldMetadataMaps =
   (): FlatEntityMaps<FlatFieldMetadata> => ({
-    byId: mockFieldMetadatas.reduce(
+    byUniversalIdentifier: mockFieldMetadatas.reduce(
       (acc, field) => {
-        acc[field.id] = field;
+        acc[field.universalIdentifier] = field;
 
         return acc;
       },
       {} as Record<string, FlatFieldMetadata>,
     ),
-    idByUniversalIdentifier: mockFieldMetadatas.reduce(
+    universalIdentifierById: mockFieldMetadatas.reduce(
       (acc, field) => {
-        acc[field.universalIdentifier] = field.id;
+        acc[field.id] = field.universalIdentifier;
 
         return acc;
       },
@@ -120,11 +120,11 @@ export const mockPersonFlatObjectMetadataMaps = (
   const flatObjectMetadata = mockPersonFlatObjectMetadata(duplicateCriteria);
 
   return {
-    byId: {
-      [flatObjectMetadata.id]: flatObjectMetadata,
+    byUniversalIdentifier: {
+      [flatObjectMetadata.universalIdentifier as string]: flatObjectMetadata,
     },
-    idByUniversalIdentifier: {
-      [flatObjectMetadata.universalIdentifier as string]: flatObjectMetadata.id,
+    universalIdentifierById: {
+      [flatObjectMetadata.id]: flatObjectMetadata.universalIdentifier as string,
     },
     universalIdentifiersByApplicationId: {},
   };
@@ -135,6 +135,7 @@ export const mockPersonFlatObjectMetadata = (
 ): FlatObjectMetadata => ({
   id: objectMetadataId,
   icon: 'Icon123',
+  color: null,
   nameSingular: 'person',
   namePlural: 'people',
   labelSingular: 'Person',
@@ -152,6 +153,8 @@ export const mockPersonFlatObjectMetadata = (
   workspaceId,
   universalIdentifier: objectMetadataId,
   indexMetadataIds: [],
+  objectPermissionIds: [],
+  fieldPermissionIds: [],
   fieldIds: mockFieldMetadatas.map((field) => field.id),
   viewIds: [],
   applicationId: 'test-application-id',
@@ -167,6 +170,8 @@ export const mockPersonFlatObjectMetadata = (
     (field) => field.universalIdentifier,
   ),
   viewUniversalIdentifiers: [],
+  objectPermissionUniversalIdentifiers: [],
+  fieldPermissionUniversalIdentifiers: [],
   indexMetadataUniversalIdentifiers: [],
   labelIdentifierFieldMetadataUniversalIdentifier: null,
   imageIdentifierFieldMetadataUniversalIdentifier: null,

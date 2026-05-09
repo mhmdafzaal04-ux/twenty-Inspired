@@ -29,7 +29,7 @@ import { OTPStatus } from './strategies/otp/otp.constants';
 const PENDING_METHOD_REUSE_WINDOW_MS = 60 * 60 * 1000;
 
 @Injectable()
-// eslint-disable-next-line twenty/inject-workspace-repository
+// oxlint-disable-next-line twenty/inject-workspace-repository
 export class TwoFactorAuthenticationService {
   constructor(
     @InjectRepository(TwoFactorAuthenticationMethodEntity)
@@ -140,6 +140,7 @@ export class TwoFactorAuthenticationService {
 
     await this.twoFactorAuthenticationMethodRepository.save({
       id: existing2FAMethod?.id,
+      workspaceId,
       userWorkspace: userWorkspace,
       secret: encryptedSecret,
       status: context.status,

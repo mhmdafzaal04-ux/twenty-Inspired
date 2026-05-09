@@ -1,7 +1,7 @@
 import { workflowActionSchema } from 'twenty-shared/workflow';
 import { z } from 'zod';
 
-import type { UpdateWorkflowVersionStepInput } from 'src/engine/core-modules/workflow/dtos/update-workflow-version-step-input.dto';
+import type { UpdateWorkflowVersionStepInput } from 'src/engine/core-modules/workflow/dtos/update-workflow-version-step.input';
 import {
   type WorkflowToolContext,
   type WorkflowToolDependencies,
@@ -10,7 +10,8 @@ import {
 const updateWorkflowVersionStepSchema = z.object({
   workflowVersionId: z
     .string()
-    .describe('The ID of the workflow version containing the step'),
+    .uuid()
+    .describe('The UUID of the workflow version containing the step'),
   step: z
     .union([workflowActionSchema])
     .describe('The updated step configuration'),

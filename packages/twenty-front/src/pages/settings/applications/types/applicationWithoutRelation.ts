@@ -1,6 +1,12 @@
-import { type Application } from '~/generated/graphql';
+import { type Application } from '~/generated-metadata/graphql';
 
 export type ApplicationWithoutRelation = Pick<
   Application,
-  'id' | 'name' | 'description'
+  | 'id'
+  | 'name'
+  | 'description'
+  | 'version'
+  | 'universalIdentifier'
+  | 'applicationRegistrationId'
+  | 'applicationRegistration'
 >;

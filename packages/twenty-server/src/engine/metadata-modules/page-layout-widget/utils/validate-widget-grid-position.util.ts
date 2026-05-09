@@ -1,4 +1,5 @@
 import { msg } from '@lingui/core/macro';
+import { type GridPosition } from 'twenty-shared/types';
 
 import { WIDGET_GRID_MAX_COLUMNS } from 'src/engine/metadata-modules/page-layout-widget/constants/widget-grid-max-columns.constant';
 import { WIDGET_GRID_MAX_ROWS } from 'src/engine/metadata-modules/page-layout-widget/constants/widget-grid-max-rows.constant';
@@ -9,13 +10,7 @@ import {
 } from 'src/engine/metadata-modules/page-layout-widget/exceptions/page-layout-widget.exception';
 import { type FlatEntityValidationError } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/types/failed-flat-entity-validation.type';
 
-type GridPosition = {
-  row: number;
-  column: number;
-  rowSpan: number;
-  columnSpan: number;
-};
-
+// TODO: remove in favor of validatePageLayoutWidgetGridPosition once gridPosition is deprecated
 export const validateWidgetGridPosition = (
   gridPosition: GridPosition,
   widgetTitle: string,
@@ -28,7 +23,7 @@ export const validateWidgetGridPosition = (
     errors.push({
       code: PageLayoutWidgetExceptionCode.INVALID_PAGE_LAYOUT_WIDGET_DATA,
       message: generatePageLayoutWidgetExceptionMessage(
-        PageLayoutWidgetExceptionMessageKey.INVALID_WIDGET_GRID_POSITION,
+        PageLayoutWidgetExceptionMessageKey.INVALID_WIDGET_POSITION,
         widgetTitle,
         undefined,
         `column ${column} exceeds grid width (max column is ${WIDGET_GRID_MAX_COLUMNS - 1})`,
@@ -41,7 +36,7 @@ export const validateWidgetGridPosition = (
     errors.push({
       code: PageLayoutWidgetExceptionCode.INVALID_PAGE_LAYOUT_WIDGET_DATA,
       message: generatePageLayoutWidgetExceptionMessage(
-        PageLayoutWidgetExceptionMessageKey.INVALID_WIDGET_GRID_POSITION,
+        PageLayoutWidgetExceptionMessageKey.INVALID_WIDGET_POSITION,
         widgetTitle,
         undefined,
         `widget extends beyond grid width (column ${column} + columnSpan ${columnSpan} > ${WIDGET_GRID_MAX_COLUMNS})`,
@@ -54,7 +49,7 @@ export const validateWidgetGridPosition = (
     errors.push({
       code: PageLayoutWidgetExceptionCode.INVALID_PAGE_LAYOUT_WIDGET_DATA,
       message: generatePageLayoutWidgetExceptionMessage(
-        PageLayoutWidgetExceptionMessageKey.INVALID_WIDGET_GRID_POSITION,
+        PageLayoutWidgetExceptionMessageKey.INVALID_WIDGET_POSITION,
         widgetTitle,
         undefined,
         `row ${row} exceeds maximum allowed rows (${WIDGET_GRID_MAX_ROWS})`,
@@ -67,7 +62,7 @@ export const validateWidgetGridPosition = (
     errors.push({
       code: PageLayoutWidgetExceptionCode.INVALID_PAGE_LAYOUT_WIDGET_DATA,
       message: generatePageLayoutWidgetExceptionMessage(
-        PageLayoutWidgetExceptionMessageKey.INVALID_WIDGET_GRID_POSITION,
+        PageLayoutWidgetExceptionMessageKey.INVALID_WIDGET_POSITION,
         widgetTitle,
         undefined,
         `widget extends beyond grid height (row ${row} + rowSpan ${rowSpan} > ${WIDGET_GRID_MAX_ROWS})`,

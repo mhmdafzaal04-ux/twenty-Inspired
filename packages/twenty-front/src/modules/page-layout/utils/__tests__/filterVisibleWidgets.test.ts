@@ -1,6 +1,9 @@
 import { type PageLayoutTab } from '@/page-layout/types/PageLayoutTab';
-import { WidgetType } from '~/generated/graphql';
 import { filterVisibleWidgets } from '@/page-layout/utils/filterVisibleWidgets';
+import {
+  WidgetConfigurationType,
+  WidgetType,
+} from '~/generated-metadata/graphql';
 
 describe('filterVisibleWidgets', () => {
   const createMockWidget = (
@@ -9,6 +12,8 @@ describe('filterVisibleWidgets', () => {
   ): PageLayoutTab['widgets'][0] => ({
     __typename: 'PageLayoutWidget',
     id,
+    applicationId: '',
+    isActive: true,
     pageLayoutTabId: 'tab-1',
     title: `Widget ${id}`,
     type: WidgetType.FIELDS,
@@ -22,8 +27,8 @@ describe('filterVisibleWidgets', () => {
     },
     configuration: {
       __typename: 'FieldsConfiguration',
-      configurationType: 'FIELDS',
-      sections: [],
+      configurationType: WidgetConfigurationType.FIELDS,
+      viewId: null,
     },
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',

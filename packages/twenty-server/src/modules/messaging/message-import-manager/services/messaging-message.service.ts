@@ -25,9 +25,10 @@ type MessageAccumulator = {
     | 'text'
     | 'messageThreadId'
   >;
-  threadToCreate?: Pick<MessageThreadWorkspaceEntity, 'id'>;
+  threadToCreate?: Pick<MessageThreadWorkspaceEntity, 'id' | 'subject'>;
   messageChannelMessageAssociationToCreate?: Pick<
     MessageChannelMessageAssociationWorkspaceEntity,
+    | 'id'
     | 'messageChannelId'
     | 'messageId'
     | 'messageExternalId'
@@ -51,6 +52,10 @@ export class MessagingMessageService {
   ): Promise<{
     createdMessages: Partial<MessageWorkspaceEntity>[];
     messageExternalIdsAndIdsMap: Map<string, string>;
+    messageExternalIdToMessageChannelMessageAssociationIdMap: Map<
+      string,
+      string
+    >;
   }> {
     const authContext = buildSystemAuthContext(workspaceId);
 
@@ -176,15 +181,16 @@ export class MessagingMessageService {
             )
           ) {
             messageAccumulator.messageChannelMessageAssociationToCreate = {
+              id: v4(),
               messageChannelId,
               messageId: newOrExistingMessageId,
               messageExternalId: message.externalId,
               messageThreadExternalId: message.messageThreadExternalId,
               direction: message.direction,
             };
-
-            messageAccumulatorMap.set(message.externalId, messageAccumulator);
           }
+
+          messageAccumulatorMap.set(message.externalId, messageAccumulator);
         }
 
         const messageThreadsToCreate = Array.from(
@@ -193,10 +199,54 @@ export class MessagingMessageService {
           .map((accumulator) => accumulator.threadToCreate)
           .filter(isDefined);
 
-        await messageThreadRepository.insert(
-          messageThreadsToCreate,
-          transactionManager,
-        );
+        const threadSubjectUpdates = new Map<
+          string,
+          { subject: string; receivedAt: number }
+        >();
+
+        for (const message of messages) {
+          const messageAccumulator = messageAccumulatorMap.get(
+            message.externalId,
+          );
+
+          if (!isDefined(messageAccumulator)) {
+            continue;
+          }
+
+          if (
+            isDefined(messageAccumulator.existingThreadInDB) &&
+            isDefined(messageAccumulator.messageToCreate) &&
+            isDefined(message.subject)
+          ) {
+            const threadId = messageAccumulator.existingThreadInDB.id;
+            const existing = threadSubjectUpdates.get(threadId);
+            const receivedAt = message.receivedAt?.getTime() ?? 0;
+
+            if (!isDefined(existing) || receivedAt > existing.receivedAt) {
+              threadSubjectUpdates.set(threadId, {
+                subject: message.subject,
+                receivedAt,
+              });
+            }
+          }
+        }
+
+        if (messageThreadsToCreate.length > 0) {
+          await messageThreadRepository.insert(
+            messageThreadsToCreate,
+            transactionManager,
+          );
+        }
+
+        if (threadSubjectUpdates.size > 0) {
+          await messageThreadRepository.upsert(
+            Array.from(threadSubjectUpdates.entries()).map(
+              ([id, { subject }]) => ({ id, subject }),
+            ),
+            ['id'],
+            transactionManager,
+          );
+        }
 
         const messagesToCreate = Array.from(messageAccumulatorMap.values())
           .map((accumulator) => accumulator.messageToCreate)
@@ -219,6 +269,8 @@ export class MessagingMessageService {
         );
 
         const messageExternalIdsAndIdsMap = new Map<string, string>();
+        const messageExternalIdToMessageChannelMessageAssociationIdMap =
+          new Map<string, string>();
 
         for (const [
           externalId,
@@ -237,11 +289,25 @@ export class MessagingMessageService {
               accumulator.existingMessageInDB.id,
             );
           }
+
+          const createdAssociationId =
+            accumulator.messageChannelMessageAssociationToCreate?.id;
+          const existingAssociationId =
+            accumulator.existingMessageChannelMessageAssociationInDB?.id;
+          const associationId = createdAssociationId ?? existingAssociationId;
+
+          if (isDefined(associationId)) {
+            messageExternalIdToMessageChannelMessageAssociationIdMap.set(
+              externalId,
+              associationId,
+            );
+          }
         }
 
         return {
           createdMessages: messagesToCreate,
           messageExternalIdsAndIdsMap,
+          messageExternalIdToMessageChannelMessageAssociationIdMap,
         };
       },
       authContext,
@@ -369,11 +435,8 @@ export class MessagingMessageService {
         );
 
       if (existingMessageChannelMessageAssociation) {
-        messageAccumulatorMap.set(message.externalId, {
-          existingMessageInDB: existingMessage,
-          existingMessageChannelMessageAssociationInDB:
-            existingMessageChannelMessageAssociation,
-        });
+        messageAccumulator.existingMessageChannelMessageAssociationInDB =
+          existingMessageChannelMessageAssociation;
       }
     }
   }
@@ -429,6 +492,7 @@ export class MessagingMessageService {
 
         messageAccumulator.threadToCreate = {
           id: newOrExistingMessageThreadId,
+          subject: message.subject,
         };
       }
 

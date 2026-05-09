@@ -2,7 +2,9 @@ import { isDefined } from 'twenty-shared/utils';
 
 import { type AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
+import { type ExtractUniversalForeignKeyAggregatorForMetadataName } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/constants/all-universal-flat-entity-foreign-key-aggregator-properties.constant';
 import { type UniversalFlatFieldMetadata } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-field-metadata.type';
+import { getUniversalFlatEntityEmptyForeignKeyAggregators } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/utils/reset-universal-flat-entity-foreign-key-aggregators.util';
 import { type AllUniversalWorkspaceMigrationAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/workspace-migration-action-common';
 import { findFieldMetadataIdInCreateFieldContext } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/field/services/utils/find-field-metadata-id-in-create-field-context.util';
 import { fromUniversalSettingsToFlatFieldMetadataSettings } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/field/services/utils/from-universal-settings-to-flat-field-metadata-settings.util';
@@ -10,20 +12,16 @@ import { type WorkspaceMigrationActionRunnerArgs } from 'src/engine/workspace-ma
 
 export type FromUniversalFlatFieldMetadataToFlatFieldMetadataArgs = {
   allFieldIdToBeCreatedInActionByUniversalIdentifierMap: Map<string, string>;
-  universalFlatFieldMetadata: UniversalFlatFieldMetadata;
+  universalFlatFieldMetadata: Omit<
+    UniversalFlatFieldMetadata,
+    ExtractUniversalForeignKeyAggregatorForMetadataName<'fieldMetadata'>
+  >;
   allFlatEntityMaps: AllFlatEntityMaps;
   context: Pick<
     WorkspaceMigrationActionRunnerArgs<AllUniversalWorkspaceMigrationAction>,
     'workspaceId' | 'flatApplication'
   >;
   objectMetadataId?: string;
-};
-
-const getIdFromUniversalIdentifier = (
-  universalIdentifier: string,
-  flatEntityMaps: { idByUniversalIdentifier: Partial<Record<string, string>> },
-): string | null => {
-  return flatEntityMaps.idByUniversalIdentifier[universalIdentifier] ?? null;
 };
 
 export const fromUniversalFlatFieldMetadataToFlatFieldMetadata = ({
@@ -42,13 +40,6 @@ export const fromUniversalFlatFieldMetadataToFlatFieldMetadata = ({
     objectMetadataUniversalIdentifier,
     relationTargetFieldMetadataUniversalIdentifier,
     relationTargetObjectMetadataUniversalIdentifier,
-    viewFilterUniversalIdentifiers: _viewFilterUniversalIdentifiers,
-    viewFieldUniversalIdentifiers: _viewFieldUniversalIdentifiers,
-    kanbanAggregateOperationViewUniversalIdentifiers:
-      _kanbanAggregateOperationViewUniversalIdentifiers,
-    calendarViewUniversalIdentifiers: _calendarViewUniversalIdentifiers,
-    mainGroupByFieldMetadataViewUniversalIdentifiers:
-      _mainGroupByFieldMetadataViewUniversalIdentifiers,
     universalSettings,
     ...restProperties
   } = universalFlatFieldMetadata;
@@ -66,10 +57,10 @@ export const fromUniversalFlatFieldMetadataToFlatFieldMetadata = ({
 
   const objectMetadataId =
     optionalObjectMetadataId ??
-    getIdFromUniversalIdentifier(
-      objectMetadataUniversalIdentifier,
-      allFlatEntityMaps.flatObjectMetadataMaps,
-    );
+    allFlatEntityMaps.flatObjectMetadataMaps.byUniversalIdentifier[
+      objectMetadataUniversalIdentifier
+    ]?.id ??
+    null;
 
   if (!isDefined(objectMetadataId)) {
     throw new Error(
@@ -96,10 +87,10 @@ export const fromUniversalFlatFieldMetadataToFlatFieldMetadata = ({
   let relationTargetObjectMetadataId: string | null = null;
 
   if (isDefined(relationTargetObjectMetadataUniversalIdentifier)) {
-    relationTargetObjectMetadataId = getIdFromUniversalIdentifier(
-      relationTargetObjectMetadataUniversalIdentifier,
-      allFlatEntityMaps.flatObjectMetadataMaps,
-    );
+    relationTargetObjectMetadataId =
+      allFlatEntityMaps.flatObjectMetadataMaps.byUniversalIdentifier[
+        relationTargetObjectMetadataUniversalIdentifier
+      ]?.id ?? null;
 
     if (!isDefined(relationTargetObjectMetadataId)) {
       throw new Error(
@@ -113,6 +104,11 @@ export const fromUniversalFlatFieldMetadataToFlatFieldMetadata = ({
     allFieldIdToBeCreatedInActionByUniversalIdentifierMap,
     flatFieldMetadataMaps: allFlatEntityMaps.flatFieldMetadataMaps,
   });
+
+  const emptyUniversalForeignKeyAggregators =
+    getUniversalFlatEntityEmptyForeignKeyAggregators({
+      metadataName: 'fieldMetadata',
+    });
 
   return {
     ...restProperties,
@@ -134,13 +130,11 @@ export const fromUniversalFlatFieldMetadataToFlatFieldMetadata = ({
     // Empty aggregator arrays for newly created entities
     viewFieldIds: [],
     viewFilterIds: [],
+    fieldPermissionIds: [],
     calendarViewIds: [],
     mainGroupByFieldMetadataViewIds: [],
     kanbanAggregateOperationViewIds: [],
-    viewFieldUniversalIdentifiers: [],
-    viewFilterUniversalIdentifiers: [],
-    calendarViewUniversalIdentifiers: [],
-    mainGroupByFieldMetadataViewUniversalIdentifiers: [],
-    kanbanAggregateOperationViewUniversalIdentifiers: [],
+    viewSortIds: [],
+    ...emptyUniversalForeignKeyAggregators,
   };
 };

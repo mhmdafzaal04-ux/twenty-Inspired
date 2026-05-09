@@ -2,9 +2,11 @@ import { Injectable } from '@nestjs/common';
 
 import { isDefined } from 'twenty-shared/utils';
 
-import { ApplicationService } from 'src/engine/core-modules/application/services/application.service';
+import { ApplicationService } from 'src/engine/core-modules/application/application.service';
+import { transformRichTextValue } from 'src/engine/core-modules/record-transformer/utils/transform-rich-text.util';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { findFlatEntityByIdInFlatEntityMapsOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps-or-throw.util';
+import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { FlatPageLayoutWidgetMaps } from 'src/engine/metadata-modules/flat-page-layout-widget/types/flat-page-layout-widget-maps.type';
 import { FlatPageLayoutWidget } from 'src/engine/metadata-modules/flat-page-layout-widget/types/flat-page-layout-widget.type';
 import { fromCreatePageLayoutWidgetInputToFlatPageLayoutWidgetToCreate } from 'src/engine/metadata-modules/flat-page-layout-widget/utils/from-create-page-layout-widget-input-to-flat-page-layout-widget-to-create.util';
@@ -16,14 +18,17 @@ import {
 import { CreatePageLayoutWidgetInput } from 'src/engine/metadata-modules/page-layout-widget/dtos/inputs/create-page-layout-widget.input';
 import { UpdatePageLayoutWidgetInput } from 'src/engine/metadata-modules/page-layout-widget/dtos/inputs/update-page-layout-widget.input';
 import { type PageLayoutWidgetDTO } from 'src/engine/metadata-modules/page-layout-widget/dtos/page-layout-widget.dto';
+import { resolveOverridableEntityProperty } from 'src/engine/metadata-modules/utils/resolve-overridable-entity-property.util';
+import { WidgetConfigurationType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-configuration-type.type';
 import {
   PageLayoutWidgetException,
   PageLayoutWidgetExceptionCode,
   PageLayoutWidgetExceptionMessageKey,
   generatePageLayoutWidgetExceptionMessage,
 } from 'src/engine/metadata-modules/page-layout-widget/exceptions/page-layout-widget.exception';
+import { type AllPageLayoutWidgetConfiguration } from 'src/engine/metadata-modules/page-layout-widget/types/all-page-layout-widget-configuration.type';
 import { fromFlatPageLayoutWidgetToPageLayoutWidgetDto } from 'src/engine/metadata-modules/page-layout-widget/utils/from-flat-page-layout-widget-to-page-layout-widget-dto.util';
-import { validateWidgetGridPosition } from 'src/engine/metadata-modules/page-layout-widget/utils/validate-widget-grid-position.util';
+import { validateChartConfigurationFieldReferencesOrThrow } from 'src/engine/metadata-modules/page-layout-widget/utils/validate-chart-configuration-field-references.util';
 import { WorkspaceMigrationBuilderException } from 'src/engine/workspace-manager/workspace-migration/exceptions/workspace-migration-builder-exception';
 import { WorkspaceMigrationValidateBuildAndRunService } from 'src/engine/workspace-manager/workspace-migration/services/workspace-migration-validate-build-and-run-service';
 import { DashboardSyncService } from 'src/modules/dashboard-sync/services/dashboard-sync.service';
@@ -84,12 +89,64 @@ export class PageLayoutWidgetService {
         },
       );
 
-    if (isDefined(validateAndBuildResult)) {
+    if (validateAndBuildResult.status === 'fail') {
       throw new WorkspaceMigrationBuilderException(
         validateAndBuildResult,
         errorMessage,
       );
     }
+  }
+
+  private async enrichRichTextConfigurationBody(
+    configuration: AllPageLayoutWidgetConfiguration,
+  ): Promise<AllPageLayoutWidgetConfiguration> {
+    if (
+      configuration.configurationType !==
+      WidgetConfigurationType.STANDALONE_RICH_TEXT
+    ) {
+      return configuration;
+    }
+
+    if (!isDefined(configuration.body)) {
+      return configuration;
+    }
+
+    try {
+      return {
+        ...configuration,
+        body: await transformRichTextValue(configuration.body),
+      };
+    } catch {
+      return configuration;
+    }
+  }
+
+  private async validateChartFieldReferences({
+    configuration,
+    objectMetadataId,
+    widgetTitle,
+    workspaceId,
+  }: {
+    configuration: AllPageLayoutWidgetConfiguration;
+    objectMetadataId?: string | null;
+    widgetTitle?: string | null;
+    workspaceId: string;
+  }): Promise<void> {
+    const { flatFieldMetadataMaps, flatObjectMetadataMaps } =
+      await this.workspaceManyOrAllFlatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId,
+          flatMapsKeys: ['flatFieldMetadataMaps', 'flatObjectMetadataMaps'],
+        },
+      );
+
+    validateChartConfigurationFieldReferencesOrThrow({
+      widgetConfiguration: configuration,
+      widgetObjectMetadataId: objectMetadataId,
+      widgetTitle,
+      flatFieldMetadataMaps,
+      flatObjectMetadataMaps,
+    });
   }
 
   async findByPageLayoutTabId({
@@ -102,12 +159,12 @@ export class PageLayoutWidgetService {
     const flatPageLayoutWidgetMaps =
       await this.getFlatPageLayoutWidgetMaps(workspaceId);
 
-    return Object.values(flatPageLayoutWidgetMaps.byId)
+    return Object.values(flatPageLayoutWidgetMaps.byUniversalIdentifier)
       .filter(isDefined)
       .filter(
         (widget) =>
-          widget.pageLayoutTabId === pageLayoutTabId &&
-          !isDefined(widget.deletedAt),
+          resolveOverridableEntityProperty(widget, 'pageLayoutTabId') ===
+            pageLayoutTabId && !isDefined(widget.deletedAt),
       )
       .sort(
         (widgetA, widgetB) =>
@@ -127,7 +184,10 @@ export class PageLayoutWidgetService {
     const flatPageLayoutWidgetMaps =
       await this.getFlatPageLayoutWidgetMaps(workspaceId);
 
-    const flatWidget = flatPageLayoutWidgetMaps.byId[id];
+    const flatWidget = findFlatEntityByIdInFlatEntityMaps({
+      flatEntityId: id,
+      flatEntityMaps: flatPageLayoutWidgetMaps,
+    });
 
     if (!isDefined(flatWidget) || isDefined(flatWidget.deletedAt)) {
       throw new PageLayoutWidgetException(
@@ -149,17 +209,63 @@ export class PageLayoutWidgetService {
     input: CreatePageLayoutWidgetInput;
     workspaceId: string;
   }): Promise<PageLayoutWidgetDTO> {
+    const createInput = isDefined(input.configuration)
+      ? {
+          ...input,
+          configuration: await this.enrichRichTextConfigurationBody(
+            input.configuration,
+          ),
+        }
+      : input;
+
     const { workspaceCustomFlatApplication } =
       await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
         { workspaceId },
       );
 
+    const {
+      flatPageLayoutTabMaps,
+      flatObjectMetadataMaps,
+      flatFieldMetadataMaps,
+      flatFrontComponentMaps,
+      flatViewFieldGroupMaps,
+      flatViewMaps,
+    } =
+      await this.workspaceManyOrAllFlatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId,
+          flatMapsKeys: [
+            'flatPageLayoutTabMaps',
+            'flatObjectMetadataMaps',
+            'flatFieldMetadataMaps',
+            'flatFrontComponentMaps',
+            'flatViewFieldGroupMaps',
+            'flatViewMaps',
+          ],
+        },
+      );
+
     const flatPageLayoutWidgetToCreate =
       fromCreatePageLayoutWidgetInputToFlatPageLayoutWidgetToCreate({
-        createPageLayoutWidgetInput: input,
+        createPageLayoutWidgetInput: createInput,
         workspaceId,
-        workspaceCustomApplicationId: workspaceCustomFlatApplication.id,
+        flatApplication: workspaceCustomFlatApplication,
+        flatPageLayoutTabMaps,
+        flatObjectMetadataMaps,
+        flatFieldMetadataMaps,
+        flatFrontComponentMaps,
+        flatViewFieldGroupMaps,
+        flatViewMaps,
       });
+
+    if (isDefined(createInput.configuration)) {
+      await this.validateChartFieldReferences({
+        configuration: createInput.configuration,
+        objectMetadataId: createInput.objectMetadataId ?? null,
+        widgetTitle: createInput.title,
+        workspaceId,
+      });
+    }
 
     await this.validateAndRunWidgetMigration({
       workspaceId,
@@ -205,16 +311,54 @@ export class PageLayoutWidgetService {
       existingFlatPageLayoutWidgetMaps,
     );
 
-    if (updateData.gridPosition) {
-      const titleForValidation = updateData.title ?? existingWidget.title;
+    const [
+      {
+        flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
+        flatFieldMetadataMaps: existingFlatFieldMetadataMaps,
+        flatFrontComponentMaps: existingFlatFrontComponentMaps,
+        flatViewFieldGroupMaps: existingFlatViewFieldGroupMaps,
+        flatViewMaps: existingFlatViewMaps,
+        flatPageLayoutTabMaps: existingFlatPageLayoutTabMaps,
+      },
+      { workspaceCustomFlatApplication },
+    ] = await Promise.all([
+      this.workspaceManyOrAllFlatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId,
+          flatMapsKeys: [
+            'flatObjectMetadataMaps',
+            'flatFieldMetadataMaps',
+            'flatFrontComponentMaps',
+            'flatViewFieldGroupMaps',
+            'flatViewMaps',
+            'flatPageLayoutTabMaps',
+          ],
+        },
+      ),
+      this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
+        { workspaceId },
+      ),
+    ]);
 
-      validateWidgetGridPosition(updateData.gridPosition, titleForValidation);
-    }
+    const isConfigurationBeingUpdated = Object.prototype.hasOwnProperty.call(
+      updateData,
+      'configuration',
+    );
+
+    const processedUpdateData =
+      isConfigurationBeingUpdated && isDefined(updateData.configuration)
+        ? {
+            ...updateData,
+            configuration: await this.enrichRichTextConfigurationBody(
+              updateData.configuration,
+            ),
+          }
+        : updateData;
 
     const updatePageLayoutWidgetInput: UpdatePageLayoutWidgetInputWithId = {
       id,
       update: {
-        ...updateData,
+        ...processedUpdateData,
       },
     };
 
@@ -222,7 +366,44 @@ export class PageLayoutWidgetService {
       fromUpdatePageLayoutWidgetInputToFlatPageLayoutWidgetToUpdateOrThrow({
         updatePageLayoutWidgetInput,
         flatPageLayoutWidgetMaps: existingFlatPageLayoutWidgetMaps,
+        flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
+        flatFieldMetadataMaps: existingFlatFieldMetadataMaps,
+        flatFrontComponentMaps: existingFlatFrontComponentMaps,
+        flatViewFieldGroupMaps: existingFlatViewFieldGroupMaps,
+        flatViewMaps: existingFlatViewMaps,
+        flatPageLayoutTabMaps: existingFlatPageLayoutTabMaps,
+        callerApplicationUniversalIdentifier:
+          workspaceCustomFlatApplication.universalIdentifier,
+        workspaceCustomApplicationUniversalIdentifier:
+          workspaceCustomFlatApplication.universalIdentifier,
       });
+
+    const shouldValidateChartFields =
+      isConfigurationBeingUpdated ||
+      Object.prototype.hasOwnProperty.call(updateData, 'objectMetadataId') ||
+      Object.prototype.hasOwnProperty.call(updateData, 'type');
+
+    if (shouldValidateChartFields) {
+      const isObjectMetadataIdBeingUpdated =
+        Object.prototype.hasOwnProperty.call(updateData, 'objectMetadataId');
+      const effectiveConfiguration = isConfigurationBeingUpdated
+        ? processedUpdateData.configuration
+        : existingWidget.configuration;
+      const effectiveObjectMetadataId = isObjectMetadataIdBeingUpdated
+        ? processedUpdateData.objectMetadataId
+        : existingWidget.objectMetadataId;
+      const effectiveWidgetTitle =
+        processedUpdateData.title ?? existingWidget.title;
+
+      if (isDefined(effectiveConfiguration)) {
+        await this.validateChartFieldReferences({
+          configuration: effectiveConfiguration,
+          objectMetadataId: effectiveObjectMetadataId,
+          widgetTitle: effectiveWidgetTitle,
+          workspaceId,
+        });
+      }
+    }
 
     await this.validateAndRunWidgetMigration({
       workspaceId,
@@ -255,7 +436,10 @@ export class PageLayoutWidgetService {
     id: string,
     flatPageLayoutWidgetMaps: FlatPageLayoutWidgetMaps,
   ): FlatPageLayoutWidget {
-    const existingWidget = flatPageLayoutWidgetMaps.byId[id];
+    const existingWidget = findFlatEntityByIdInFlatEntityMaps({
+      flatEntityId: id,
+      flatEntityMaps: flatPageLayoutWidgetMaps,
+    });
 
     if (!isDefined(existingWidget) || isDefined(existingWidget.deletedAt)) {
       throw new PageLayoutWidgetException(

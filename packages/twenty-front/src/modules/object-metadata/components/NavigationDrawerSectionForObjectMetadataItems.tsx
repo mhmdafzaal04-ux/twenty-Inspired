@@ -1,13 +1,14 @@
-import { NavigationDrawerItemForObjectMetadataItem } from '@/object-metadata/components/NavigationDrawerItemForObjectMetadataItem';
-import { CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
-import { type ObjectMetadataItem } from '@/object-metadata/types/ObjectMetadataItem';
+import { NavigationDrawerItemForObjectMetadataItem } from '@/navigation-menu-item/display/object/components/NavigationDrawerItemForObjectMetadataItem';
+import { CoreObjectNameSingular } from 'twenty-shared/types';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { getObjectPermissionsForObject } from '@/object-metadata/utils/getObjectPermissionsForObject';
 import { useObjectPermissions } from '@/object-record/hooks/useObjectPermissions';
 import { NavigationDrawerAnimatedCollapseWrapper } from '@/ui/navigation/navigation-drawer/components/NavigationDrawerAnimatedCollapseWrapper';
 import { NavigationDrawerSection } from '@/ui/navigation/navigation-drawer/components/NavigationDrawerSection';
 import { NavigationDrawerSectionTitle } from '@/ui/navigation/navigation-drawer/components/NavigationDrawerSectionTitle';
 import { useNavigationSection } from '@/ui/navigation/navigation-drawer/hooks/useNavigationSection';
-import { useRecoilValue } from 'recoil';
+import { isNavigationSectionOpenFamilyState } from '@/ui/navigation/navigation-drawer/states/isNavigationSectionOpenFamilyState';
+import { useAtomFamilyStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomFamilyStateValue';
 import { isDefined } from 'twenty-shared/utils';
 
 const ORDERED_FIRST_STANDARD_OBJECTS: string[] = [
@@ -19,24 +20,36 @@ const ORDERED_FIRST_STANDARD_OBJECTS: string[] = [
 ];
 
 const ORDERED_LAST_STANDARD_OBJECTS: string[] = [
-  CoreObjectNameSingular.Workflow,
   CoreObjectNameSingular.Dashboard,
 ];
 
 type NavigationDrawerSectionForObjectMetadataItemsProps = {
   sectionTitle: string;
-  isRemote: boolean;
-  objectMetadataItems: ObjectMetadataItem[];
+  objectMetadataItems: EnrichedObjectMetadataItem[];
+  rightIcon?: React.ReactNode;
+  selectedObjectMetadataItemId?: string | null;
+  onObjectMetadataItemClick?: (
+    objectMetadataItem: EnrichedObjectMetadataItem,
+  ) => void;
+  onActiveObjectMetadataItemClick?: (
+    objectMetadataItem: EnrichedObjectMetadataItem,
+  ) => void;
 };
 
 export const NavigationDrawerSectionForObjectMetadataItems = ({
   sectionTitle,
-  isRemote,
   objectMetadataItems,
+  rightIcon,
+  selectedObjectMetadataItemId = null,
+  onObjectMetadataItemClick,
+  onActiveObjectMetadataItemClick,
 }: NavigationDrawerSectionForObjectMetadataItemsProps) => {
-  const { toggleNavigationSection, isNavigationSectionOpenState } =
-    useNavigationSection('Objects' + (isRemote ? 'Remote' : 'Workspace'));
-  const isNavigationSectionOpen = useRecoilValue(isNavigationSectionOpenState);
+  const navigationSectionId = 'ObjectsWorkspace';
+  const { toggleNavigationSection } = useNavigationSection(navigationSectionId);
+  const isNavigationSectionOpen = useAtomFamilyStateValue(
+    isNavigationSectionOpenFamilyState,
+    navigationSectionId,
+  );
 
   const { objectPermissionsByObjectMetadataId } = useObjectPermissions();
 
@@ -103,6 +116,8 @@ export const NavigationDrawerSectionForObjectMetadataItems = ({
           <NavigationDrawerSectionTitle
             label={sectionTitle}
             onClick={() => toggleNavigationSection()}
+            rightIcon={rightIcon}
+            isOpen={isNavigationSectionOpen}
           />
         </NavigationDrawerAnimatedCollapseWrapper>
         {isNavigationSectionOpen &&
@@ -111,6 +126,19 @@ export const NavigationDrawerSectionForObjectMetadataItems = ({
               <NavigationDrawerItemForObjectMetadataItem
                 key={`navigation-drawer-item-${objectMetadataItem.id}`}
                 objectMetadataItem={objectMetadataItem}
+                isSelectedInEditMode={
+                  selectedObjectMetadataItemId === objectMetadataItem.id
+                }
+                onEditModeClick={
+                  onObjectMetadataItemClick
+                    ? () => onObjectMetadataItemClick(objectMetadataItem)
+                    : undefined
+                }
+                onActiveItemClickWhenNotInEditMode={
+                  onActiveObjectMetadataItemClick
+                    ? () => onActiveObjectMetadataItemClick(objectMetadataItem)
+                    : undefined
+                }
               />
             ),
           )}

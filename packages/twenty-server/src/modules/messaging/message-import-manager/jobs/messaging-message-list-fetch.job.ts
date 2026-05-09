@@ -1,22 +1,21 @@
 import { Scope } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 
+import { Repository } from 'typeorm';
+
+import { MessageChannelSyncStage } from 'twenty-shared/types';
 import { Process } from 'src/engine/core-modules/message-queue/decorators/process.decorator';
 import { Processor } from 'src/engine/core-modules/message-queue/decorators/processor.decorator';
 import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
-import { isThrottled } from 'src/modules/connected-account/utils/is-throttled';
-import { MessageChannelSyncStatusService } from 'src/modules/messaging/common/services/message-channel-sync-status.service';
-import {
-  MessageChannelSyncStage,
-  type MessageChannelWorkspaceEntity,
-} from 'src/modules/messaging/common/standard-objects/message-channel.workspace-entity';
 import {
   MessageImportExceptionHandlerService,
   MessageImportSyncStep,
 } from 'src/modules/messaging/message-import-manager/services/messaging-import-exception-handler.service';
 import { MessagingMessageListFetchService } from 'src/modules/messaging/message-import-manager/services/messaging-message-list-fetch.service';
 import { MessagingMonitoringService } from 'src/modules/messaging/monitoring/services/messaging-monitoring.service';
+import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 
 export type MessagingMessageListFetchJobData = {
   messageChannelId: string;
@@ -32,8 +31,9 @@ export class MessagingMessageListFetchJob {
     private readonly messagingMessageListFetchService: MessagingMessageListFetchService,
     private readonly messagingMonitoringService: MessagingMonitoringService,
     private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
+    @InjectRepository(MessageChannelEntity)
+    private readonly messageChannelRepository: Repository<MessageChannelEntity>,
     private readonly messageImportErrorHandlerService: MessageImportExceptionHandlerService,
-    private readonly messageChannelSyncStatusService: MessageChannelSyncStatusService,
   ) {}
 
   @Process(MessagingMessageListFetchJob.name)
@@ -49,17 +49,12 @@ export class MessagingMessageListFetchJob {
     const authContext = buildSystemAuthContext(workspaceId);
 
     await this.globalWorkspaceOrmManager.executeInWorkspaceContext(async () => {
-      const messageChannelRepository =
-        await this.globalWorkspaceOrmManager.getRepository<MessageChannelWorkspaceEntity>(
-          workspaceId,
-          'messageChannel',
-        );
-
-      const messageChannel = await messageChannelRepository.findOne({
+      const messageChannel = await this.messageChannelRepository.findOne({
         where: {
           id: messageChannelId,
+          workspaceId,
         },
-        relations: ['connectedAccount', 'messageFolders'],
+        relations: { connectedAccount: true, messageFolders: true },
       });
 
       if (!messageChannel) {
@@ -80,21 +75,6 @@ export class MessagingMessageListFetchJob {
       }
 
       try {
-        if (
-          isThrottled(
-            messageChannel.syncStageStartedAt,
-            messageChannel.throttleFailureCount,
-          )
-        ) {
-          await this.messageChannelSyncStatusService.markAsMessagesListFetchPending(
-            [messageChannel.id],
-            workspaceId,
-            true,
-          );
-
-          return;
-        }
-
         await this.messagingMonitoringService.track({
           eventName: 'message_list_fetch.started',
           workspaceId,

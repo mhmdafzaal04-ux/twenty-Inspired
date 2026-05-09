@@ -33,6 +33,8 @@ const LOCAL_ENTRY_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MEMOIZER_TTL_MS = 10_000; // 10 seconds
 const STALE_VERSION_TTL_MS = 5_000; // 5 seconds
 const MAX_LOCAL_STALE_VERSIONS = 5; // 5 stale versions
+const MAX_LOCAL_CACHE_ENTRIES = 1_000;
+const MIN_EVICT_KEYS = 100;
 
 type CacheDataType = WorkspaceCacheDataMap[WorkspaceCacheKeyName];
 
@@ -166,6 +168,35 @@ export class WorkspaceCacheService implements OnModuleInit {
 
     await this.flush(workspaceId, cacheKeyNames);
     await this.recomputeDataFromProvider(workspaceId, cacheKeyNames);
+
+    // Clear memoizer again after recomputation to evict any stale entries
+    // cached by concurrent getOrRecompute calls during the flush window.
+    await this.memoizer.clearKeys(`${workspaceId}-`);
+  }
+
+  public async getCacheHashes(
+    workspaceId: string,
+    cacheKeyNames: WorkspaceCacheKeyName[],
+  ): Promise<Partial<Record<WorkspaceCacheKeyName, string>>> {
+    if (cacheKeyNames.length === 0) {
+      return {};
+    }
+
+    const hashKeys = cacheKeyNames.map(
+      (keyName) => `${this.buildCacheKey(workspaceId, keyName)}:hash`,
+    );
+
+    const hashes = await this.cacheStorage.mget<string>(hashKeys);
+
+    const result: Partial<Record<WorkspaceCacheKeyName, string>> = {};
+
+    for (const [index, keyName] of cacheKeyNames.entries()) {
+      if (isDefined(hashes[index])) {
+        result[keyName] = hashes[index];
+      }
+    }
+
+    return result;
   }
 
   public async flush(
@@ -391,6 +422,28 @@ export class WorkspaceCacheService implements OnModuleInit {
     entry.versions.set(hash, { data, lastReadAt: Date.now() });
     entry.latestHash = hash;
     entry.lastHashCheckedAt = Date.now();
+
+    this.cleanupStaleVersions(entry);
+    this.evictLRUEntriesIfNeeded();
+  }
+
+  private evictLRUEntriesIfNeeded(): void {
+    if (this.localCache.size <= MAX_LOCAL_CACHE_ENTRIES) {
+      return;
+    }
+
+    const entries = [...this.localCache.entries()].sort(
+      (a, b) => a[1].lastHashCheckedAt - b[1].lastHashCheckedAt,
+    );
+
+    const toEvict = entries.slice(
+      0,
+      Math.max(MIN_EVICT_KEYS, this.localCache.size - MAX_LOCAL_CACHE_ENTRIES),
+    );
+
+    for (const [key] of toEvict) {
+      this.localCache.delete(key);
+    }
   }
 
   private cleanupStaleVersions(

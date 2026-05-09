@@ -5,13 +5,17 @@ import { type RecordTableEmptyStateNoGroupNoRecordAtAll } from '@/object-record/
 import { fireEvent, userEvent, within } from 'storybook/test';
 import { ComponentDecorator } from 'twenty-ui/testing';
 import { ContextStoreDecorator } from '~/testing/decorators/ContextStoreDecorator';
+import { FileUploadDecorator } from '~/testing/decorators/FileUploadDecorator';
 import { MemoryRouterDecorator } from '~/testing/decorators/MemoryRouterDecorator';
 import { ObjectMetadataItemsDecorator } from '~/testing/decorators/ObjectMetadataItemsDecorator';
 import { RecordTableDecorator } from '~/testing/decorators/RecordTableDecorator';
 import { SnackBarDecorator } from '~/testing/decorators/SnackBarDecorator';
 import { graphqlMocks } from '~/testing/graphqlMocks';
-import { mockedViewsData } from '~/testing/mock-data/views';
+import { mockedCompanyRecords } from '~/testing/mock-data/generated/data/companies/mock-companies-data';
+import { mockedViews } from '~/testing/mock-data/generated/metadata/views/mock-views-data';
 import { sleep } from '~/utils/sleep';
+
+const companyView = mockedViews.find((v) => v.name === 'All Companies')!;
 
 const meta: Meta = {
   title: 'Modules/ObjectRecord/RecordTable/RecordTable',
@@ -19,13 +23,14 @@ const meta: Meta = {
   decorators: [
     ComponentDecorator,
     MemoryRouterDecorator,
+    FileUploadDecorator,
     RecordTableDecorator,
     ContextStoreDecorator,
     SnackBarDecorator,
     ObjectMetadataItemsDecorator,
   ],
   args: {
-    recordTableId: `companies-${mockedViewsData[0].id}`,
+    recordTableId: `companies-${companyView.id}`,
     viewBarId: 'view-bar',
     objectNameSingular: 'company',
   },
@@ -68,7 +73,11 @@ export const ScrolledLeft: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await canvas.findAllByText('Linkedin', {}, { timeout: 3000 });
+    await canvas.findAllByText(
+      mockedCompanyRecords[0].name,
+      {},
+      { timeout: 3000 },
+    );
 
     const scrollWrapper = canvasElement.ownerDocument.body.querySelector(
       '.scroll-wrapper-x-enabled',
@@ -86,7 +95,7 @@ export const ScrolledLeft: Story = {
       },
     });
 
-    await canvas.findByText('Facebook');
+    await canvas.findByText(mockedCompanyRecords[1].name);
   },
 };
 
@@ -98,7 +107,11 @@ export const ScrolledBottom: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await canvas.findAllByText('Linkedin', {}, { timeout: 3000 });
+    await canvas.findAllByText(
+      mockedCompanyRecords[0].name,
+      {},
+      { timeout: 3000 },
+    );
 
     const scrollWrapper = canvasElement.ownerDocument.body.querySelector(
       '.scroll-wrapper-y-enabled',
@@ -116,6 +129,6 @@ export const ScrolledBottom: Story = {
       },
     });
 
-    await canvas.findByText('Facebook');
+    await canvas.findByText(mockedCompanyRecords[1].name);
   },
 };

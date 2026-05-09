@@ -1,7 +1,7 @@
 import { type PermissionFlagType } from '@/constants';
 import { type SyncableEntityOptions } from '@/application/syncableEntityOptionsType';
 
-type ObjectPermission = {
+export type ObjectPermissionManifest = SyncableEntityOptions & {
   objectUniversalIdentifier: string;
   canReadObjectRecords?: boolean;
   canUpdateObjectRecords?: boolean;
@@ -9,11 +9,15 @@ type ObjectPermission = {
   canDestroyObjectRecords?: boolean;
 };
 
-type FieldPermission = {
+export type FieldPermissionManifest = SyncableEntityOptions & {
   objectUniversalIdentifier: string;
   fieldUniversalIdentifier: string;
   canReadFieldValue?: boolean;
   canUpdateFieldValue?: boolean;
+};
+
+export type PermissionFlagManifest = SyncableEntityOptions & {
+  flag: PermissionFlagType;
 };
 
 export type RoleManifest = SyncableEntityOptions & {
@@ -29,7 +33,7 @@ export type RoleManifest = SyncableEntityOptions & {
   canBeAssignedToUsers?: boolean;
   canBeAssignedToAgents?: boolean;
   canBeAssignedToApiKeys?: boolean;
-  objectPermissions?: ObjectPermission[];
-  fieldPermissions?: FieldPermission[];
-  permissionFlags?: PermissionFlagType[];
+  objectPermissions?: ObjectPermissionManifest[];
+  fieldPermissions?: FieldPermissionManifest[];
+  permissionFlags?: PermissionFlagManifest[];
 };

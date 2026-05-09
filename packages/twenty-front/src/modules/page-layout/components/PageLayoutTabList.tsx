@@ -1,4 +1,3 @@
-import styled from '@emotion/styled';
 import {
   DragDropContext,
   type DropResult,
@@ -7,54 +6,66 @@ import {
   type OnDragUpdateResponder,
   type ResponderProvided,
 } from '@hello-pangea/dnd';
+import { styled } from '@linaria/react';
+import { useLingui } from '@lingui/react/macro';
 import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconPlus, useIcons } from 'twenty-ui/display';
-import { IconButton } from 'twenty-ui/input';
+import { TabButton } from 'twenty-ui/input';
 
 import { isPageLayoutTabDraggingComponentState } from '@/page-layout/states/isPageLayoutTabDraggingComponentState';
 import { useCloseDropdown } from '@/ui/layout/dropdown/hooks/useCloseDropdown';
 import { useOpenDropdown } from '@/ui/layout/dropdown/hooks/useOpenDropdown';
 import { TabListHiddenMeasurements } from '@/ui/layout/tab-list/components/TabListHiddenMeasurements';
 import { TAB_LIST_GAP } from '@/ui/layout/tab-list/constants/TabListGap';
+import { TAB_LIST_HEIGHT } from '@/ui/layout/tab-list/constants/TabListHeight';
 import { useTabListMeasurements } from '@/ui/layout/tab-list/hooks/useTabListMeasurements';
 import { activeTabIdComponentState } from '@/ui/layout/tab-list/states/activeTabIdComponentState';
 import { TabListComponentInstanceContext } from '@/ui/layout/tab-list/states/contexts/TabListComponentInstanceContext';
 import { type TabListProps } from '@/ui/layout/tab-list/types/TabListProps';
 import { NodeDimension } from '@/ui/utilities/dimensions/components/NodeDimension';
 import { useClickOutsideListener } from '@/ui/utilities/pointer-event/hooks/useClickOutsideListener';
-import { useRecoilComponentState } from '@/ui/utilities/state/component-state/hooks/useRecoilComponentState';
-import { useSetRecoilComponentState } from '@/ui/utilities/state/component-state/hooks/useSetRecoilComponentState';
+import { useAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useAtomComponentState';
+import { useSetAtomComponentState } from '@/ui/utilities/state/jotai/hooks/useSetAtomComponentState';
 
-import { useNavigatePageLayoutCommandMenu } from '@/command-menu/pages/page-layout/hooks/useNavigatePageLayoutCommandMenu';
-import { CommandMenuPages } from '@/command-menu/types/CommandMenuPages';
 import { PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS } from '@/page-layout/components/PageLayoutTabListDroppableIds';
+import { PageLayoutTabListNewTabDropdownContent } from '@/page-layout/components/PageLayoutTabListNewTabDropdownContent';
 import { PageLayoutTabListReorderableOverflowDropdown } from '@/page-layout/components/PageLayoutTabListReorderableOverflowDropdown';
-import { PageLayoutTabListStaticOverflowDropdown } from '@/page-layout/components/PageLayoutTabListStaticOverflowDropdown';
 import { PageLayoutTabListVisibleTabs } from '@/page-layout/components/PageLayoutTabListVisibleTabs';
+import { useIsPageLayoutInEditMode } from '@/page-layout/hooks/useIsPageLayoutInEditMode';
 import { PageLayoutComponentInstanceContext } from '@/page-layout/states/contexts/PageLayoutComponentInstanceContext';
-import { isPageLayoutInEditModeComponentState } from '@/page-layout/states/isPageLayoutInEditModeComponentState';
 import { pageLayoutTabListCurrentDragDroppableIdComponentState } from '@/page-layout/states/pageLayoutTabListCurrentDragDroppableIdComponentState';
 import { pageLayoutTabSettingsOpenTabIdComponentState } from '@/page-layout/states/pageLayoutTabSettingsOpenTabIdComponentState';
+import { type PageLayoutAddTabStrategy } from '@/page-layout/types/PageLayoutAddTabStrategy';
 import { type PageLayoutTab } from '@/page-layout/types/PageLayoutTab';
 import { shouldEnableTabEditingFeatures } from '@/page-layout/utils/shouldEnableTabEditingFeatures';
+import { useNavigatePageLayoutSidePanel } from '@/side-panel/pages/page-layout/hooks/useNavigatePageLayoutSidePanel';
+import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
+import { TabListDropdown } from '@/ui/layout/tab-list/components/TabListDropdown';
 import { TabListFromUrlOptionalEffect } from '@/ui/layout/tab-list/components/TabListFromUrlOptionalEffect';
 import { type SingleTabProps } from '@/ui/layout/tab-list/types/SingleTabProps';
 import { useAvailableComponentInstanceIdOrThrow } from '@/ui/utilities/state/component-state/hooks/useAvailableComponentInstanceIdOrThrow';
-import { useRecoilComponentValue } from '@/ui/utilities/state/component-state/hooks/useRecoilComponentValue';
+import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { useIsFeatureEnabled } from '@/workspace/hooks/useIsFeatureEnabled';
+import { SidePanelPages } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
-import { type PageLayoutType } from '~/generated/graphql';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
+import {
+  FeatureFlagKey,
+  type PageLayoutType,
+} from '~/generated-metadata/graphql';
 
 const StyledContainer = styled.div`
   box-sizing: border-box;
   display: flex;
-  height: ${({ theme }) => theme.spacing(10)};
+  height: ${TAB_LIST_HEIGHT};
+  padding-left: ${themeCssVariables.spacing[2]};
   position: relative;
   user-select: none;
   width: 100%;
 
   &::after {
-    background-color: ${({ theme }) => theme.border.color.light};
+    background-color: ${themeCssVariables.border.color.light};
     bottom: 0;
     content: '';
     height: 1px;
@@ -64,17 +75,22 @@ const StyledContainer = styled.div`
   }
 `;
 
-const StyledAddButton = styled.div`
-  display: flex;
+const StyledDropdownContainer = styled.div`
   align-items: center;
-  height: ${({ theme }) => theme.spacing(10)};
+  display: flex;
+`;
+
+const StyledAddButton = styled.div`
+  align-items: center;
+  display: flex;
+  height: ${TAB_LIST_HEIGHT};
   margin-left: ${TAB_LIST_GAP}px;
 `;
 
 type PageLayoutTabListProps = Omit<TabListProps, 'tabs'> & {
   tabs: PageLayoutTab[];
   isReorderEnabled: boolean;
-  onAddTab?: () => void;
+  addTabStrategy?: PageLayoutAddTabStrategy;
   onReorder?: (result: DropResult, provided: ResponderProvided) => boolean;
   behaveAsLinks: boolean;
   pageLayoutType: PageLayoutType;
@@ -84,26 +100,31 @@ export const PageLayoutTabList = ({
   tabs,
   loading,
   behaveAsLinks,
-  isInRightDrawer,
+  isInSidePanel,
   className,
   componentInstanceId,
   onChangeTab,
-  onAddTab,
+  addTabStrategy,
   isReorderEnabled,
   onReorder,
   pageLayoutType,
 }: PageLayoutTabListProps) => {
   const { getIcon } = useIcons();
+  const { t } = useLingui();
+
+  const isRecordPageGlobalEditionEnabled = useIsFeatureEnabled(
+    FeatureFlagKey.IS_RECORD_PAGE_LAYOUT_GLOBAL_EDITION_ENABLED,
+  );
 
   const tabsWithIcons: SingleTabProps[] = tabs.map((tab) => ({
     id: tab.id,
     title: tab.title,
-    Icon: tab.icon ? getIcon(tab.icon) : undefined,
+    Icon: isDefined(tab.icon) ? getIcon(tab.icon) : undefined,
   }));
 
   const navigate = useNavigate();
 
-  const [activeTabId, setActiveTabId] = useRecoilComponentState(
+  const [activeTabId, setActiveTabId] = useAtomComponentState(
     activeTabIdComponentState,
     componentInstanceId,
   );
@@ -119,15 +140,20 @@ export const PageLayoutTabList = ({
     onAddButtonWidthChange,
   } = useTabListMeasurements({
     visibleTabs: tabsWithIcons,
-    hasAddButton: isDefined(onAddTab),
+    hasAddButton: isDefined(addTabStrategy),
   });
 
+  const pageLayoutId = useAvailableComponentInstanceIdOrThrow(
+    PageLayoutComponentInstanceContext,
+  );
+
   const dropdownId = `tab-overflow-${componentInstanceId}`;
+  const addTabDropdownId = `tab-add-${componentInstanceId}`;
   const { closeDropdown } = useCloseDropdown();
   const { openDropdown } = useOpenDropdown();
   const { toggleClickOutside } = useClickOutsideListener(dropdownId);
 
-  const setIsTabDragging = useSetRecoilComponentState(
+  const setIsPageLayoutTabDragging = useSetAtomComponentState(
     isPageLayoutTabDraggingComponentState,
     componentInstanceId,
   );
@@ -139,10 +165,13 @@ export const PageLayoutTabList = ({
 
   const selectTab = useCallback(
     (tabId: string) => {
+      if (!isInSidePanel) {
+        navigate(`#${tabId}`);
+      }
       setActiveTabId(tabId);
       onChangeTab?.(tabId);
     },
-    [setActiveTabId, onChangeTab],
+    [isInSidePanel, navigate, setActiveTabId, onChangeTab],
   );
 
   const selectTabFromDropdown = useCallback(
@@ -162,8 +191,9 @@ export const PageLayoutTabList = ({
     closeDropdown(dropdownId);
   }, [closeDropdown, dropdownId]);
 
-  const setPageLayoutTabListCurrentDragDroppableId = useSetRecoilComponentState(
+  const setPageLayoutTabListCurrentDragDroppableId = useSetAtomComponentState(
     pageLayoutTabListCurrentDragDroppableIdComponentState,
+    pageLayoutId,
   );
 
   const handleDragUpdate: OnDragUpdateResponder = (update) => {
@@ -171,9 +201,9 @@ export const PageLayoutTabList = ({
   };
 
   const handleDragStart = useCallback<OnDragStartResponder>(() => {
-    setIsTabDragging(true);
+    setIsPageLayoutTabDragging(true);
     toggleClickOutside(false);
-  }, [setIsTabDragging, toggleClickOutside]);
+  }, [setIsPageLayoutTabDragging, toggleClickOutside]);
 
   const handleDragEnd = useCallback<OnDragEndResponder>(
     (result, provided) => {
@@ -182,7 +212,7 @@ export const PageLayoutTabList = ({
         PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS.OVERFLOW_TABS;
 
       if (!droppedInOverflow) {
-        setIsTabDragging(false);
+        setIsPageLayoutTabDragging(false);
       }
 
       toggleClickOutside(true);
@@ -199,43 +229,47 @@ export const PageLayoutTabList = ({
         });
       }
     },
-    [onReorder, setIsTabDragging, toggleClickOutside, openDropdown, dropdownId],
+    [
+      onReorder,
+      setIsPageLayoutTabDragging,
+      toggleClickOutside,
+      openDropdown,
+      dropdownId,
+    ],
   );
 
-  const isPageLayoutInEditMode = useRecoilComponentValue(
-    isPageLayoutInEditModeComponentState,
-  );
-  const pageLayoutId = useAvailableComponentInstanceIdOrThrow(
-    PageLayoutComponentInstanceContext,
-  );
-  const tabSettingsOpenTabId = useRecoilComponentValue(
+  const isPageLayoutInEditMode = useIsPageLayoutInEditMode();
+  const pageLayoutTabSettingsOpenTabId = useAtomComponentStateValue(
     pageLayoutTabSettingsOpenTabIdComponentState,
     pageLayoutId,
   );
-  const setTabSettingsOpenTabId = useSetRecoilComponentState(
+  const setPageLayoutTabSettingsOpenTabId = useSetAtomComponentState(
     pageLayoutTabSettingsOpenTabIdComponentState,
     pageLayoutId,
   );
-  const { navigatePageLayoutCommandMenu } = useNavigatePageLayoutCommandMenu();
+  const { navigatePageLayoutSidePanel } = useNavigatePageLayoutSidePanel();
 
   const openTabSettings = useCallback(
     (tabId: string) => {
-      setTabSettingsOpenTabId(tabId);
-      navigatePageLayoutCommandMenu({
-        commandMenuPage: CommandMenuPages.PageLayoutTabSettings,
+      setPageLayoutTabSettingsOpenTabId(tabId);
+      navigatePageLayoutSidePanel({
+        sidePanelPage: SidePanelPages.PageLayoutTabSettings,
         resetNavigationStack: true,
       });
     },
-    [setTabSettingsOpenTabId, navigatePageLayoutCommandMenu],
+    [setPageLayoutTabSettingsOpenTabId, navigatePageLayoutSidePanel],
   );
 
-  const isTabSettingsOpen = isDefined(tabSettingsOpenTabId);
+  const isTabSettingsOpen = isDefined(pageLayoutTabSettingsOpenTabId);
 
   const handleSelectTab = useCallback(
     (tabId: string) => {
       const shouldOpenSettings =
         isPageLayoutInEditMode &&
-        shouldEnableTabEditingFeatures(pageLayoutType);
+        shouldEnableTabEditingFeatures(
+          pageLayoutType,
+          isRecordPageGlobalEditionEnabled,
+        );
 
       if (shouldOpenSettings && activeTabId === tabId) {
         openTabSettings(tabId);
@@ -250,6 +284,7 @@ export const PageLayoutTabList = ({
     },
     [
       isPageLayoutInEditMode,
+      isRecordPageGlobalEditionEnabled,
       pageLayoutType,
       activeTabId,
       isTabSettingsOpen,
@@ -262,7 +297,10 @@ export const PageLayoutTabList = ({
     (tabId: string) => {
       const shouldOpenSettings =
         isPageLayoutInEditMode &&
-        shouldEnableTabEditingFeatures(pageLayoutType);
+        shouldEnableTabEditingFeatures(
+          pageLayoutType,
+          isRecordPageGlobalEditionEnabled,
+        );
 
       if (shouldOpenSettings && activeTabId === tabId) {
         openTabSettings(tabId);
@@ -278,6 +316,7 @@ export const PageLayoutTabList = ({
     },
     [
       isPageLayoutInEditMode,
+      isRecordPageGlobalEditionEnabled,
       pageLayoutType,
       activeTabId,
       isTabSettingsOpen,
@@ -302,7 +341,7 @@ export const PageLayoutTabList = ({
       value={{ instanceId: componentInstanceId }}
     >
       <TabListFromUrlOptionalEffect
-        isInRightDrawer={!!isInRightDrawer}
+        isInSidePanel={!!isInSidePanel}
         tabListIds={tabsWithIcons.map((tab) => tab.id)}
       />
 
@@ -313,11 +352,18 @@ export const PageLayoutTabList = ({
           loading={loading}
           onTabWidthChange={onTabWidthChange}
           onMoreButtonWidthChange={onMoreButtonWidthChange}
-          onAddButtonWidthChange={onAddTab ? onAddButtonWidthChange : undefined}
+          onAddButtonWidthChange={
+            addTabStrategy ? onAddButtonWidthChange : undefined
+          }
           addButtonMeasurement={
-            onAddTab ? (
+            addTabStrategy ? (
               <StyledAddButton>
-                <IconButton Icon={IconPlus} size="small" variant="tertiary" />
+                <TabButton
+                  id="add-tab"
+                  LeftIcon={IconPlus}
+                  title={t`New Tab`}
+                  disableTestId
+                />
               </StyledAddButton>
             ) : undefined
           }
@@ -344,27 +390,52 @@ export const PageLayoutTabList = ({
               />
 
               {shouldRenderReorderableDropdown && (
-                <PageLayoutTabListReorderableOverflowDropdown
-                  dropdownId={dropdownId}
-                  hiddenTabs={hiddenTabs}
-                  hiddenTabsCount={hiddenTabsCount}
-                  isActiveTabHidden={isActiveTabHidden}
-                  activeTabId={activeTabId || ''}
-                  loading={loading}
-                  onSelect={handleSelectTabFromDropdown}
-                  visibleTabCount={visibleTabCount}
-                  onClose={closeOverflowDropdown}
-                  pageLayoutType={pageLayoutType}
-                />
+                <StyledDropdownContainer>
+                  <PageLayoutTabListReorderableOverflowDropdown
+                    dropdownId={dropdownId}
+                    hiddenTabs={hiddenTabs}
+                    hiddenTabsCount={hiddenTabsCount}
+                    isActiveTabHidden={isActiveTabHidden}
+                    activeTabId={activeTabId || ''}
+                    loading={loading}
+                    onSelect={handleSelectTabFromDropdown}
+                    visibleTabCount={visibleTabCount}
+                    onClose={closeOverflowDropdown}
+                    pageLayoutType={pageLayoutType}
+                  />
+                </StyledDropdownContainer>
               )}
 
-              {onAddTab && (
+              {addTabStrategy?.mode === 'direct' && (
                 <StyledAddButton>
-                  <IconButton
-                    Icon={IconPlus}
-                    size="small"
-                    variant="tertiary"
-                    onClick={() => onAddTab()}
+                  <TabButton
+                    id="add-tab"
+                    LeftIcon={IconPlus}
+                    title={t`New Tab`}
+                    onClick={() => addTabStrategy.onCreate()}
+                    disableTestId
+                  />
+                </StyledAddButton>
+              )}
+              {addTabStrategy?.mode === 'dropdown' && (
+                <StyledAddButton>
+                  <Dropdown
+                    dropdownId={addTabDropdownId}
+                    clickableComponent={
+                      <TabButton
+                        id="add-tab"
+                        LeftIcon={IconPlus}
+                        title={t`New Tab`}
+                        disableTestId
+                      />
+                    }
+                    dropdownComponents={
+                      <PageLayoutTabListNewTabDropdownContent
+                        onCreate={addTabStrategy.onCreate}
+                        dropdownId={addTabDropdownId}
+                      />
+                    }
+                    dropdownPlacement="bottom-start"
                   />
                 </StyledAddButton>
               )}
@@ -383,24 +454,51 @@ export const PageLayoutTabList = ({
               canReorder={canReorderTabs}
             />
             {shouldRenderStaticDropdown && (
-              <PageLayoutTabListStaticOverflowDropdown
-                dropdownId={dropdownId}
-                hiddenTabs={hiddenTabs}
-                hiddenTabsCount={hiddenTabsCount}
-                isActiveTabHidden={isActiveTabHidden}
-                activeTabId={activeTabId || ''}
-                loading={loading}
-                onSelect={handleSelectTabFromDropdown}
-                onClose={closeOverflowDropdown}
-              />
+              <StyledDropdownContainer>
+                <TabListDropdown
+                  dropdownId={dropdownId}
+                  hiddenTabs={hiddenTabs}
+                  overflow={{
+                    hiddenTabsCount,
+                    isActiveTabHidden,
+                  }}
+                  activeTabId={activeTabId || ''}
+                  loading={loading}
+                  onTabSelect={handleSelectTabFromDropdown}
+                  onClose={closeOverflowDropdown}
+                />
+              </StyledDropdownContainer>
             )}
-            {onAddTab && (
+            {addTabStrategy?.mode === 'direct' && (
               <StyledAddButton>
-                <IconButton
-                  Icon={IconPlus}
-                  size="small"
-                  variant="tertiary"
-                  onClick={() => onAddTab()}
+                <TabButton
+                  id="add-tab"
+                  LeftIcon={IconPlus}
+                  title={t`New Tab`}
+                  onClick={() => addTabStrategy.onCreate()}
+                  disableTestId
+                />
+              </StyledAddButton>
+            )}
+            {addTabStrategy?.mode === 'dropdown' && (
+              <StyledAddButton>
+                <Dropdown
+                  dropdownId={addTabDropdownId}
+                  clickableComponent={
+                    <TabButton
+                      id="add-tab"
+                      LeftIcon={IconPlus}
+                      title={t`New Tab`}
+                      disableTestId
+                    />
+                  }
+                  dropdownComponents={
+                    <PageLayoutTabListNewTabDropdownContent
+                      onCreate={addTabStrategy.onCreate}
+                      dropdownId={addTabDropdownId}
+                    />
+                  }
+                  dropdownPlacement="bottom-start"
                 />
               </StyledAddButton>
             )}

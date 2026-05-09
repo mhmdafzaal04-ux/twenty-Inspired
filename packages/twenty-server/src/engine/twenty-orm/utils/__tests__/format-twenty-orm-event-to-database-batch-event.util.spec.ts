@@ -48,10 +48,10 @@ describe('formatTwentyOrmEventToDatabaseBatchEvent', () => {
   });
 
   const flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
-    byId: {
+    byUniversalIdentifier: {
       'name-id': nameField,
     },
-    idByUniversalIdentifier: {
+    universalIdentifierById: {
       'name-id': 'name-id',
     },
     universalIdentifiersByApplicationId: {},
@@ -73,6 +73,8 @@ describe('formatTwentyOrmEventToDatabaseBatchEvent', () => {
     universalIdentifier: objectMetadataId,
     fieldIds: ['name-id'],
     indexMetadataIds: [],
+    objectPermissionIds: [],
+    fieldPermissionIds: [],
     viewIds: [],
     applicationId: null,
   } as unknown as FlatObjectMetadata;

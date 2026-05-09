@@ -1,5 +1,6 @@
-import { CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
-import { type ObjectMetadataItem } from '@/object-metadata/types/ObjectMetadataItem';
+import { getActivityTargetObjectFieldIdName } from '@/activities/utils/getActivityTargetObjectFieldIdName';
+import { CoreObjectNameSingular } from 'twenty-shared/types';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { isDefined } from 'twenty-shared/utils';
 
 type GetActivityTargetFieldNameForObjectArgs = {
@@ -7,7 +8,7 @@ type GetActivityTargetFieldNameForObjectArgs = {
     | CoreObjectNameSingular.Note
     | CoreObjectNameSingular.Task;
   targetObjectMetadataId: string;
-  objectMetadataItems: ObjectMetadataItem[];
+  objectMetadataItems: EnrichedObjectMetadataItem[];
 };
 
 export const getActivityTargetFieldNameForObject = ({
@@ -29,10 +30,17 @@ export const getActivityTargetFieldNameForObject = ({
     return undefined;
   }
 
-  const targetField = activityTargetObjectMetadata.fields.find(
-    (field) =>
-      field.relation?.targetObjectMetadata.id === targetObjectMetadataId,
+  const targetObjectMetadataItem = objectMetadataItems.find(
+    (objectMetadataItem) => objectMetadataItem.id === targetObjectMetadataId,
   );
 
-  return targetField?.name;
+  if (!isDefined(targetObjectMetadataItem)) {
+    return undefined;
+  }
+
+  const fieldIdName = getActivityTargetObjectFieldIdName({
+    nameSingular: targetObjectMetadataItem.nameSingular,
+  });
+
+  return fieldIdName.replace(/Id$/, '');
 };

@@ -1,51 +1,33 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useRef } from 'react';
 
-import { BLOCK_SCHEMA } from '@/activities/blocks/constants/Schema';
-import { useUploadAttachmentFile } from '@/activities/files/hooks/useUploadAttachmentFile';
 import { type Attachment } from '@/activities/files/types/Attachment';
 import { getActivityTargetObjectFieldIdName } from '@/activities/utils/getActivityTargetObjectFieldIdName';
-import { CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
+import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
-import { useUpdatePageLayoutWidget } from '@/page-layout/hooks/useUpdatePageLayoutWidget';
-import { isPageLayoutInEditModeComponentState } from '@/page-layout/states/isPageLayoutInEditModeComponentState';
+import { useIsPageLayoutInEditMode } from '@/page-layout/hooks/useIsPageLayoutInEditMode';
 import { pageLayoutEditingWidgetIdComponentState } from '@/page-layout/states/pageLayoutEditingWidgetIdComponentState';
 import { type PageLayoutWidget } from '@/page-layout/types/PageLayoutWidget';
-import { DashboardsBlockEditor } from '@/page-layout/widgets/standalone-rich-text/components/DashboardsBlockEditor';
-import { StandaloneRichTextWidgetAutoFocusEffect } from '@/page-layout/widgets/standalone-rich-text/components/StandaloneRichTextWidgetAutoFocusEffect';
-import { BLOCK_EDITOR_GLOBAL_HOTKEYS_CONFIG } from '@/ui/input/editor/constants/BlockEditorGlobalHotkeysConfig';
-import { useAttachmentSync } from '@/ui/input/editor/hooks/useAttachmentSync';
-import { parseInitialBlocknote } from '@/ui/input/editor/utils/parseInitialBlocknote';
-import { prepareBodyWithSignedUrls } from '@/ui/input/editor/utils/prepareBodyWithSignedUrls';
+import { StandaloneRichTextEditorContent } from '@/page-layout/widgets/standalone-rich-text/components/StandaloneRichTextEditorContent';
 import { useLayoutRenderingContext } from '@/ui/layout/contexts/LayoutRenderingContext';
-import { usePushFocusItemToFocusStack } from '@/ui/utilities/focus/hooks/usePushFocusItemToFocusStack';
-import { useRemoveFocusItemFromFocusStackById } from '@/ui/utilities/focus/hooks/useRemoveFocusItemFromFocusStackById';
-import { FocusComponentType } from '@/ui/utilities/focus/types/FocusComponentType';
 import { ScrollWrapper } from '@/ui/utilities/scroll/components/ScrollWrapper';
-import { useRecoilComponentValue } from '@/ui/utilities/state/component-state/hooks/useRecoilComponentValue';
-import { useIsFeatureEnabled } from '@/workspace/hooks/useIsFeatureEnabled';
-import '@blocknote/core/fonts/inter.css';
-import '@blocknote/mantine/style.css';
-import { useCreateBlockNote } from '@blocknote/react';
-import '@blocknote/react/style.css';
-import styled from '@emotion/styled';
+import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
+import { styled } from '@linaria/react';
 import { isDefined } from 'twenty-shared/utils';
-import { useDebouncedCallback } from 'use-debounce';
 import {
-  FeatureFlagKey,
   PageLayoutType,
-  WidgetConfigurationType,
   type StandaloneRichTextConfiguration,
-} from '~/generated/graphql';
+} from '~/generated-metadata/graphql';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledContainer = styled.div<{ isPageLayoutInEditMode?: boolean }>`
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   height: 100%;
-  width: 100%;
   overflow: hidden;
-  padding-left: ${({ theme, isPageLayoutInEditMode }) =>
-    isPageLayoutInEditMode ? theme.spacing(5) : 0};
+  padding-left: ${({ isPageLayoutInEditMode }) =>
+    isPageLayoutInEditMode ? themeCssVariables.spacing[5] : 0};
+  width: 100%;
 `;
 
 type StandaloneRichTextWidgetProps = {
@@ -56,30 +38,18 @@ export const StandaloneRichTextWidget = ({
   widget,
 }: StandaloneRichTextWidgetProps) => {
   const containerElementRef = useRef<HTMLDivElement>(null);
-  const isPageLayoutInEditMode = useRecoilComponentValue(
-    isPageLayoutInEditModeComponentState,
-  );
+  const isPageLayoutInEditMode = useIsPageLayoutInEditMode();
 
-  const editingWidgetId = useRecoilComponentValue(
+  const pageLayoutEditingWidgetId = useAtomComponentStateValue(
     pageLayoutEditingWidgetIdComponentState,
   );
 
-  const { updatePageLayoutWidget } = useUpdatePageLayoutWidget();
   const { targetRecordIdentifier, layoutType } = useLayoutRenderingContext();
-  const { uploadAttachmentFile } = useUploadAttachmentFile();
-  const isAttachmentMigrated = useIsFeatureEnabled(
-    FeatureFlagKey.IS_ATTACHMENT_MIGRATED,
-  );
-
-  const { pushFocusItemToFocusStack } = usePushFocusItemToFocusStack();
-  const { removeFocusItemFromFocusStackById } =
-    useRemoveFocusItemFromFocusStackById();
 
   const isDashboard = layoutType === PageLayoutType.DASHBOARD;
   const dashboardId = isDashboard ? targetRecordIdentifier?.id : undefined;
   const attachmentTargetFieldIdName = getActivityTargetObjectFieldIdName({
     nameSingular: CoreObjectNameSingular.Dashboard,
-    isMorphRelation: isAttachmentMigrated,
   });
 
   const configuration = widget.configuration as
@@ -96,83 +66,8 @@ export const StandaloneRichTextWidget = ({
     skip: !isDefined(dashboardId),
   });
 
-  const { syncAttachments } = useAttachmentSync(attachments);
-
-  const handleUploadAttachment = async (file: File) => {
-    if (!isDefined(dashboardId)) return { attachmentAbsoluteURL: '' };
-
-    return await uploadAttachmentFile(file, {
-      id: dashboardId,
-      targetObjectNameSingular: CoreObjectNameSingular.Dashboard,
-    });
-  };
-
-  const handleEditorBuiltInUploadFile = async (file: File) => {
-    const { attachmentAbsoluteURL } = await handleUploadAttachment(file);
-    return attachmentAbsoluteURL;
-  };
-
-  const initialContent = useMemo(() => {
-    if (isDefined(configuration) && 'body' in configuration) {
-      return parseInitialBlocknote(configuration.body?.blocknote);
-    }
-    return undefined;
-  }, [configuration]);
-
-  const editor = useCreateBlockNote({
-    initialContent,
-    domAttributes: { editor: { class: 'editor' } },
-    schema: BLOCK_SCHEMA,
-    uploadFile: handleEditorBuiltInUploadFile,
-    sideMenuDetection: 'editor',
-  });
-
-  const handlePersistBody = useDebouncedCallback((blocknote: string) => {
-    updatePageLayoutWidget(widget.id, {
-      configuration: {
-        configurationType: WidgetConfigurationType.STANDALONE_RICH_TEXT,
-        body: {
-          blocknote,
-          markdown: null,
-        },
-      },
-    });
-  }, 300);
-
-  const handleAttachmentSync = useDebouncedCallback(
-    async (newStringifiedBody: string, previousBody: string) => {
-      await syncAttachments(newStringifiedBody, previousBody);
-    },
-    500,
-  );
-
-  const handleEditorChange = () => {
-    const newStringifiedBody = JSON.stringify(editor.document) ?? '';
-    const preparedBody = prepareBodyWithSignedUrls(newStringifiedBody);
-
-    handlePersistBody(preparedBody);
-    handleAttachmentSync(newStringifiedBody, currentBody);
-  };
-
-  const isThisWidgetBeingEdited = editingWidgetId === widget.id;
+  const isThisWidgetBeingEdited = pageLayoutEditingWidgetId === widget.id;
   const isEditable = isPageLayoutInEditMode && isThisWidgetBeingEdited;
-
-  const handleBlockEditorFocus = useCallback(() => {
-    pushFocusItemToFocusStack({
-      component: {
-        instanceId: widget.id,
-        type: FocusComponentType.STANDALONE_RICH_TEXT_WIDGET,
-      },
-      focusId: widget.id,
-      globalHotkeysConfig: BLOCK_EDITOR_GLOBAL_HOTKEYS_CONFIG,
-    });
-  }, [pushFocusItemToFocusStack, widget.id]);
-
-  const handleBlockEditorBlur = useCallback(() => {
-    removeFocusItemFromFocusStackById({
-      focusId: widget.id,
-    });
-  }, [removeFocusItemFromFocusStackById, widget.id]);
 
   if (!isDefined(dashboardId)) {
     return null;
@@ -183,21 +78,16 @@ export const StandaloneRichTextWidget = ({
       ref={containerElementRef}
       isPageLayoutInEditMode={isPageLayoutInEditMode}
     >
-      <StandaloneRichTextWidgetAutoFocusEffect
-        shouldFocus={isEditable}
-        editor={editor}
-        containerElement={containerElementRef.current}
-      />
       <ScrollWrapper
         componentInstanceId={`scroll-wrapper-rich-text-widget-${widget.id}`}
       >
-        <DashboardsBlockEditor
-          onFocus={handleBlockEditorFocus}
-          onBlur={handleBlockEditorBlur}
-          onChange={handleEditorChange}
-          editor={editor}
-          readonly={!isEditable}
-          boundaryElement={containerElementRef.current}
+        <StandaloneRichTextEditorContent
+          key={isEditable ? 'editing' : 'readonly'}
+          widget={widget}
+          currentBody={currentBody}
+          attachments={attachments}
+          isEditable={isEditable}
+          containerElement={containerElementRef.current}
         />
       </ScrollWrapper>
     </StyledContainer>

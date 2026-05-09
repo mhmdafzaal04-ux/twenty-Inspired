@@ -15,7 +15,6 @@ exports[`Front component creation should fail when name is empty 1`] = `
             },
           ],
           "flatEntityMinimalInformation": {
-            "id": Any<String>,
             "name": "",
             "universalIdentifier": Any<String>,
           },
@@ -30,23 +29,9 @@ exports[`Front component creation should fail when name is empty 1`] = `
       "frontComponent": 1,
       "totalErrors": 1,
     },
-    "userFriendlyMessage": "Metadata validation failed",
+    "userFriendlyMessage": "Front component name is required",
   },
   "message": "Multiple validation errors occurred while creating front component",
-  "name": "GraphQLError",
-}
-`;
-
-exports[`Front component creation should fail when name is too long 1`] = `
-{
-  "extensions": {
-    "code": "BAD_USER_INPUT",
-    "http": {
-      "status": 400,
-    },
-    "userFriendlyMessage": "An error occurred.",
-  },
-  "message": "Expected non-nullable type "String!" not to be null.",
   "name": "GraphQLError",
 }
 `;
@@ -66,7 +51,6 @@ exports[`Front component creation should fail when name is whitespace-only 1`] =
             },
           ],
           "flatEntityMinimalInformation": {
-            "id": Any<String>,
             "name": "",
             "universalIdentifier": Any<String>,
           },
@@ -81,7 +65,7 @@ exports[`Front component creation should fail when name is whitespace-only 1`] =
       "frontComponent": 1,
       "totalErrors": 1,
     },
-    "userFriendlyMessage": "Metadata validation failed",
+    "userFriendlyMessage": "Front component name is required",
   },
   "message": "Multiple validation errors occurred while creating front component",
   "name": "GraphQLError",

@@ -2,13 +2,19 @@ import { Injectable } from '@nestjs/common';
 
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
 
+import { findFlatEntityByUniversalIdentifierOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier-or-throw.util';
 import { PageLayoutWidgetEntity } from 'src/engine/metadata-modules/page-layout-widget/entities/page-layout-widget.entity';
-import { FlatUpdatePageLayoutWidgetAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/page-layout-widget/types/workspace-migration-page-layout-widget-action.type';
+import { resolveUniversalUpdateRelationIdentifiersToIds } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/utils/resolve-universal-update-relation-identifiers-to-ids.util';
+import {
+  FlatUpdatePageLayoutWidgetAction,
+  UniversalUpdatePageLayoutWidgetAction,
+} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/page-layout-widget/types/workspace-migration-page-layout-widget-action.type';
+import { fromUniversalConfigurationToFlatPageLayoutWidgetConfiguration } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/page-layout-widget/services/utils/from-universal-configuration-to-flat-page-layout-widget-configuration.util';
+import { fromUniversalOverridesToPageLayoutWidgetOverrides } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/page-layout-widget/services/utils/from-universal-overrides-to-page-layout-widget-overrides.util';
 import {
   WorkspaceMigrationActionRunnerArgs,
   WorkspaceMigrationActionRunnerContext,
 } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/workspace-migration-action-runner-args.type';
-import { fromFlatEntityPropertiesUpdatesToPartialFlatEntity } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/from-flat-entity-properties-updates-to-partial-flat-entity';
 
 @Injectable()
 export class UpdatePageLayoutWidgetActionHandlerService extends WorkspaceMigrationRunnerActionHandler(
@@ -20,30 +26,77 @@ export class UpdatePageLayoutWidgetActionHandlerService extends WorkspaceMigrati
   }
 
   override async transpileUniversalActionToFlatAction(
-    context: WorkspaceMigrationActionRunnerArgs<FlatUpdatePageLayoutWidgetAction>,
+    context: WorkspaceMigrationActionRunnerArgs<UniversalUpdatePageLayoutWidgetAction>,
   ): Promise<FlatUpdatePageLayoutWidgetAction> {
-    return context.action;
+    const { action, allFlatEntityMaps } = context;
+
+    const flatPageLayoutWidget = findFlatEntityByUniversalIdentifierOrThrow({
+      flatEntityMaps: allFlatEntityMaps.flatPageLayoutWidgetMaps,
+      universalIdentifier: action.universalIdentifier,
+    });
+
+    const {
+      universalConfiguration,
+      universalOverrides,
+      ...updateWithResolvedForeignKeys
+    } = resolveUniversalUpdateRelationIdentifiersToIds({
+      metadataName: 'pageLayoutWidget',
+      universalUpdate: action.update,
+      allFlatEntityMaps,
+    });
+
+    const updateWithConfiguration =
+      universalConfiguration === undefined
+        ? updateWithResolvedForeignKeys
+        : {
+            ...updateWithResolvedForeignKeys,
+            configuration:
+              fromUniversalConfigurationToFlatPageLayoutWidgetConfiguration({
+                universalConfiguration,
+                flatFieldMetadataMaps: allFlatEntityMaps.flatFieldMetadataMaps,
+                flatFrontComponentMaps:
+                  allFlatEntityMaps.flatFrontComponentMaps,
+                flatViewMaps: allFlatEntityMaps.flatViewMaps,
+                flatViewFieldGroupMaps:
+                  allFlatEntityMaps.flatViewFieldGroupMaps,
+              }),
+          };
+
+    const update =
+      universalOverrides === undefined
+        ? updateWithConfiguration
+        : universalOverrides === null
+          ? { ...updateWithConfiguration, overrides: null }
+          : {
+              ...updateWithConfiguration,
+              overrides: fromUniversalOverridesToPageLayoutWidgetOverrides({
+                universalOverrides,
+                flatPageLayoutTabMaps: allFlatEntityMaps.flatPageLayoutTabMaps,
+              }),
+            };
+
+    return {
+      type: 'update',
+      metadataName: 'pageLayoutWidget',
+      entityId: flatPageLayoutWidget.id,
+      update,
+    };
   }
 
   async executeForMetadata(
     context: WorkspaceMigrationActionRunnerContext<FlatUpdatePageLayoutWidgetAction>,
   ): Promise<void> {
-    const { flatAction, queryRunner } = context;
-    const { entityId, updates } = flatAction;
+    const { flatAction, queryRunner, workspaceId } = context;
+    const { entityId, update } = flatAction;
 
     const pageLayoutWidgetRepository =
       queryRunner.manager.getRepository<PageLayoutWidgetEntity>(
         PageLayoutWidgetEntity,
       );
 
-    const partialPageLayoutWidget =
-      fromFlatEntityPropertiesUpdatesToPartialFlatEntity({
-        updates,
-      });
-
     await pageLayoutWidgetRepository.update(
-      { id: entityId },
-      partialPageLayoutWidget,
+      { id: entityId, workspaceId },
+      update,
     );
   }
 

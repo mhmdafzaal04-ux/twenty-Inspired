@@ -1,5 +1,6 @@
 ---
 title: Architektura složek
+icon: folder-tree
 info: Podrobný pohled na naši architekturu složek
 ---
 
@@ -82,9 +83,9 @@ Více podrobností naleznete v [Hooks](https://react.dev/learn/reusing-logic-wit
 
 ### Stavy
 
-Obsahuje logiku správy stavů. To řeší [RecoilJS](https://recoiljs.org).
+Obsahuje logiku správy stavů. To řeší [Jotai](https://jotai.org).
 
-* Selektory: Více podrobností naleznete v [RecoilJS Selectors](https://recoiljs.org/docs/basic-tutorial/selectors).
+* Selektory: Odvozené atomy (pomocí `createAtomSelector`) odvozují hodnoty z jiných atomů a jsou automaticky memoizovány.
 
 Vestavěná správa stavů v Reactu stále spravuje stav uvnitř komponenty.
 

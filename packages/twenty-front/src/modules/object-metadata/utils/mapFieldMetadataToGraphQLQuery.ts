@@ -1,16 +1,23 @@
 import { mapObjectMetadataToGraphQLQuery } from '@/object-metadata/utils/mapObjectMetadataToGraphQLQuery';
-import { FieldMetadataType, RelationType } from '~/generated-metadata/graphql';
 
-import { type ObjectMetadataItem } from '@/object-metadata/types/ObjectMetadataItem';
+import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { getObjectPermissionsForObject } from '@/object-metadata/utils/getObjectPermissionsForObject';
 import { type RecordGqlFields } from '@/object-record/graphql/record-gql-fields/types/RecordGqlFields';
 import { isNonCompositeField } from '@/object-record/object-filter-dropdown/utils/isNonCompositeField';
-import { type ObjectPermissions } from 'twenty-shared/types';
-import { computeMorphRelationFieldName, isDefined } from 'twenty-shared/utils';
-import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
+import {
+  FieldMetadataType,
+  type ObjectPermissions,
+  RelationType,
+} from 'twenty-shared/types';
+import {
+  computeMorphRelationGqlFieldName,
+  computeRelationGqlFieldJoinColumnName,
+  isDefined,
+} from 'twenty-shared/utils';
 
 type MapFieldMetadataToGraphQLQueryArgs = {
-  objectMetadataItems: ObjectMetadataItem[];
+  objectMetadataItems: EnrichedObjectMetadataItem[];
   gqlField: string;
   fieldMetadata: Pick<
     FieldMetadataItem,
@@ -49,7 +56,7 @@ export const mapFieldMetadataToGraphQLQuery = ({
   ) {
     let gqlMorphField = '';
     for (const morphRelation of fieldMetadata.morphRelations ?? []) {
-      const relationFieldName = computeMorphRelationFieldName({
+      const relationFieldName = computeMorphRelationGqlFieldName({
         fieldName: fieldMetadata.name,
         relationType: fieldMetadata.settings?.relationType,
         targetObjectMetadataNameSingular:
@@ -165,7 +172,10 @@ ${mapObjectMetadataToGraphQLQuery({
       }
     }
 
-    if (gqlField === fieldMetadata.settings?.joinColumnName) {
+    if (
+      gqlField ===
+      computeRelationGqlFieldJoinColumnName({ name: fieldMetadata.name })
+    ) {
       return `${gqlField}`;
     }
 
@@ -297,7 +307,17 @@ ${mapObjectMetadataToGraphQLQuery({
     }`;
   }
 
-  if (fieldType === FieldMetadataType.RICH_TEXT_V2) {
+  if (fieldType === FieldMetadataType.FILES) {
+    return `${gqlField}
+    {
+      fileId
+      label
+      extension
+      url
+    }`;
+  }
+
+  if (fieldType === FieldMetadataType.RICH_TEXT) {
     return `${gqlField}
 {
   blocknote

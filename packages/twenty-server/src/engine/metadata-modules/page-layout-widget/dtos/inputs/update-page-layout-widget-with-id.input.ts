@@ -11,6 +11,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { GraphQLJSON } from 'graphql-type-json';
+import {
+  PageLayoutWidgetConditionalDisplay,
+  PageLayoutWidgetPosition,
+} from 'twenty-shared/types';
 
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 import { GridPositionInput } from 'src/engine/metadata-modules/page-layout-widget/dtos/inputs/grid-position.input';
@@ -44,7 +48,10 @@ export class UpdatePageLayoutWidgetWithIdInput {
   @IsOptional()
   objectMetadataId: string | null;
 
-  @Field(() => GridPositionInput)
+  @Field(() => GridPositionInput, {
+    deprecationReason:
+      'Use `position` instead. Will be removed in a future release.',
+  })
   @ValidateNested()
   @Type(() => GridPositionInput)
   @IsNotEmpty()
@@ -53,5 +60,20 @@ export class UpdatePageLayoutWidgetWithIdInput {
   @Field(() => GraphQLJSON, { nullable: true })
   @IsObject()
   @IsOptional()
+  position?: PageLayoutWidgetPosition;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  @IsObject()
+  @IsOptional()
   configuration: AllPageLayoutWidgetConfiguration;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  @IsObject()
+  @IsOptional()
+  conditionalDisplay?: PageLayoutWidgetConditionalDisplay | null;
+
+  @Field(() => String, { nullable: true })
+  @IsString()
+  @IsOptional()
+  conditionalAvailabilityExpression?: string | null;
 }

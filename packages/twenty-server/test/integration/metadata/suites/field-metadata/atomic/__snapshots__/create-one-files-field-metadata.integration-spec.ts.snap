@@ -15,9 +15,8 @@ exports[`createOne FILES field metadata - failing should fail to create files fi
             },
           ],
           "flatEntityMinimalInformation": {
-            "id": Any<String>,
             "name": "filesFieldUnique",
-            "objectMetadataId": Any<String>,
+            "objectMetadataUniversalIdentifier": Any<String>,
             "universalIdentifier": Any<String>,
           },
           "metadataName": "fieldMetadata",
@@ -35,7 +34,6 @@ exports[`createOne FILES field metadata - failing should fail to create files fi
             },
           ],
           "flatEntityMinimalInformation": {
-            "id": Any<String>,
             "name": "IDX_UNIQUE_47bf8eae9471bbd64cbb794a3b6",
             "universalIdentifier": Any<String>,
           },
@@ -51,7 +49,7 @@ exports[`createOne FILES field metadata - failing should fail to create files fi
       "index": 1,
       "totalErrors": 2,
     },
-    "userFriendlyMessage": "Metadata validation failed",
+    "userFriendlyMessage": "Many validation errors",
   },
   "message": "Multiple validation errors occurred while creating fields",
   "name": "GraphQLError",
@@ -73,9 +71,8 @@ exports[`createOne FILES field metadata - failing should fail to create files fi
             },
           ],
           "flatEntityMinimalInformation": {
-            "id": Any<String>,
             "name": "filesFieldInvalid",
-            "objectMetadataId": Any<String>,
+            "objectMetadataUniversalIdentifier": Any<String>,
             "universalIdentifier": Any<String>,
           },
           "metadataName": "fieldMetadata",
@@ -89,7 +86,7 @@ exports[`createOne FILES field metadata - failing should fail to create files fi
       "fieldMetadata": 1,
       "totalErrors": 1,
     },
-    "userFriendlyMessage": "Metadata validation failed",
+    "userFriendlyMessage": "maxNumberOfValues must be defined in settings and be a number greater than 0 and less than or equal to 10",
   },
   "message": "Multiple validation errors occurred while creating fields",
   "name": "GraphQLError",
@@ -111,9 +108,8 @@ exports[`createOne FILES field metadata - failing should fail to create files fi
             },
           ],
           "flatEntityMinimalInformation": {
-            "id": Any<String>,
             "name": "filesFieldExceeds",
-            "objectMetadataId": Any<String>,
+            "objectMetadataUniversalIdentifier": Any<String>,
             "universalIdentifier": Any<String>,
           },
           "metadataName": "fieldMetadata",
@@ -127,7 +123,7 @@ exports[`createOne FILES field metadata - failing should fail to create files fi
       "fieldMetadata": 1,
       "totalErrors": 1,
     },
-    "userFriendlyMessage": "Metadata validation failed",
+    "userFriendlyMessage": "maxNumberOfValues must be defined in settings and be a number greater than 0 and less than or equal to 10",
   },
   "message": "Multiple validation errors occurred while creating fields",
   "name": "GraphQLError",
@@ -149,9 +145,8 @@ exports[`createOne FILES field metadata - failing should fail to create files fi
             },
           ],
           "flatEntityMinimalInformation": {
-            "id": Any<String>,
             "name": "filesFieldNoSettings",
-            "objectMetadataId": Any<String>,
+            "objectMetadataUniversalIdentifier": Any<String>,
             "universalIdentifier": Any<String>,
           },
           "metadataName": "fieldMetadata",
@@ -165,45 +160,7 @@ exports[`createOne FILES field metadata - failing should fail to create files fi
       "fieldMetadata": 1,
       "totalErrors": 1,
     },
-    "userFriendlyMessage": "Metadata validation failed",
-  },
-  "message": "Multiple validation errors occurred while creating fields",
-  "name": "GraphQLError",
-}
-`;
-
-exports[`createOne FILES field metadata - feature flag disabled should fail to create files field when feature flag is disabled 1`] = `
-{
-  "extensions": {
-    "code": "METADATA_VALIDATION_FAILED",
-    "errors": {
-      "fieldMetadata": [
-        {
-          "errors": [
-            {
-              "code": "INVALID_FIELD_INPUT",
-              "message": "Files field type is not supported",
-              "userFriendlyMessage": "Files field type is not supported",
-            },
-          ],
-          "flatEntityMinimalInformation": {
-            "id": Any<String>,
-            "name": "filesFieldDisabled",
-            "objectMetadataId": Any<String>,
-            "universalIdentifier": Any<String>,
-          },
-          "metadataName": "fieldMetadata",
-          "status": "fail",
-          "type": "create",
-        },
-      ],
-    },
-    "message": "Validation failed for 1 fieldMetadata",
-    "summary": {
-      "fieldMetadata": 1,
-      "totalErrors": 1,
-    },
-    "userFriendlyMessage": "Metadata validation failed",
+    "userFriendlyMessage": "maxNumberOfValues must be defined in settings and be a number greater than 0 and less than or equal to 10",
   },
   "message": "Multiple validation errors occurred while creating fields",
   "name": "GraphQLError",

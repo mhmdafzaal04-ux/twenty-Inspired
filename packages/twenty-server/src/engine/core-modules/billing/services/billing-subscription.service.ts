@@ -4,11 +4,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { differenceInDays } from 'date-fns';
-import {
-  assertIsDefinedOrThrow,
-  findOrThrow,
-  isDefined,
-} from 'twenty-shared/utils';
+import { assertIsDefinedOrThrow, isDefined } from 'twenty-shared/utils';
 import { Not, type Repository } from 'typeorm';
 
 import type Stripe from 'stripe';
@@ -29,7 +25,6 @@ import { BillingEntitlementEntity } from 'src/engine/core-modules/billing/entiti
 import { BillingSubscriptionItemEntity } from 'src/engine/core-modules/billing/entities/billing-subscription-item.entity';
 import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { BillingEntitlementKey } from 'src/engine/core-modules/billing/enums/billing-entitlement-key.enum';
-import { BillingProductKey } from 'src/engine/core-modules/billing/enums/billing-product-key.enum';
 import { SubscriptionStatus } from 'src/engine/core-modules/billing/enums/billing-subscription-status.enum';
 import { BillingPlanService } from 'src/engine/core-modules/billing/services/billing-plan.service';
 import { BillingPriceService } from 'src/engine/core-modules/billing/services/billing-price.service';
@@ -38,6 +33,7 @@ import { StripeCustomerService } from 'src/engine/core-modules/billing/stripe/se
 import { StripeSubscriptionScheduleService } from 'src/engine/core-modules/billing/stripe/services/stripe-subscription-schedule.service';
 import { StripeSubscriptionService } from 'src/engine/core-modules/billing/stripe/services/stripe-subscription.service';
 import { getPlanKeyFromSubscription } from 'src/engine/core-modules/billing/utils/get-plan-key-from-subscription.util';
+import { EnterprisePlanService } from 'src/engine/core-modules/enterprise/services/enterprise-plan.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { type WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 
@@ -61,6 +57,7 @@ export class BillingSubscriptionService {
     @InjectRepository(BillingCustomerEntity)
     private readonly billingCustomerRepository: Repository<BillingSubscriptionEntity>,
     private readonly meteredCreditService: MeteredCreditService,
+    private readonly enterprisePlanService: EnterprisePlanService,
   ) {}
 
   async getBillingSubscriptions(workspaceId: string) {
@@ -151,7 +148,7 @@ export class BillingSubscriptionService {
       workspaceId,
     });
 
-    if (subscriptionToCancel) {
+    if (isDefined(subscriptionToCancel)) {
       await this.stripeSubscriptionService.cancelSubscription(
         subscriptionToCancel.stripeSubscriptionId,
       );
@@ -180,9 +177,7 @@ export class BillingSubscriptionService {
     workspaceId: string,
   ): Promise<BillingEntitlementDTO[]> {
     const isBillingEnabled = this.twentyConfigService.get('IS_BILLING_ENABLED');
-    const hasValidEnterpriseKey = isDefined(
-      this.twentyConfigService.get('ENTERPRISE_KEY'),
-    );
+    const hasValidEnterprisePlan = this.enterprisePlanService.isValid();
 
     const entitlements = isBillingEnabled
       ? await this.billingEntitlementRepository.find({
@@ -202,7 +197,7 @@ export class BillingSubscriptionService {
     return Object.values(BillingEntitlementKey).map((key) => ({
       key,
       value:
-        hasValidEnterpriseKey &&
+        hasValidEnterprisePlan &&
         (!isBillingEnabled || (entitlementsByKey[key]?.value ?? false)),
     }));
   }
@@ -267,36 +262,6 @@ export class BillingSubscriptionService {
     };
   }
 
-  async setBillingThresholdsAndTrialPeriodWorkflowCredits(
-    billingSubscriptionId: string,
-  ) {
-    const billingSubscription =
-      await this.billingSubscriptionRepository.findOneOrFail({
-        where: { id: billingSubscriptionId },
-        relations: [
-          'billingSubscriptionItems',
-          'billingSubscriptionItems.billingProduct',
-        ],
-      });
-
-    const { stripePriceId: meterStripePriceId } = findOrThrow(
-      billingSubscription.billingSubscriptionItems,
-      (billingSubscriptionItem) =>
-        billingSubscriptionItem.billingProduct.metadata.productKey ===
-        BillingProductKey.WORKFLOW_NODE_EXECUTION,
-    );
-
-    await this.stripeSubscriptionService.updateSubscription(
-      billingSubscription.stripeSubscriptionId,
-      {
-        billing_thresholds:
-          await this.billingPriceService.getBillingThresholdsByMeterPriceId(
-            meterStripePriceId,
-          ),
-      },
-    );
-  }
-
   async syncSubscriptionToDatabase(
     workspaceId: string,
     stripeSubscriptionId: string,
@@ -348,29 +313,32 @@ export class BillingSubscriptionService {
         {
           object: subscription,
         },
+        workspaceId,
       );
 
-    const meterBillingSubscriptionItem = findOrThrow(
-      billingSubscriptionItems,
+    // V2 subscriptions have no quantityless metered item; skip the stale-item cleanup in that case
+    const meterBillingSubscriptionItem = billingSubscriptionItems.find(
       (item) => !isDefined(item.quantity),
     );
 
-    const existingBillingSubscriptionItem =
-      await this.billingSubscriptionItemRepository.findOne({
-        where: {
+    if (isDefined(meterBillingSubscriptionItem)) {
+      const existingBillingSubscriptionItem =
+        await this.billingSubscriptionItemRepository.findOne({
+          where: {
+            billingSubscriptionId: currentBillingSubscription.id,
+            stripeProductId: meterBillingSubscriptionItem.stripeProductId,
+          },
+        });
+
+      if (
+        existingBillingSubscriptionItem?.stripeSubscriptionItemId !==
+        meterBillingSubscriptionItem.stripeSubscriptionItemId
+      ) {
+        await this.billingSubscriptionItemRepository.delete({
           billingSubscriptionId: currentBillingSubscription.id,
           stripeProductId: meterBillingSubscriptionItem.stripeProductId,
-        },
-      });
-
-    if (
-      existingBillingSubscriptionItem?.stripeSubscriptionItemId !==
-      meterBillingSubscriptionItem.stripeSubscriptionItemId
-    ) {
-      await this.billingSubscriptionItemRepository.delete({
-        billingSubscriptionId: currentBillingSubscription.id,
-        stripeProductId: meterBillingSubscriptionItem.stripeProductId,
-      });
+        });
+      }
     }
 
     await this.billingSubscriptionItemRepository.upsert(

@@ -1,112 +1,318 @@
 import { promises as fs } from 'fs';
 import { spawn } from 'node:child_process';
-import { join } from 'path';
+import { dirname, join } from 'path';
 
-import { FileFolder } from 'twenty-shared/types';
+import { build } from 'esbuild';
+import { NODE_ESM_CJS_BANNER } from 'twenty-shared/application';
 
 import {
-  type LogicFunctionExecutorDriver,
   type LogicFunctionExecuteParams,
   type LogicFunctionExecuteResult,
-} from 'src/engine/core-modules/logic-function/logic-function-drivers/interfaces/logic-function-executor-driver.interface';
+  type LogicFunctionDriver,
+  type LogicFunctionTranspileParams,
+  type LogicFunctionTranspileResult,
+} from 'src/engine/core-modules/logic-function/logic-function-drivers/interfaces/logic-function-driver.interface';
 
-import { type FileStorageService } from 'src/engine/core-modules/file-storage/file-storage.service';
+import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
+import { type CacheLockService } from 'src/engine/core-modules/cache-lock/cache-lock.service';
 import { LOGIC_FUNCTION_EXECUTOR_TMPDIR_FOLDER } from 'src/engine/core-modules/logic-function/logic-function-drivers/constants/logic-function-executor-tmpdir-folder';
-import { copyAndBuildDependencies } from 'src/engine/core-modules/logic-function/logic-function-drivers/utils/copy-and-build-dependencies';
 import { ConsoleListener } from 'src/engine/core-modules/logic-function/logic-function-drivers/utils/intercept-console';
-import { LambdaBuildDirectoryManager } from 'src/engine/core-modules/logic-function/logic-function-drivers/utils/lambda-build-directory-manager';
-import { type FlatLogicFunctionLayer } from 'src/engine/metadata-modules/logic-function-layer/types/flat-logic-function-layer.type';
+import { TemporaryDirManager } from 'src/engine/core-modules/logic-function/logic-function-drivers/utils/temporary-dir-manager';
+import { HANDLER_NAME_REGEX } from 'src/engine/metadata-modules/logic-function/constants/handler.contant';
 import { LogicFunctionExecutionStatus } from 'src/engine/metadata-modules/logic-function/dtos/logic-function-execution-result.dto';
-import {
-  getLogicFunctionBaseFolderPath,
-  getRelativePathFromBase,
-} from 'src/engine/core-modules/logic-function/logic-function-build/utils/get-logic-function-base-folder-path.util';
+import { copyYarnEngineAndBuildDependencies } from 'src/engine/core-modules/application/application-package/utils/copy-yarn-engine-and-build-dependencies';
+import type { LogicFunctionResourceService } from 'src/engine/core-modules/logic-function/logic-function-resource/logic-function-resource.service';
+import type { SdkClientArchiveService } from 'src/engine/core-modules/sdk-client/sdk-client-archive.service';
+import type { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+
+const LAYER_BUILD_LOCK_TTL_MS = 120_000;
+const LAYER_BUILD_LOCK_RETRY_MS = 500;
+const LAYER_BUILD_LOCK_MAX_RETRIES = 240;
+const LAYER_BUILD_READY_SENTINEL = '.twenty-layer-ready';
 
 export interface LocalDriverOptions {
-  fileStorageService: FileStorageService;
+  logicFunctionResourceService: LogicFunctionResourceService;
+  sdkClientArchiveService: SdkClientArchiveService;
+  cacheLockService: CacheLockService;
+  workspaceCacheService: WorkspaceCacheService;
 }
 
-export class LocalDriver implements LogicFunctionExecutorDriver {
-  private readonly fileStorageService: FileStorageService;
+const pathExists = async (targetPath: string): Promise<boolean> => {
+  try {
+    await fs.access(targetPath);
+
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export class LocalDriver implements LogicFunctionDriver {
+  private readonly logicFunctionResourceService: LogicFunctionResourceService;
+  private readonly sdkClientArchiveService: SdkClientArchiveService;
+  private readonly cacheLockService: CacheLockService;
+  private readonly workspaceCacheService: WorkspaceCacheService;
 
   constructor(options: LocalDriverOptions) {
-    this.fileStorageService = options.fileStorageService;
+    this.logicFunctionResourceService = options.logicFunctionResourceService;
+    this.sdkClientArchiveService = options.sdkClientArchiveService;
+    this.cacheLockService = options.cacheLockService;
+    this.workspaceCacheService = options.workspaceCacheService;
   }
 
-  private getInMemoryLayerFolderPath = (
-    flatLogicFunctionLayer: FlatLogicFunctionLayer,
-  ) => {
+  private getDepsLayerPath(flatApplication: FlatApplication): string {
+    const checksum = flatApplication.yarnLockChecksum ?? 'default';
+
+    return join(LOGIC_FUNCTION_EXECUTOR_TMPDIR_FOLDER, 'deps', checksum);
+  }
+
+  private getSdkLayerPath({
+    workspaceId,
+    applicationUniversalIdentifier,
+  }: {
+    workspaceId: string;
+    applicationUniversalIdentifier: string;
+  }): string {
     return join(
       LOGIC_FUNCTION_EXECUTOR_TMPDIR_FOLDER,
-      flatLogicFunctionLayer.checksum,
+      'sdk',
+      `${workspaceId}-${applicationUniversalIdentifier}`,
     );
-  };
+  }
 
-  private async createLayerIfNotExists(
-    flatLogicFunctionLayer: FlatLogicFunctionLayer,
-  ) {
-    const inMemoryLayerFolderPath = this.getInMemoryLayerFolderPath(
-      flatLogicFunctionLayer,
+  private async createLayerIfNotExist({
+    flatApplication,
+    applicationUniversalIdentifier,
+  }: {
+    flatApplication: FlatApplication;
+    applicationUniversalIdentifier: string;
+  }): Promise<void> {
+    const depsLayerPath = this.getDepsLayerPath(flatApplication);
+    const depsReadySentinelPath = join(
+      depsLayerPath,
+      LAYER_BUILD_READY_SENTINEL,
     );
+
+    if (await pathExists(depsReadySentinelPath)) {
+      return;
+    }
+
+    const lockKey = `local-driver-deps-layer:${flatApplication.yarnLockChecksum ?? 'default'}`;
+
+    await this.cacheLockService.withLock(
+      async () => {
+        if (await pathExists(depsReadySentinelPath)) {
+          return;
+        }
+
+        await fs.rm(depsLayerPath, { recursive: true, force: true });
+
+        await this.logicFunctionResourceService.copyDependenciesInMemory({
+          applicationUniversalIdentifier,
+          workspaceId: flatApplication.workspaceId,
+          inMemoryFolderPath: depsLayerPath,
+        });
+        await copyYarnEngineAndBuildDependencies(depsLayerPath);
+        await fs.writeFile(depsReadySentinelPath, '');
+      },
+      lockKey,
+      {
+        ttl: LAYER_BUILD_LOCK_TTL_MS,
+        ms: LAYER_BUILD_LOCK_RETRY_MS,
+        maxRetries: LAYER_BUILD_LOCK_MAX_RETRIES,
+      },
+    );
+  }
+
+  private async ensureSdkLayer({
+    flatApplication,
+    applicationUniversalIdentifier,
+  }: {
+    flatApplication: FlatApplication;
+    applicationUniversalIdentifier: string;
+  }): Promise<void> {
+    const sdkLayerPath = this.getSdkLayerPath({
+      workspaceId: flatApplication.workspaceId,
+      applicationUniversalIdentifier,
+    });
+    const sdkNodeModulesPath = join(sdkLayerPath, 'node_modules');
+    const sdkReadySentinelPath = join(sdkLayerPath, LAYER_BUILD_READY_SENTINEL);
+
+    if (
+      (await pathExists(sdkReadySentinelPath)) &&
+      !flatApplication.isSdkLayerStale
+    ) {
+      return;
+    }
+
+    const lockKey = `local-driver-sdk-layer:${flatApplication.workspaceId}:${applicationUniversalIdentifier}`;
+
+    await this.cacheLockService.withLock(
+      async () => {
+        const { flatApplicationMaps } =
+          await this.workspaceCacheService.getOrRecompute(
+            flatApplication.workspaceId,
+            ['flatApplicationMaps'],
+          );
+        const freshFlatApplication =
+          flatApplicationMaps.byId[flatApplication.id];
+        const isStale = freshFlatApplication?.isSdkLayerStale ?? true;
+
+        if ((await pathExists(sdkReadySentinelPath)) && !isStale) {
+          return;
+        }
+
+        await fs.rm(sdkLayerPath, { recursive: true, force: true });
+
+        const sdkPackagePath = join(sdkNodeModulesPath, 'twenty-client-sdk');
+
+        await this.sdkClientArchiveService.downloadAndExtractToPackage({
+          workspaceId: flatApplication.workspaceId,
+          applicationId: flatApplication.id,
+          applicationUniversalIdentifier,
+          targetPackagePath: sdkPackagePath,
+        });
+
+        await this.sdkClientArchiveService.markSdkLayerFresh({
+          applicationId: flatApplication.id,
+          workspaceId: flatApplication.workspaceId,
+        });
+
+        await fs.writeFile(sdkReadySentinelPath, '');
+      },
+      lockKey,
+      {
+        ttl: LAYER_BUILD_LOCK_TTL_MS,
+        ms: LAYER_BUILD_LOCK_RETRY_MS,
+        maxRetries: LAYER_BUILD_LOCK_MAX_RETRIES,
+      },
+    );
+  }
+
+  async transpile({
+    sourceCode,
+    sourceFileName,
+    builtFileName,
+  }: LogicFunctionTranspileParams): Promise<LogicFunctionTranspileResult> {
+    const temporaryDirManager = new TemporaryDirManager();
+    const { sourceTemporaryDir } = await temporaryDirManager.init();
 
     try {
-      await fs.access(inMemoryLayerFolderPath);
-    } catch {
-      await copyAndBuildDependencies(
-        inMemoryLayerFolderPath,
-        flatLogicFunctionLayer,
-      );
+      const entryFilePath = join(sourceTemporaryDir, sourceFileName);
+      const builtBundleFilePath = join(sourceTemporaryDir, builtFileName);
+
+      await fs.mkdir(dirname(entryFilePath), { recursive: true });
+      await fs.writeFile(entryFilePath, sourceCode, 'utf-8');
+      await fs.mkdir(dirname(builtBundleFilePath), { recursive: true });
+
+      await build({
+        entryPoints: [entryFilePath],
+        outfile: builtBundleFilePath,
+        platform: 'node',
+        format: 'esm',
+        target: 'esnext',
+        bundle: true,
+        sourcemap: true,
+        packages: 'external',
+        banner: NODE_ESM_CJS_BANNER,
+      });
+
+      const builtCode = await fs.readFile(builtBundleFilePath, 'utf-8');
+
+      return { builtCode };
+    } finally {
+      await temporaryDirManager.clean();
     }
   }
 
   async delete() {}
 
-  private async build(flatLogicFunctionLayer: FlatLogicFunctionLayer) {
-    await this.createLayerIfNotExists(flatLogicFunctionLayer);
+  // Symlinks everything from the deps layer except twenty-client-sdk,
+  // which comes from the SDK layer (workspace-specific generated client).
+  private async assembleNodeModules({
+    sourceTemporaryDir,
+    flatApplication,
+    applicationUniversalIdentifier,
+  }: {
+    sourceTemporaryDir: string;
+    flatApplication: FlatApplication;
+    applicationUniversalIdentifier: string;
+  }): Promise<void> {
+    const depsNodeModules = join(
+      this.getDepsLayerPath(flatApplication),
+      'node_modules',
+    );
+    const sdkNodeModules = join(
+      this.getSdkLayerPath({
+        workspaceId: flatApplication.workspaceId,
+        applicationUniversalIdentifier,
+      }),
+      'node_modules',
+    );
+    const execNodeModules = join(sourceTemporaryDir, 'node_modules');
+
+    await fs.mkdir(execNodeModules, { recursive: true });
+
+    const entries = await fs.readdir(depsNodeModules, {
+      withFileTypes: true,
+    });
+
+    const symlinkPromises = entries
+      .filter((entry) => entry.name !== 'twenty-client-sdk')
+      .map((entry) =>
+        fs.symlink(
+          join(depsNodeModules, entry.name),
+          join(execNodeModules, entry.name),
+          entry.isDirectory() ? 'dir' : 'file',
+        ),
+      );
+
+    await Promise.all(symlinkPromises);
+
+    await fs.symlink(
+      join(sdkNodeModules, 'twenty-client-sdk'),
+      join(execNodeModules, 'twenty-client-sdk'),
+      'dir',
+    );
   }
 
   async execute({
     flatLogicFunction,
-    flatLogicFunctionLayer,
+    flatApplication,
     applicationUniversalIdentifier,
     payload,
     env,
+    timeoutMs = 900_000,
   }: LogicFunctionExecuteParams): Promise<LogicFunctionExecuteResult> {
-    await this.build(flatLogicFunctionLayer);
+    await this.createLayerIfNotExist({
+      flatApplication,
+      applicationUniversalIdentifier,
+    });
+    await this.ensureSdkLayer({
+      flatApplication,
+      applicationUniversalIdentifier,
+    });
 
     const startTime = Date.now();
 
-    const lambdaBuildDirectoryManager = new LambdaBuildDirectoryManager();
+    const temporaryDirManager = new TemporaryDirManager();
 
     try {
-      const { sourceTemporaryDir } = await lambdaBuildDirectoryManager.init();
+      const { sourceTemporaryDir } = await temporaryDirManager.init();
 
-      const baseFolderPath = getLogicFunctionBaseFolderPath(
-        flatLogicFunction.builtHandlerPath,
-      );
+      const inMemoryBuiltHandlerPath =
+        await this.logicFunctionResourceService.copyBuiltCodeInMemory({
+          workspaceId: flatLogicFunction.workspaceId,
+          applicationUniversalIdentifier,
+          builtHandlerPath: flatLogicFunction.builtHandlerPath,
+          inMemoryDestinationPath: sourceTemporaryDir,
+        });
 
-      await this.fileStorageService.downloadFolder_v2({
-        workspaceId: flatLogicFunction.workspaceId,
+      await this.assembleNodeModules({
+        sourceTemporaryDir,
+        flatApplication,
         applicationUniversalIdentifier,
-        fileFolder: FileFolder.BuiltLogicFunction,
-        resourcePath: baseFolderPath,
-        localPath: sourceTemporaryDir,
       });
-
-      try {
-        await fs.symlink(
-          join(
-            this.getInMemoryLayerFolderPath(flatLogicFunctionLayer),
-            'node_modules',
-          ),
-          join(sourceTemporaryDir, 'node_modules'),
-          'dir',
-        );
-      } catch (err) {
-        if (err.code !== 'EEXIST') {
-          throw err;
-        }
-      }
 
       let logs = '';
 
@@ -122,7 +328,7 @@ export class LocalDriver implements LogicFunctionExecutorDriver {
               (_key, value) => {
                 if (typeof value === 'object' && value !== null) {
                   if (seen.has(value)) {
-                    return '[Circular]'; // Handle circular references
+                    return '[Circular]';
                   }
                   seen.add(value);
                 }
@@ -142,15 +348,9 @@ export class LocalDriver implements LogicFunctionExecutorDriver {
       });
 
       try {
-        const relativeBuiltPath = getRelativePathFromBase(
-          flatLogicFunction.builtHandlerPath,
-          baseFolderPath,
-        );
-        const builtBundleFilePath = join(sourceTemporaryDir, relativeBuiltPath);
-
         const runnerPath = await this.writeBootstrapRunner({
           dir: sourceTemporaryDir,
-          builtFileAbsPath: builtBundleFilePath,
+          builtFileAbsPath: inMemoryBuiltHandlerPath,
           handlerName: flatLogicFunction.handlerName,
         });
 
@@ -159,7 +359,7 @@ export class LocalDriver implements LogicFunctionExecutorDriver {
             runnerPath,
             env: env ?? {},
             payload,
-            timeoutMs: 900_000, // timeout is handled by the logic function service
+            timeoutMs,
           });
 
         if (stdout)
@@ -203,7 +403,7 @@ export class LocalDriver implements LogicFunctionExecutorDriver {
         consoleListener.release();
       }
     } finally {
-      await lambdaBuildDirectoryManager.clean();
+      await temporaryDirManager.clean();
     }
   }
 
@@ -216,6 +416,12 @@ export class LocalDriver implements LogicFunctionExecutorDriver {
     builtFileAbsPath: string;
     handlerName: string;
   }) {
+    if (!HANDLER_NAME_REGEX.test(handlerName)) {
+      throw new Error(
+        `Invalid handlerName "${handlerName}": must be a valid JavaScript identifier or dotted path`,
+      );
+    }
+
     const runnerPath = join(dir, '__runner.cjs');
     const code = `
       // Auto-generated. Do not edit.
@@ -247,7 +453,7 @@ export class LocalDriver implements LogicFunctionExecutorDriver {
             const json = process.argv[2];
             payload = json ? JSON.parse(json) : undefined;
             const out = await mod.${handlerName}(payload);
-            console.log(JSON.stringify({ ok: true, result: out }));
+            process.stdout.write(JSON.stringify({ ok: true, result: out }));
             process.exit(0);
           }
         } catch (err) {
@@ -255,7 +461,7 @@ export class LocalDriver implements LogicFunctionExecutorDriver {
           if (process.send) {
             process.send({ ok: false, error: msg, stack: err?.stack });
           } else {
-            console.error(msg);
+            process.stdout.write(msg);
           }
           process.exit(1);
         }
@@ -327,7 +533,6 @@ export class LocalDriver implements LogicFunctionExecutorDriver {
         if (settled) return;
         settled = true;
         if (code === 0) {
-          // Fallback path if no IPC (shouldn't happen with our stdio)
           resolve({ ok: true, stdout, stderr });
         } else {
           resolve({
@@ -351,7 +556,6 @@ export class LocalDriver implements LogicFunctionExecutorDriver {
         });
       }, timeoutMs);
 
-      // Kick it off
       child.send?.({ type: 'run', payload });
 
       child.on('close', () => clearTimeout(t));

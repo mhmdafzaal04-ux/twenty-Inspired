@@ -1,34 +1,35 @@
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 
-import { type LogicFunctionExecutorModuleAsyncOptions } from 'src/engine/core-modules/logic-function/logic-function-executor/interfaces/logic-function-executor.interface';
-
-import { LogicFunctionBuildModule } from 'src/engine/core-modules/logic-function/logic-function-build/logic-function-build.module';
-import { LogicFunctionDriversModule } from 'src/engine/core-modules/logic-function/logic-function-drivers/logic-function-drivers.module';
-import { LogicFunctionExecutorModule } from 'src/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.module';
-import { CoreLogicFunctionLayerModule } from 'src/engine/core-modules/logic-function/logic-function-layer/logic-function-layer.module';
+import { CacheLockModule } from 'src/engine/core-modules/cache-lock/cache-lock.module';
+import { LogicFunctionDriverFactory } from 'src/engine/core-modules/logic-function/logic-function-drivers/logic-function-driver.factory';
+import { LogicFunctionResourceModule } from 'src/engine/core-modules/logic-function/logic-function-resource/logic-function-resource.module';
 import { LogicFunctionTriggerModule } from 'src/engine/core-modules/logic-function/logic-function-trigger/logic-function-trigger.module';
+import { LogicFunctionExecutorModule } from 'src/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.module';
+import { SdkClientModule } from 'src/engine/core-modules/sdk-client/sdk-client.module';
+import { TwentyConfigModule } from 'src/engine/core-modules/twenty-config/twenty-config.module';
+import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
 
 @Global()
 @Module({})
 export class LogicFunctionModule {
-  static forRootAsync(
-    options: LogicFunctionExecutorModuleAsyncOptions,
-  ): DynamicModule {
+  static forRoot(): DynamicModule {
     return {
       module: LogicFunctionModule,
       imports: [
-        LogicFunctionDriversModule.forRootAsync(options),
-        LogicFunctionExecutorModule,
-        LogicFunctionBuildModule,
-        CoreLogicFunctionLayerModule,
+        TwentyConfigModule,
+        CacheLockModule,
+        LogicFunctionResourceModule,
         LogicFunctionTriggerModule,
+        LogicFunctionExecutorModule,
+        SdkClientModule,
+        WorkspaceCacheModule,
       ],
+      providers: [LogicFunctionDriverFactory],
       exports: [
-        LogicFunctionDriversModule,
-        LogicFunctionExecutorModule,
-        LogicFunctionBuildModule,
-        CoreLogicFunctionLayerModule,
+        LogicFunctionDriverFactory,
+        LogicFunctionResourceModule,
         LogicFunctionTriggerModule,
+        LogicFunctionExecutorModule,
       ],
     };
   }

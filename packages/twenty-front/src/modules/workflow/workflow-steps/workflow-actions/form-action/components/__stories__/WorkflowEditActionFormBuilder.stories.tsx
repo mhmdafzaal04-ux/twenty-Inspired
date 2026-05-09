@@ -5,6 +5,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { FieldMetadataType } from 'twenty-shared/types';
 import { ComponentDecorator, RouterDecorator } from 'twenty-ui/testing';
 import { ObjectMetadataItemsDecorator } from '~/testing/decorators/ObjectMetadataItemsDecorator';
+import { SnackBarDecorator } from '~/testing/decorators/SnackBarDecorator';
 import { WorkflowStepActionDrawerDecorator } from '~/testing/decorators/WorkflowStepActionDrawerDecorator';
 import { WorkflowStepDecorator } from '~/testing/decorators/WorkflowStepDecorator';
 import { graphqlMocks } from '~/testing/graphqlMocks';
@@ -61,6 +62,7 @@ const meta: Meta<typeof WorkflowEditActionFormBuilder> = {
     ComponentDecorator,
     RouterDecorator,
     ObjectMetadataItemsDecorator,
+    SnackBarDecorator,
   ],
 };
 
@@ -179,9 +181,7 @@ export const EmptyForm: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const messageContainer = await canvas.findByTestId(
-      'workflow-message-title',
-    );
+    const messageContainer = await canvas.findByText('Add inputs to your form');
 
     expect(messageContainer).toBeVisible();
 

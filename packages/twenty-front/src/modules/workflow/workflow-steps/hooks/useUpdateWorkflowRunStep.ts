@@ -1,19 +1,20 @@
 import { useApolloCoreClient } from '@/object-metadata/hooks/useApolloCoreClient';
 import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
 import { useObjectMetadataItems } from '@/object-metadata/hooks/useObjectMetadataItems';
-import { CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
+import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { useGetRecordFromCache } from '@/object-record/cache/hooks/useGetRecordFromCache';
 import { updateRecordFromCache } from '@/object-record/cache/utils/updateRecordFromCache';
 import { useObjectPermissions } from '@/object-record/hooks/useObjectPermissions';
 import { UPDATE_WORKFLOW_RUN_STEP } from '@/workflow/graphql/mutations/updateWorkflowRunStep';
 import { type WorkflowStep, type WorkflowRun } from '@/workflow/types/Workflow';
-import { useMutation } from '@apollo/client';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
+import { useMutation } from '@apollo/client/react';
 import { isDefined } from 'twenty-shared/utils';
 import {
   type UpdateWorkflowRunStepInput,
   type UpdateWorkflowRunStepMutation,
   type UpdateWorkflowRunStepMutationVariables,
-} from '~/generated-metadata/graphql';
+} from '~/generated/graphql';
 
 export const useUpdateWorkflowRunStep = () => {
   const apolloCoreClient = useApolloCoreClient();
@@ -32,11 +33,15 @@ export const useUpdateWorkflowRunStep = () => {
   const getRecordFromCache = useGetRecordFromCache({
     objectNameSingular: CoreObjectNameSingular.WorkflowRun,
   });
+  const { enqueueErrorSnackBar } = useSnackBar();
 
   const updateWorkflowRunStep = async (input: UpdateWorkflowRunStepInput) => {
     const result = await mutate({
       variables: {
         input: { workflowRunId: input.workflowRunId, step: input.step },
+      },
+      onError: (error) => {
+        enqueueErrorSnackBar({ apolloError: error });
       },
     });
     const updatedStep = result?.data?.updateWorkflowRunStep;

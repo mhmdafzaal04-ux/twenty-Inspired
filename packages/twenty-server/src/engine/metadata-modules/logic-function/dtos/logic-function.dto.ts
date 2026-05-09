@@ -6,7 +6,6 @@ import {
   QueryOptions,
 } from '@ptc-org/nestjs-query-graphql';
 import {
-  IsBoolean,
   IsDateString,
   IsNotEmpty,
   IsNumber,
@@ -16,17 +15,19 @@ import {
   IsUUID,
 } from 'class-validator';
 import graphqlTypeJson from 'graphql-type-json';
-
-import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 import {
   CronTriggerSettings,
   DatabaseEventTriggerSettings,
   HttpRouteTriggerSettings,
-} from 'src/engine/metadata-modules/logic-function/logic-function.entity';
+  ToolTriggerSettings,
+  WorkflowActionTriggerSettings,
+} from 'twenty-shared/application';
+
+import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 
 @ObjectType('LogicFunction')
 @Authorize({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line @typescripttypescript/no-explicit-any
   authorize: (context: any) => ({
     workspaceId: { eq: context?.req?.workspace?.id },
   }),
@@ -64,20 +65,7 @@ export class LogicFunctionDTO {
 
   @IsString()
   @Field()
-  builtHandlerPath: string;
-
-  @IsString()
-  @Field()
   handlerName: string;
-
-  @IsObject()
-  @IsOptional()
-  @Field(() => graphqlTypeJson, { nullable: true })
-  toolInputSchema?: object;
-
-  @IsBoolean()
-  @Field()
-  isTool: boolean;
 
   @IsObject()
   @IsOptional()
@@ -93,6 +81,16 @@ export class LogicFunctionDTO {
   @IsOptional()
   @Field(() => graphqlTypeJson, { nullable: true })
   httpRouteTriggerSettings?: HttpRouteTriggerSettings;
+
+  @IsObject()
+  @IsOptional()
+  @Field(() => graphqlTypeJson, { nullable: true })
+  toolTriggerSettings?: ToolTriggerSettings;
+
+  @IsObject()
+  @IsOptional()
+  @Field(() => graphqlTypeJson, { nullable: true })
+  workflowActionTriggerSettings?: WorkflowActionTriggerSettings;
 
   @IsUUID()
   @IsOptional()

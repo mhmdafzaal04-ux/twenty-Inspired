@@ -1,87 +1,118 @@
-import { selectorFamily } from 'recoil';
+import { atom, type Atom } from 'jotai';
 
+import { type FieldMetadataItemRelation } from '@/object-metadata/types/FieldMetadataItemRelation';
 import { type FieldDefinition } from '@/object-record/record-field/ui/types/FieldDefinition';
-import { type FieldMetadata } from '@/object-record/record-field/ui/types/FieldMetadata';
+import {
+  type FieldMetadata,
+  type FieldMorphRelationManyToOneValue,
+  type FieldMorphRelationMetadata,
+  type FieldMorphRelationOneToManyValue,
+} from '@/object-record/record-field/ui/types/FieldMetadata';
 import { isFieldMorphRelation } from '@/object-record/record-field/ui/types/guards/isFieldMorphRelation';
 import { recordStoreFamilyState } from '@/object-record/record-store/states/recordStoreFamilyState';
-import { RelationType, type ObjectRecord } from 'twenty-shared/types';
+import { createAtomFamilySelector } from '@/ui/utilities/state/jotai/utils/createAtomFamilySelector';
+import { RelationType } from 'twenty-shared/types';
 import {
-  computeMorphRelationFieldName,
-  CustomError,
+  computeMorphRelationGqlFieldName,
   isDefined,
 } from 'twenty-shared/utils';
 
-export const recordStoreFieldValueSelector = selectorFamily({
-  key: 'recordStoreFieldValueSelector',
+const simpleFieldValueSelector = createAtomFamilySelector<
+  unknown,
+  { recordId: string; fieldName: string }
+>({
+  key: 'recordStoreSimpleFieldValue',
   get:
-    ({
-      recordId,
-      fieldName,
-      fieldDefinition,
-    }: {
-      recordId: string;
-      fieldName: string;
-      fieldDefinition: Pick<
-        FieldDefinition<FieldMetadata>,
-        'type' | 'metadata'
-      >;
-    }) =>
-    ({ get }) => {
-      if (!isFieldMorphRelation(fieldDefinition)) {
-        return get(recordStoreFamilyState(recordId))?.[fieldName];
-      }
+    ({ recordId, fieldName }) =>
+    ({ get }) =>
+      get(recordStoreFamilyState, recordId)?.[fieldName],
+});
 
-      const morphRelations = fieldDefinition.metadata.morphRelations;
+const morphAtomCache = new Map<string, Atom<unknown>>();
 
-      if (!Array.isArray(morphRelations) || morphRelations.length === 0) {
-        throw new CustomError(
-          'No morph relations found',
-          'NO_MORPH_RELATIONS_FOUND',
-        );
-      }
+const getMorphRelationFieldValueAtom = (
+  recordId: string,
+  fieldName: string,
+  fieldDefinition: Pick<FieldDefinition<FieldMetadata>, 'type' | 'metadata'>,
+): Atom<unknown> => {
+  const cacheKey = `morph__${recordId}__${fieldName}`;
+  const existing = morphAtomCache.get(cacheKey);
 
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const morphRelations =
+    (fieldDefinition.metadata as FieldMorphRelationMetadata).morphRelations ??
+    [];
+
+  const relationType = morphRelations[0]?.type;
+
+  const derivedAtom = atom((get) => {
+    const recordStore = get(recordStoreFamilyState.atomFamily(recordId));
+
+    const computeMorphFieldName = (morphRelation: FieldMetadataItemRelation) =>
+      computeMorphRelationGqlFieldName({
+        fieldName: morphRelation.sourceFieldMetadata.name,
+        relationType: morphRelation.type,
+        targetObjectMetadataNameSingular:
+          morphRelation.targetObjectMetadata.nameSingular,
+        targetObjectMetadataNamePlural:
+          morphRelation.targetObjectMetadata.namePlural,
+      });
+
+    if (relationType === RelationType.ONE_TO_MANY) {
+      return morphRelations.map((morphRelation) => ({
+        objectNameSingular: morphRelation.targetObjectMetadata.nameSingular,
+        objectNamePlural: morphRelation.targetObjectMetadata.namePlural,
+        value: recordStore?.[computeMorphFieldName(morphRelation)] ?? [],
+      })) as FieldMorphRelationOneToManyValue;
+    }
+
+    if (relationType === RelationType.MANY_TO_ONE) {
       const morphValuesWithObjectName = morphRelations.map((morphRelation) => {
-        const computedFieldName = computeMorphRelationFieldName({
-          fieldName: morphRelation.sourceFieldMetadata.name,
-          relationType: morphRelation.type,
-          targetObjectMetadataNameSingular:
-            morphRelation.targetObjectMetadata.nameSingular,
-          targetObjectMetadataNamePlural:
-            morphRelation.targetObjectMetadata.namePlural,
-        });
+        const computedFieldName = computeMorphFieldName(morphRelation);
+
         return {
           objectNameSingular: morphRelation.targetObjectMetadata.nameSingular,
-          value: get(recordStoreFamilyState(recordId))?.[computedFieldName],
+          objectNamePlural: morphRelation.targetObjectMetadata.namePlural,
+          value: recordStore?.[computedFieldName],
+          foreignKeyFieldValue: recordStore?.[`${computedFieldName}Id`],
         };
       });
 
-      const relationType = morphRelations[0].type;
-
-      if (relationType === RelationType.ONE_TO_MANY) {
-        return morphValuesWithObjectName.map((morphValue) => ({
-          ...morphValue,
-          value: morphValue.value ? morphValue.value : [],
-        })) as {
-          objectNameSingular: string;
-          value: ObjectRecord[];
-        }[];
-      }
-
-      if (relationType === RelationType.MANY_TO_ONE) {
-        const morphValueFiltered = morphValuesWithObjectName.filter(
-          (morphValue) => isDefined(morphValue.value),
-        );
-        return morphValueFiltered.length > 0
-          ? (morphValueFiltered[0] as {
-              objectNameSingular: string;
-              value: ObjectRecord;
-            })
-          : null;
-      }
-
-      throw new CustomError(
-        `Unknown relation type: ${relationType}`,
-        'UNKNOWN_RELATION_TYPE',
+      const morphValueWithRelationOrForeignKey = morphValuesWithObjectName.find(
+        (morphValue) => isDefined(morphValue.foreignKeyFieldValue),
       );
-    },
-});
+
+      if (isDefined(morphValueWithRelationOrForeignKey)) {
+        return morphValueWithRelationOrForeignKey as FieldMorphRelationManyToOneValue;
+      }
+
+      return null;
+    }
+
+    return null;
+  });
+
+  derivedAtom.debugLabel = `recordMorphFieldValue__${cacheKey}`;
+  morphAtomCache.set(cacheKey, derivedAtom);
+
+  return derivedAtom;
+};
+
+export const recordStoreFieldValueSelector = ({
+  recordId,
+  fieldName,
+  fieldDefinition,
+}: {
+  recordId: string;
+  fieldName: string;
+  fieldDefinition: Pick<FieldDefinition<FieldMetadata>, 'type' | 'metadata'>;
+}): Atom<unknown> => {
+  if (isFieldMorphRelation(fieldDefinition)) {
+    return getMorphRelationFieldValueAtom(recordId, fieldName, fieldDefinition);
+  }
+
+  return simpleFieldValueSelector.selectorFamily({ recordId, fieldName });
+};

@@ -1,4 +1,3 @@
-import { type I18n } from '@lingui/core';
 import { assertUnreachable } from 'twenty-shared/utils';
 
 import {
@@ -7,6 +6,10 @@ import {
   NotFoundError,
   UserInputError,
 } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
+import {
+  ViewFieldGroupException,
+  ViewFieldGroupExceptionCode,
+} from 'src/engine/metadata-modules/view-field-group/exceptions/view-field-group.exception';
 import {
   ViewFieldException,
   ViewFieldExceptionCode,
@@ -32,11 +35,11 @@ import {
   ViewExceptionCode,
 } from 'src/engine/metadata-modules/view/exceptions/view.exception';
 import { WorkspaceMigrationBuilderException } from 'src/engine/workspace-manager/workspace-migration/exceptions/workspace-migration-builder-exception';
-import { workspaceMigrationBuilderExceptionFormatter } from 'src/engine/workspace-manager/workspace-migration/interceptors/workspace-migration-builder-exception-formatter';
+import { workspaceMigrationBuilderGraphqlApiExceptionHandler } from 'src/engine/workspace-manager/workspace-migration/interceptors/utils/workspace-migration-builder-graphql-api-exception-handler.util';
 
-export const viewGraphqlApiExceptionHandler = (error: Error, i18n: I18n) => {
+export const viewGraphqlApiExceptionHandler = (error: Error) => {
   if (error instanceof WorkspaceMigrationBuilderException) {
-    return workspaceMigrationBuilderExceptionFormatter(error, i18n);
+    return workspaceMigrationBuilderGraphqlApiExceptionHandler(error);
   }
 
   if (error instanceof ViewException) {
@@ -55,6 +58,8 @@ export const viewGraphqlApiExceptionHandler = (error: Error, i18n: I18n) => {
         throw new ForbiddenError(error.message, {
           userFriendlyMessage: error.userFriendlyMessage,
         });
+      case ViewExceptionCode.VIEW_WIDGET_NOT_FOUND:
+        throw new NotFoundError(error.message);
       default: {
         return assertUnreachable(error.code);
       }
@@ -68,6 +73,24 @@ export const viewGraphqlApiExceptionHandler = (error: Error, i18n: I18n) => {
       case ViewFieldExceptionCode.VIEW_NOT_FOUND:
         throw new NotFoundError(error.message);
       case ViewFieldExceptionCode.INVALID_VIEW_FIELD_DATA:
+        throw new UserInputError(error.message, {
+          userFriendlyMessage: error.userFriendlyMessage,
+        });
+      default: {
+        return assertUnreachable(error.code);
+      }
+    }
+  }
+
+  if (error instanceof ViewFieldGroupException) {
+    switch (error.code) {
+      case ViewFieldGroupExceptionCode.VIEW_FIELD_GROUP_NOT_FOUND:
+        throw new NotFoundError(error.message);
+      case ViewFieldGroupExceptionCode.VIEW_NOT_FOUND:
+        throw new NotFoundError(error.message);
+      case ViewFieldGroupExceptionCode.FIELDS_WIDGET_NOT_FOUND:
+        throw new NotFoundError(error.message);
+      case ViewFieldGroupExceptionCode.INVALID_VIEW_FIELD_GROUP_DATA:
         throw new UserInputError(error.message, {
           userFriendlyMessage: error.userFriendlyMessage,
         });

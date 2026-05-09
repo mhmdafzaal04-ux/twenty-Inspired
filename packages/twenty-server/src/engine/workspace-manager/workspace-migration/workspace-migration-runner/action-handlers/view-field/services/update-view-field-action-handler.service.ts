@@ -2,13 +2,18 @@ import { Injectable } from '@nestjs/common';
 
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
 
+import { findFlatEntityByUniversalIdentifierOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier-or-throw.util';
 import { ViewFieldEntity } from 'src/engine/metadata-modules/view-field/entities/view-field.entity';
-import { FlatUpdateViewFieldAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/view-field/types/workspace-migration-view-field-action.type';
+import { resolveUniversalUpdateRelationIdentifiersToIds } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/utils/resolve-universal-update-relation-identifiers-to-ids.util';
+import {
+  FlatUpdateViewFieldAction,
+  UniversalUpdateViewFieldAction,
+} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/view-field/types/workspace-migration-view-field-action.type';
+import { fromUniversalOverridesToViewFieldOverrides } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/action-handlers/view-field/services/utils/from-universal-overrides-to-view-field-overrides.util';
 import {
   WorkspaceMigrationActionRunnerArgs,
   WorkspaceMigrationActionRunnerContext,
 } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/workspace-migration-action-runner-args.type';
-import { fromFlatEntityPropertiesUpdatesToPartialFlatEntity } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/from-flat-entity-properties-updates-to-partial-flat-entity';
 
 @Injectable()
 export class UpdateViewFieldActionHandlerService extends WorkspaceMigrationRunnerActionHandler(
@@ -20,24 +25,54 @@ export class UpdateViewFieldActionHandlerService extends WorkspaceMigrationRunne
   }
 
   override async transpileUniversalActionToFlatAction(
-    context: WorkspaceMigrationActionRunnerArgs<FlatUpdateViewFieldAction>,
+    context: WorkspaceMigrationActionRunnerArgs<UniversalUpdateViewFieldAction>,
   ): Promise<FlatUpdateViewFieldAction> {
-    return context.action;
+    const { action, allFlatEntityMaps } = context;
+
+    const flatViewField = findFlatEntityByUniversalIdentifierOrThrow({
+      flatEntityMaps: allFlatEntityMaps.flatViewFieldMaps,
+      universalIdentifier: action.universalIdentifier,
+    });
+
+    const { universalOverrides, ...updateWithResolvedForeignKeys } =
+      resolveUniversalUpdateRelationIdentifiersToIds({
+        metadataName: 'viewField',
+        universalUpdate: action.update,
+        allFlatEntityMaps,
+      });
+
+    const update =
+      universalOverrides === undefined
+        ? updateWithResolvedForeignKeys
+        : universalOverrides === null
+          ? { ...updateWithResolvedForeignKeys, overrides: null }
+          : {
+              ...updateWithResolvedForeignKeys,
+              overrides: fromUniversalOverridesToViewFieldOverrides({
+                universalOverrides,
+                flatViewFieldGroupMaps:
+                  allFlatEntityMaps.flatViewFieldGroupMaps,
+              }),
+            };
+
+    return {
+      type: 'update',
+      metadataName: 'viewField',
+      entityId: flatViewField.id,
+      update,
+    };
   }
 
   async executeForMetadata(
     context: WorkspaceMigrationActionRunnerContext<FlatUpdateViewFieldAction>,
   ): Promise<void> {
-    const { flatAction, queryRunner } = context;
-    const { entityId } = flatAction;
+    const { flatAction, queryRunner, workspaceId } = context;
+    const { entityId, update } = flatAction;
 
     const viewFieldRepository =
       queryRunner.manager.getRepository<ViewFieldEntity>(ViewFieldEntity);
 
-    const update =
-      fromFlatEntityPropertiesUpdatesToPartialFlatEntity(flatAction);
-
-    await viewFieldRepository.update(entityId, update);
+    await viewFieldRepository.update({ id: entityId, workspaceId }, update);
   }
 
   async executeForWorkspaceSchema(

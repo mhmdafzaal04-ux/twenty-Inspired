@@ -1,5 +1,5 @@
 import { useObjectMetadataItemById } from '@/object-metadata/hooks/useObjectMetadataItemById';
-import { useUserTimezone } from '@/ui/input/components/internal/date/hooks/useUserTimezone';
+import { useFilterValueDependencies } from '@/object-record/record-filter/hooks/useFilterValueDependencies';
 import {
   computeRecordGqlOperationFilter,
   isDefined,
@@ -9,7 +9,7 @@ import {
   type BarChartConfiguration,
   type LineChartConfiguration,
   type PieChartConfiguration,
-} from '~/generated/graphql';
+} from '~/generated-metadata/graphql';
 
 export const useGraphWidgetQueryCommon = ({
   objectMetadataItemId,
@@ -29,20 +29,18 @@ export const useGraphWidgetQueryCommon = ({
   const aggregateFieldId = configuration.aggregateFieldMetadataId;
 
   const aggregateField = objectMetadataItem.readableFields.find(
-    (field) => field.id === aggregateFieldId,
+    (field: { id: string }) => field.id === aggregateFieldId,
   );
 
   if (!isDefined(aggregateField)) {
     throw new Error('Aggregate field not found');
   }
 
-  const { userTimezone } = useUserTimezone();
+  const { filterValueDependencies } = useFilterValueDependencies();
 
   const gqlOperationFilter = computeRecordGqlOperationFilter({
     fields: objectMetadataItem.fields,
-    filterValueDependencies: {
-      timeZone: userTimezone,
-    },
+    filterValueDependencies,
     recordFilters: configuration.filter?.recordFilters ?? [],
     recordFilterGroups: configuration.filter?.recordFilterGroups ?? [],
   });

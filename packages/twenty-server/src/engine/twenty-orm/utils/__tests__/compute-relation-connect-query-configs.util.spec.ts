@@ -183,17 +183,17 @@ describe('computeRelationConnectQueryConfigs', () => {
   const allFields = [...personFields, ...companyFields];
 
   const flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
-    byId: allFields.reduce(
+    byUniversalIdentifier: allFields.reduce(
       (acc, field) => {
-        acc[field.id] = field;
+        acc[field.universalIdentifier] = field;
 
         return acc;
       },
       {} as Record<string, FlatFieldMetadata>,
     ),
-    idByUniversalIdentifier: allFields.reduce(
+    universalIdentifierById: allFields.reduce(
       (acc, field) => {
-        acc[field.universalIdentifier] = field.id;
+        acc[field.id] = field.universalIdentifier;
 
         return acc;
       },
@@ -224,6 +224,8 @@ describe('computeRelationConnectQueryConfigs', () => {
       isAuditLogged: true,
       isSearchable: true,
       universalIdentifier: partial.id,
+      objectPermissionIds: [],
+      fieldPermissionIds: [],
       viewIds: [],
       applicationId: null,
       isLabelSyncedWithName: false,
@@ -236,6 +238,13 @@ describe('computeRelationConnectQueryConfigs', () => {
       labelIdentifierFieldMetadataId: null,
       imageIdentifierFieldMetadataId: null,
       duplicateCriteria: null,
+      applicationUniversalIdentifier: '',
+      fieldUniversalIdentifiers: [],
+      objectPermissionUniversalIdentifiers: [],
+      viewUniversalIdentifiers: [],
+      indexMetadataUniversalIdentifiers: [],
+      labelIdentifierFieldMetadataUniversalIdentifier: null,
+      imageIdentifierFieldMetadataUniversalIdentifier: null,
       ...partial,
     }) as FlatObjectMetadata;
 
@@ -258,11 +267,11 @@ describe('computeRelationConnectQueryConfigs', () => {
   });
 
   const flatObjectMetadataMaps: FlatEntityMaps<FlatObjectMetadata> = {
-    byId: {
+    byUniversalIdentifier: {
       'person-object-metadata-id': personMetadata,
       'company-object-metadata-id': companyMetadata,
     },
-    idByUniversalIdentifier: {
+    universalIdentifierById: {
       'person-object-metadata-id': 'person-object-metadata-id',
       'company-object-metadata-id': 'company-object-metadata-id',
     },
@@ -284,7 +293,7 @@ describe('computeRelationConnectQueryConfigs', () => {
   });
 
   const flatIndexMaps: FlatEntityMaps<FlatIndexMetadata> = {
-    byId: {
+    byUniversalIdentifier: {
       'company-id-index-metadata-id': {
         id: 'company-id-index-metadata-id',
         name: 'company-id-index-metadata-name',
@@ -337,7 +346,7 @@ describe('computeRelationConnectQueryConfigs', () => {
         ],
       } as unknown as FlatIndexMetadata,
     },
-    idByUniversalIdentifier: {
+    universalIdentifierById: {
       'company-id-index-metadata-id': 'company-id-index-metadata-id',
       'company-domain-index-metadata-id': 'company-domain-index-metadata-id',
       'company-composite-index-metadata-id':

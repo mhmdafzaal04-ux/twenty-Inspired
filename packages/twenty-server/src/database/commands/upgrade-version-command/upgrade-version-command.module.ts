@@ -1,17 +1,11 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { V1_17_UpgradeVersionCommandModule } from 'src/database/commands/upgrade-version-command/1-17/1-17-upgrade-version-command.module';
+import { WorkspaceIteratorModule } from 'src/database/commands/command-runners/workspace-iterator.module';
 import { UpgradeCommand } from 'src/database/commands/upgrade-version-command/upgrade.command';
-import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
-import { DataSourceModule } from 'src/engine/metadata-modules/data-source/data-source.module';
+import { UpgradeModule } from 'src/engine/core-modules/upgrade/upgrade.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([WorkspaceEntity]),
-    V1_17_UpgradeVersionCommandModule,
-    DataSourceModule,
-  ],
+  imports: [UpgradeModule, WorkspaceIteratorModule],
   providers: [UpgradeCommand],
 })
 export class UpgradeVersionCommandModule {}

@@ -10,11 +10,10 @@ import bytes from 'bytes';
 import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.mjs';
 
 import { AppModule } from 'src/app.module';
-import { CommandModule } from 'src/command/command.module';
 import { settings } from 'src/engine/constants/settings';
 import { StripeSDKMockService } from 'src/engine/core-modules/billing/stripe/stripe-sdk/mocks/stripe-sdk-mock.service';
 import { StripeSDKService } from 'src/engine/core-modules/billing/stripe/stripe-sdk/services/stripe-sdk.service';
-import { CAPTCHA_DRIVER } from 'src/engine/core-modules/captcha/constants/captcha-driver.constants';
+import { CaptchaDriverFactory } from 'src/engine/core-modules/captcha/captcha-driver.factory';
 import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
 import { ExceptionHandlerMockService } from 'src/engine/core-modules/exception-handler/mocks/exception-handler-mock.service';
 import { MockedUnhandledExceptionFilter } from 'src/engine/core-modules/exception-handler/mocks/mock-unhandled-exception.filter';
@@ -52,7 +51,6 @@ export const createApp = async (
   let moduleBuilder: TestingModuleBuilder = Test.createTestingModule({
     imports: [
       AppModule,
-      CommandModule,
       JobsModule,
       MessageQueueModule.registerExplorer(),
     ],
@@ -67,9 +65,11 @@ export const createApp = async (
     .useValue(stripeSDKMockService)
     .overrideProvider(ExceptionHandlerService)
     .useValue(mockExceptionHandlerService)
-    .overrideProvider(CAPTCHA_DRIVER)
+    .overrideProvider(CaptchaDriverFactory)
     .useValue({
-      validate: async () => ({ success: true }),
+      getCurrentDriver: () => ({
+        validate: async () => ({ success: true }),
+      }),
     })
     .overrideProvider(QUEUE_DRIVER)
     .useValue(syncDriver);
@@ -88,7 +88,7 @@ export const createApp = async (
   app.use(
     '/graphql',
     graphqlUploadExpress({
-      maxFieldSize: bytes(settings.storage.maxFileSize),
+      maxFieldSize: bytes(settings.storage.maxFileSize)!,
       maxFiles: 10,
     }),
   );
@@ -96,7 +96,7 @@ export const createApp = async (
   app.use(
     '/metadata',
     graphqlUploadExpress({
-      maxFieldSize: bytes(settings.storage.maxFileSize),
+      maxFieldSize: bytes(settings.storage.maxFileSize)!,
       maxFiles: 10,
     }),
   );

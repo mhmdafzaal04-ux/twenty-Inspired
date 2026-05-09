@@ -10,6 +10,7 @@ import {
   type CurrencyFilter,
   type DateFilter,
   type EmailsFilter,
+  type FilesFilter,
   type FloatFilter,
   type FullNameFilter,
   type LeafObjectRecordFilter,
@@ -21,24 +22,26 @@ import {
   type RatingFilter,
   type RawJsonFilter,
   type RecordGqlOperationFilter,
-  type RichTextV2Filter,
+  type RichTextFilter,
   type SelectFilter,
   type StringFilter,
   type TSVectorFilter,
   type UUIDFilter,
 } from 'twenty-shared/types';
 import {
+  computeRelationGqlFieldJoinColumnName,
   isDefined,
   isEmptyObject,
   isMatchingArrayFilter,
   isMatchingBooleanFilter,
   isMatchingCurrencyFilter,
   isMatchingDateFilter,
+  isMatchingFilesFilter,
   isMatchingFloatFilter,
   isMatchingMultiSelectFilter,
   isMatchingRatingFilter,
   isMatchingRawJsonFilter,
-  isMatchingRichTextV2Filter,
+  isMatchingRichTextFilter,
   isMatchingSelectFilter,
   isMatchingStringFilter,
   isMatchingTSVectorFilter,
@@ -46,7 +49,7 @@ import {
 } from 'twenty-shared/utils';
 
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
-import { type ObjectMetadataItem } from '@/object-metadata/types/ObjectMetadataItem';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { computePossibleMorphGqlFieldForFieldName } from '@/object-record/cache/utils/computePossibleMorphGqlFieldForFieldName';
 
 const isLeafFilter = (
@@ -98,7 +101,7 @@ export const isRecordMatchingFilter = ({
 }: {
   record: any;
   filter: RecordGqlOperationFilter;
-  objectMetadataItem: ObjectMetadataItem;
+  objectMetadataItem: EnrichedObjectMetadataItem;
 }): boolean => {
   if (Object.keys(filter).length === 0 && record.deletedAt === null) {
     return true;
@@ -201,7 +204,8 @@ export const isRecordMatchingFilter = ({
         (field) =>
           (field.type === FieldMetadataType.RELATION ||
             field.type === FieldMetadataType.MORPH_RELATION) &&
-          field.settings?.joinColumnName === filterKey,
+          computeRelationGqlFieldJoinColumnName({ name: field.name }) ===
+            filterKey,
       ) ??
       objectMetadataItem.fields.find(
         (field) =>
@@ -234,17 +238,8 @@ export const isRecordMatchingFilter = ({
         });
       }
       case FieldMetadataType.RICH_TEXT: {
-        // TODO: Implement a better rich text filter once it becomes a composite field
-        // See this issue for more context: https://github.com/twentyhq/twenty/issues/7613#issuecomment-2408944585
-        // This should be tackled in Q4'24
-        return isMatchingStringFilter({
-          stringFilter: filterValue as StringFilter,
-          value: record[filterKey],
-        });
-      }
-      case FieldMetadataType.RICH_TEXT_V2: {
-        return isMatchingRichTextV2Filter({
-          richTextV2Filter: filterValue as RichTextV2Filter,
+        return isMatchingRichTextFilter({
+          richTextFilter: filterValue as RichTextFilter,
           value: record[filterKey],
         });
       }
@@ -270,6 +265,12 @@ export const isRecordMatchingFilter = ({
           value: record[filterKey],
         });
       }
+      case FieldMetadataType.FILES: {
+        return isMatchingFilesFilter({
+          filesFilter: filterValue as FilesFilter,
+          value: record[filterKey],
+        });
+      }
       case FieldMetadataType.FULL_NAME: {
         const fullNameFilter = filterValue as FullNameFilter;
 
@@ -277,12 +278,12 @@ export const isRecordMatchingFilter = ({
           (fullNameFilter.firstName === undefined ||
             isMatchingStringFilter({
               stringFilter: fullNameFilter.firstName,
-              value: record[filterKey].firstName,
+              value: record[filterKey]?.firstName,
             })) &&
           (fullNameFilter.lastName === undefined ||
             isMatchingStringFilter({
               stringFilter: fullNameFilter.lastName,
-              value: record[filterKey].lastName,
+              value: record[filterKey]?.lastName,
             }))
         );
       }
@@ -306,7 +307,7 @@ export const isRecordMatchingFilter = ({
 
           return isMatchingStringFilter({
             stringFilter: value,
-            value: record[filterKey][key],
+            value: record[filterKey]?.[key],
           });
         });
       }
@@ -323,7 +324,7 @@ export const isRecordMatchingFilter = ({
 
           return isMatchingStringFilter({
             stringFilter: value,
-            value: record[filterKey][key],
+            value: record[filterKey]?.[key],
           });
         });
       }
@@ -362,11 +363,25 @@ export const isRecordMatchingFilter = ({
       case FieldMetadataType.ACTOR: {
         const actorFilter = filterValue as ActorFilter;
 
+        if (isDefined(actorFilter.workspaceMemberId)) {
+          return isMatchingUUIDFilter({
+            uuidFilter: actorFilter.workspaceMemberId,
+            value: record[filterKey]?.workspaceMemberId,
+          });
+        }
+
+        if (isDefined(actorFilter.source)) {
+          return isMatchingSelectFilter({
+            selectFilter: actorFilter.source,
+            value: record[filterKey].source,
+          });
+        }
+
         return (
           actorFilter.name === undefined ||
           isMatchingStringFilter({
             stringFilter: actorFilter.name,
-            value: record[filterKey].name,
+            value: record[filterKey]?.name,
           })
         );
       }
@@ -379,7 +394,7 @@ export const isRecordMatchingFilter = ({
 
         return isMatchingStringFilter({
           stringFilter: emailsFilter.primaryEmail,
-          value: record[filterKey].primaryEmail,
+          value: record[filterKey]?.primaryEmail,
         });
       }
       case FieldMetadataType.PHONES: {
@@ -395,14 +410,16 @@ export const isRecordMatchingFilter = ({
 
           return isMatchingStringFilter({
             stringFilter: value,
-            value: record[filterKey][key],
+            value: record[filterKey]?.[key],
           });
         });
       }
       case FieldMetadataType.RELATION:
       case FieldMetadataType.MORPH_RELATION: {
         const isJoinColumn =
-          objectMetadataField.settings?.joinColumnName === filterKey ||
+          computeRelationGqlFieldJoinColumnName({
+            name: objectMetadataField.name,
+          }) === filterKey ||
           (objectMetadataField.type === FieldMetadataType.MORPH_RELATION &&
             isMorphRelationJoinColumnKey({
               fieldMetadataItem: objectMetadataField,

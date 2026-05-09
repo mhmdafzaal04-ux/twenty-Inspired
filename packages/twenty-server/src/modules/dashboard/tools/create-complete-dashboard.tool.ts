@@ -25,7 +25,7 @@ const widgetSchema = z.object({
     .uuid()
     .optional()
     .describe(
-      'REQUIRED for GRAPH widgets: UUID of the object to aggregate (e.g., opportunity, company)',
+      'REQUIRED for GRAPH and RECORD_TABLE widgets: UUID of the object to aggregate or display',
     ),
   configuration: widgetConfigurationSchema,
 });
@@ -66,7 +66,9 @@ WIDGET TYPES:
 
 2. GRAPH with configurationType "BAR_CHART":
    - Additional required: configuration.primaryAxisGroupByFieldMetadataId, configuration.layout ("VERTICAL" or "HORIZONTAL")
-   - Example: { type: "GRAPH", objectMetadataId: "<opportunity-object-uuid>", configuration: { configurationType: "BAR_CHART", aggregateFieldMetadataId: "<amount-field-uuid>", aggregateOperation: "COUNT", primaryAxisGroupByFieldMetadataId: "<stage-field-uuid>", layout: "VERTICAL" } }
+   - IMPORTANT: When grouping by a RELATION field (e.g. owner, company), you MUST provide primaryAxisGroupBySubFieldName (e.g. "name", "email") — otherwise it groups by raw UUID which is useless. Composite fields (e.g. address) also require a subfield (e.g. "addressCity").
+   - Example (simple field): { type: "GRAPH", objectMetadataId: "<opportunity-object-uuid>", configuration: { configurationType: "BAR_CHART", aggregateFieldMetadataId: "<amount-field-uuid>", aggregateOperation: "COUNT", primaryAxisGroupByFieldMetadataId: "<stage-field-uuid>", layout: "VERTICAL" } }
+   - Example (relation field): { type: "GRAPH", objectMetadataId: "<opportunity-object-uuid>", configuration: { configurationType: "BAR_CHART", aggregateFieldMetadataId: "<amount-field-uuid>", aggregateOperation: "SUM", primaryAxisGroupByFieldMetadataId: "<company-field-uuid>", primaryAxisGroupBySubFieldName: "name", layout: "VERTICAL" } }
 
 3. GRAPH with configurationType "LINE_CHART":
    - Additional required: configuration.primaryAxisGroupByFieldMetadataId
@@ -79,6 +81,14 @@ WIDGET TYPES:
 5. IFRAME: { type: "IFRAME", configuration: { configurationType: "IFRAME", url: "https://..." } }
 
 6. STANDALONE_RICH_TEXT: { type: "STANDALONE_RICH_TEXT", configuration: { configurationType: "STANDALONE_RICH_TEXT", body: { ... } } }
+
+7. RECORD_TABLE: displays a live, filterable record list directly on the dashboard.
+   - IMPORTANT: you MUST create a dedicated view for the widget BEFORE creating the widget. Use create_view to create a new TABLE view for the object, then pass its ID as viewId. Never reuse an existing index-page view — widget views and record index views must not overlap.
+   - Requires: objectMetadataId (top-level, UUID of the object to display) AND configuration.viewId (UUID of the dedicated view you just created)
+   - configuration.configurationType must be "RECORD_TABLE"
+   - Recommended size: rowSpan 8-10, columnSpan 12 (full width)
+   - Workflow: (1) call create_view with type TABLE for the object → get the viewId, (2) call create_many_view_fields to add visible columns to that view, (3) create the widget with that viewId
+   - Example: { type: "RECORD_TABLE", objectMetadataId: "<object-uuid>", configuration: { configurationType: "RECORD_TABLE", viewId: "<dedicated-view-uuid>" } }
 
 AGGREGATION OPERATIONS: COUNT, SUM, AVG, MIN, MAX, COUNT_EMPTY, COUNT_NOT_EMPTY`,
   inputSchema: createCompleteDashboardSchema,
@@ -101,7 +111,6 @@ AGGREGATION OPERATIONS: COUNT, SUM, AVG, MIN, MAX, COUNT_EMPTY, COUNT_NOT_EMPTY`
     try {
       const tabTitle = parameters.tabTitle ?? 'Main';
       const widgets = parameters.widgets ?? [];
-
       const pageLayout = await deps.pageLayoutService.create({
         createPageLayoutInput: {
           name: parameters.title,

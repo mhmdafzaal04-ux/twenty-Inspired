@@ -1,8 +1,10 @@
-import { CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { getObjectPermissionsForObject } from '@/object-metadata/utils/getObjectPermissionsForObject';
 import { isJunctionRelationField } from '@/object-record/record-field/ui/utils/junction/isJunctionRelationField';
-import { type ObjectPermissions } from 'twenty-shared/types';
+import {
+  CoreObjectNameSingular,
+  type ObjectPermissions,
+} from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
 type ObjectPermissionsByObjectMetadataId = Record<
@@ -20,6 +22,7 @@ type CategorizeRelationFieldsArgs = {
 type CategorizedRelationFields = {
   activityTargetFields: FieldMetadataItem[];
   inlineRelationFields: FieldMetadataItem[];
+  junctionRelationFields: FieldMetadataItem[];
   boxedRelationFields: FieldMetadataItem[];
 };
 
@@ -68,6 +71,7 @@ export const categorizeRelationFields = ({
 }: CategorizeRelationFieldsArgs): CategorizedRelationFields => {
   const activityTargetFields: FieldMetadataItem[] = [];
   const inlineRelationFields: FieldMetadataItem[] = [];
+  const junctionRelationFields: FieldMetadataItem[] = [];
   const boxedRelationFields: FieldMetadataItem[] = [];
 
   for (const field of relationFields) {
@@ -80,6 +84,7 @@ export const categorizeRelationFields = ({
     // Junction relations (when feature enabled) are rendered inline with other fields
     if (isJunctionRelationsEnabled && isJunctionRelationField(field)) {
       inlineRelationFields.push(field);
+      junctionRelationFields.push(field);
       continue;
     }
 
@@ -92,6 +97,7 @@ export const categorizeRelationFields = ({
   return {
     activityTargetFields,
     inlineRelationFields,
+    junctionRelationFields,
     boxedRelationFields,
   };
 };

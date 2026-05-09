@@ -13,7 +13,6 @@ import { ApplicationModule } from 'src/engine/core-modules/application/applicati
 import { FeatureFlagEntity } from 'src/engine/core-modules/feature-flag/feature-flag.entity';
 import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-flag.module';
 import { WorkspaceAuthGuard } from 'src/engine/guards/workspace-auth.guard';
-import { DataSourceModule } from 'src/engine/metadata-modules/data-source/data-source.module';
 import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { WorkspaceManyOrAllFlatEntityMapsCacheModule } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.module';
 import { FlatFieldMetadataTypeValidatorService } from 'src/engine/metadata-modules/flat-field-metadata/services/flat-field-metadata-type-validator.service';
@@ -25,6 +24,7 @@ import { ObjectMetadataGraphqlApiExceptionInterceptor } from 'src/engine/metadat
 import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
 import { ObjectMetadataResolver } from 'src/engine/metadata-modules/object-metadata/object-metadata.resolver';
 import { ObjectMetadataService } from 'src/engine/metadata-modules/object-metadata/object-metadata.service';
+import { ObjectRecordCountService } from 'src/engine/metadata-modules/object-metadata/object-record-count.service';
 import { ObjectMetadataToolsFactory } from 'src/engine/metadata-modules/object-metadata/tools/object-metadata-tools.factory';
 import { PermissionsModule } from 'src/engine/metadata-modules/permissions/permissions.module';
 import { PermissionsGraphqlApiExceptionFilter } from 'src/engine/metadata-modules/permissions/utils/permissions-graphql-api-exception.filter';
@@ -49,7 +49,6 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
         ]),
         TypeOrmModule.forFeature([FeatureFlagEntity, ViewEntity]),
         ApplicationModule,
-        DataSourceModule,
         WorkspaceMetadataVersionModule,
         IndexMetadataModule,
         PermissionsModule,
@@ -93,6 +92,7 @@ import { WorkspaceMigrationModule } from 'src/engine/workspace-manager/workspace
   providers: [
     ObjectMetadataService,
     ObjectMetadataResolver,
+    ObjectRecordCountService,
     ObjectMetadataToolsFactory,
   ],
   exports: [ObjectMetadataService, ObjectMetadataToolsFactory],

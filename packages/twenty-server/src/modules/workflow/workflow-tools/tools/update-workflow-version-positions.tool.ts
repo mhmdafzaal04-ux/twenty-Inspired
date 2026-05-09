@@ -1,13 +1,16 @@
 import { z } from 'zod';
 
-import type { UpdateWorkflowVersionPositionsInput } from 'src/engine/core-modules/workflow/dtos/update-workflow-version-positions-input.dto';
+import type { UpdateWorkflowVersionPositionsInput } from 'src/engine/core-modules/workflow/dtos/update-workflow-version-positions.input';
 import {
   type WorkflowToolContext,
   type WorkflowToolDependencies,
 } from 'src/modules/workflow/workflow-tools/types/workflow-tool-dependencies.type';
 
 const updateWorkflowVersionPositionsSchema = z.object({
-  workflowVersionId: z.string().describe('The ID of the workflow version'),
+  workflowVersionId: z
+    .string()
+    .uuid()
+    .describe('The UUID of the workflow version'),
   positions: z
     .array(
       z.object({

@@ -1,14 +1,9 @@
 ---
 title: Migrace dat
 description: Importujte a exportujte svá data CRM pomocí souborů CSV nebo rozhraní API.
-image: /images/user-guide/import-export-data/cloud.png
 ---
 
 import { VimeoEmbed } from '/snippets/vimeo-embed.mdx';
-
-<Frame>
-  <img src="/images/user-guide/import-export-data/cloud.png" alt="Migrace dat" />
-</Frame>
 
 ## Metody importu
 
@@ -44,16 +39,15 @@ Relace mezi objekty můžete importovat pomocí funkce importu CSV. Na souvisej�
 <Note>**Smazané záznamy se započítávají do jedinečnosti.** Dočasně smazané záznamy (viditelné v Nabídka příkazů → Zobrazit smazané záznamy) se zahrnují do kontrol jedinečnosti. Pokud importujete záznam se stejnou jedinečnou hodnotou jako má smazaný záznam, smazaný záznam bude obnoven.</Note>
 
 <Warning>
-  **Pořadí importu je důležité!**
+**Pořadí importu je důležité!**
 
-  Při importu souvisejících objektů nahrávejte soubory v tomto pořadí:
+Při importu souvisejících objektů nahrávejte soubory v tomto pořadí:
+1. **Společnosti** nejdříve ("jedna" strana vztahů)
+2. **Osoby** jako druhé (propojené se společnostmi přes companyId)
+3. **Příležitosti** jako třetí (propojené se společnostmi/osobami)
+4. **Vlastní objekty** s relacemi nakonec
 
-  1. **Společnosti** nejdříve ("jedna" strana vztahů)
-  2. **Osoby** jako druhé (propojené se společnostmi přes companyId)
-  3. **Příležitosti** jako třetí (propojené se společnostmi/osobami)
-  4. **Vlastní objekty** s relacemi nakonec
-
-  Proč? "Jedna" strana vztahu jedna ku mnohým musí existovat dříve, než na ni můžete odkazovat. Například záznam společnosti musí existovat dříve, než importujete osobu s ID této společnosti.
+Proč? "Jedna" strana vztahu jedna ku mnohým musí existovat dříve, než na ni můžete odkazovat. Například záznam společnosti musí existovat dříve, než importujete osobu s ID této společnosti.
 </Warning>
 
 Podívejte se prosím na [tento článek](/l/cs/user-guide/data-migration/how-tos/import-relations-between-objects-via-csv) s podrobným návodem, jak postupovat.

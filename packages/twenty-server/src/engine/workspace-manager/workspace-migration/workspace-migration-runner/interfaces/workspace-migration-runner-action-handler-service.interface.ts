@@ -1,10 +1,11 @@
 import { Inject, SetMetadata } from '@nestjs/common';
 
 import { AllMetadataName } from 'twenty-shared/metadata';
+import { QueryRunner } from 'typeorm';
 
 import { LoggerService } from 'src/engine/core-modules/logger/logger.service';
+import { ALL_METADATA_ENTITY_BY_METADATA_NAME } from 'src/engine/metadata-modules/flat-entity/constant/all-metadata-entity-by-metadata-name.constant';
 import { type AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
-import { AllFlatEntityTypesByMetadataName } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-types-by-metadata-name';
 import { FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { MetadataFlatEntity } from 'src/engine/metadata-modules/flat-entity/types/metadata-flat-entity.type';
 import { MetadataRelatedFlatEntityMapsKeys } from 'src/engine/metadata-modules/flat-entity/types/metadata-related-flat-entity-maps-keys.type';
@@ -12,6 +13,8 @@ import { MetadataToFlatEntityMapsKey } from 'src/engine/metadata-modules/flat-en
 import { WorkspaceMigrationActionType } from 'src/engine/metadata-modules/flat-entity/types/metadata-workspace-migration-action.type';
 import { findFlatEntityByUniversalIdentifierOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier-or-throw.util';
 import { getMetadataFlatEntityMapsKey } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-flat-entity-maps-key.util';
+import { UniversalFlatEntityUpdate } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-entity-update.type';
+import { sanitizeUniversalFlatEntityUpdate } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/utils/sanitize-universal-flat-entity-update.util';
 import { BaseFlatDeleteWorkspaceMigrationAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/base-flat-delete-workspace-migration-action.type';
 import {
   buildActionHandlerKey,
@@ -23,27 +26,49 @@ import {
   WorkspaceMigrationRunnerException,
   WorkspaceMigrationRunnerExceptionCode,
 } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/exceptions/workspace-migration-runner.exception';
+import { type MetadataEvent } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/metadata-event';
 import {
   WorkspaceMigrationActionRunnerContext,
   type WorkspaceMigrationActionRunnerArgs,
 } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/workspace-migration-action-runner-args.type';
+import { deriveMetadataEventsFromCreateAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/derive-metadata-events-from-create-action.util';
+import { deriveMetadataEventsFromDeleteAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/derive-metadata-events-from-delete-action.util';
+import { deriveMetadataEventsFromUpdateAction } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/derive-metadata-events-from-update-action.util';
+import { flatEntityToScalarFlatEntity } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/flat-entity-to-scalar-flat-entity.util';
 import { optimisticallyApplyCreateActionOnAllFlatEntityMaps } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/optimistically-apply-create-action-on-all-flat-entity-maps.util';
 import { optimisticallyApplyDeleteActionOnAllFlatEntityMaps } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/optimistically-apply-delete-action-on-all-flat-entity-maps.util';
 import { optimisticallyApplyUpdateActionOnAllFlatEntityMaps } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/optimistically-apply-update-action-on-all-flat-entity-maps.util';
 
-type OptimisticallyApplyActionOnAllFlatEntityMapsArgs<
+type FlatActionWithAllFlatEntityMapsArgs<
   TFlatAction extends AllFlatWorkspaceMigrationAction,
 > = {
   flatAction: TFlatAction;
   allFlatEntityMaps: AllFlatEntityMaps;
 };
+
+export type ActionHandlerExecuteResult<TMetadataName extends AllMetadataName> =
+  {
+    partialOptimisticCache: Pick<
+      AllFlatEntityMaps,
+      | MetadataRelatedFlatEntityMapsKeys<TMetadataName>
+      | MetadataToFlatEntityMapsKey<TMetadataName>
+    >;
+    metadataEvents: MetadataEvent[];
+  };
+
 export abstract class BaseWorkspaceMigrationRunnerActionHandlerService<
   TActionType extends WorkspaceMigrationActionType,
   TMetadataName extends AllMetadataName,
   TUniversalAction extends // TODO create abstracted type utils
-    AllUniversalWorkspaceMigrationAction = AllFlatEntityTypesByMetadataName[TMetadataName]['universalActions'][TActionType],
+    AllUniversalWorkspaceMigrationAction = AllUniversalWorkspaceMigrationAction<
+    TActionType,
+    TMetadataName
+  >,
   TFlatAction extends
-    AllFlatWorkspaceMigrationAction = AllFlatEntityTypesByMetadataName[TMetadataName]['flatActions'][TActionType],
+    AllFlatWorkspaceMigrationAction = AllFlatWorkspaceMigrationAction<
+    TActionType,
+    TMetadataName
+  >,
 > {
   public actionType: TActionType;
   public metadataName: TMetadataName;
@@ -54,6 +79,26 @@ export abstract class BaseWorkspaceMigrationRunnerActionHandlerService<
   public abstract transpileUniversalActionToFlatAction(
     context: WorkspaceMigrationActionRunnerArgs<TUniversalAction>,
   ): Promise<TFlatAction>;
+
+  protected async insertFlatEntitiesInRepository({
+    flatEntities,
+    queryRunner,
+  }: {
+    queryRunner: QueryRunner;
+    flatEntities: MetadataFlatEntity<TMetadataName>[];
+  }) {
+    const metadataEntity =
+      ALL_METADATA_ENTITY_BY_METADATA_NAME[this.metadataName];
+    const repository = queryRunner.manager.getRepository(metadataEntity);
+    const scalarFlatEntities = flatEntities.map((flatEntity) =>
+      flatEntityToScalarFlatEntity({
+        flatEntity,
+        metadataName: this.metadataName,
+      }),
+    );
+
+    await repository.insert(scalarFlatEntities);
+  }
 
   protected transpileUniversalDeleteActionToFlatDeleteAction(
     context: 'delete' extends TActionType
@@ -95,7 +140,7 @@ export abstract class BaseWorkspaceMigrationRunnerActionHandlerService<
   private optimisticallyApplyActionOnAllFlatEntityMaps({
     flatAction,
     allFlatEntityMaps,
-  }: OptimisticallyApplyActionOnAllFlatEntityMapsArgs<TFlatAction>): Pick<
+  }: FlatActionWithAllFlatEntityMapsArgs<TFlatAction>): Pick<
     AllFlatEntityMaps,
     | MetadataRelatedFlatEntityMapsKeys<TMetadataName>
     | MetadataToFlatEntityMapsKey<TMetadataName>
@@ -122,6 +167,29 @@ export abstract class BaseWorkspaceMigrationRunnerActionHandlerService<
     }
   }
 
+  private deriveMetadataEventsFromFlatAction({
+    flatAction,
+    allFlatEntityMaps,
+  }: FlatActionWithAllFlatEntityMapsArgs<TFlatAction>): MetadataEvent[] {
+    switch (flatAction.type) {
+      case 'create': {
+        return deriveMetadataEventsFromCreateAction(flatAction);
+      }
+      case 'delete': {
+        return deriveMetadataEventsFromDeleteAction({
+          flatAction,
+          allFlatEntityMaps,
+        });
+      }
+      case 'update': {
+        return deriveMetadataEventsFromUpdateAction({
+          flatAction,
+          allFlatEntityMaps,
+        });
+      }
+    }
+  }
+
   rollbackForMetadata(
     _context: Omit<
       WorkspaceMigrationActionRunnerArgs<TUniversalAction>,
@@ -131,11 +199,38 @@ export abstract class BaseWorkspaceMigrationRunnerActionHandlerService<
     return Promise.resolve();
   }
 
+  private sanitizeUniversalAction(
+    universalAction: TUniversalAction,
+  ): TUniversalAction {
+    if (universalAction.type === 'update') {
+      const sanitizedFlatEntityUpdate = sanitizeUniversalFlatEntityUpdate({
+        metadataName: universalAction.metadataName,
+        flatEntityUpdate: universalAction.update as UniversalFlatEntityUpdate<
+          typeof universalAction.metadataName
+        >,
+      });
+
+      return {
+        ...universalAction,
+        update: sanitizedFlatEntityUpdate,
+      };
+    }
+
+    return universalAction;
+  }
+
   private async transpileUniversalActionToFlatActionOrThrow(
     context: WorkspaceMigrationActionRunnerArgs<TUniversalAction>,
   ): Promise<TFlatAction> {
     try {
-      return await this.transpileUniversalActionToFlatAction(context);
+      const sanitizedUniversalAction = this.sanitizeUniversalAction(
+        context.action,
+      );
+
+      return await this.transpileUniversalActionToFlatAction({
+        ...context,
+        action: sanitizedUniversalAction,
+      });
     } catch (error) {
       throw new WorkspaceMigrationRunnerException({
         action: context.action,
@@ -149,13 +244,7 @@ export abstract class BaseWorkspaceMigrationRunnerActionHandlerService<
 
   async execute(
     context: WorkspaceMigrationActionRunnerArgs<TUniversalAction>,
-  ): Promise<
-    Pick<
-      AllFlatEntityMaps,
-      | MetadataRelatedFlatEntityMapsKeys<TMetadataName>
-      | MetadataToFlatEntityMapsKey<TMetadataName>
-    >
-  > {
+  ): Promise<ActionHandlerExecuteResult<TMetadataName>> {
     const flatAction =
       await this.transpileUniversalActionToFlatActionOrThrow(context);
 
@@ -187,13 +276,18 @@ export abstract class BaseWorkspaceMigrationRunnerActionHandlerService<
       });
     }
 
+    const metadataEvents = this.deriveMetadataEventsFromFlatAction({
+      flatAction,
+      allFlatEntityMaps: context.allFlatEntityMaps,
+    });
+
     const partialOptimisticCache =
       this.optimisticallyApplyActionOnAllFlatEntityMaps({
         flatAction,
         allFlatEntityMaps: context.allFlatEntityMaps,
       });
 
-    return partialOptimisticCache;
+    return { partialOptimisticCache, metadataEvents };
   }
 
   async rollback(
@@ -206,7 +300,7 @@ export abstract class BaseWorkspaceMigrationRunnerActionHandlerService<
       await this.rollbackForMetadata(context);
     } catch (error) {
       this.logger.error(
-        `Failed to rollback ${context.action.type} action for ${context.action.metadataName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to rollback ${context.action.type} action for ${context.action.metadataName}: ${error instanceof Error ? error.message : String(error)}`,
         'BaseWorkspaceMigrationRunnerActionHandlerService',
       );
     }

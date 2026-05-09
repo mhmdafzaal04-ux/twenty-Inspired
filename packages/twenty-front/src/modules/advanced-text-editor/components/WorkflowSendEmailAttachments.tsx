@@ -1,18 +1,19 @@
-import { InputLabel } from '@/ui/input/components/InputLabel';
-import { WorkflowAttachmentChip } from '@/advanced-text-editor/components/WorkflowAttachmentChip';
 import { useUploadWorkflowFile } from '@/advanced-text-editor/hooks/useUploadWorkflowFile';
+import { AttachmentChip } from '@/file/components/AttachmentChip';
+import { useFileUpload } from '@/file-upload/hooks/useFileUpload';
+import { InputLabel } from '@/ui/input/components/InputLabel';
 
-import { type WorkflowAttachmentType } from '@/workflow/workflow-steps/workflow-actions/email-action/types/WorkflowAttachmentType';
-import styled from '@emotion/styled';
+import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
-import { type ChangeEvent, useRef } from 'react';
+import { useContext } from 'react';
 import { isDefined } from 'twenty-shared/utils';
+import { type WorkflowAttachment } from 'twenty-shared/workflow';
 import { IconUpload } from 'twenty-ui/display';
-import { useTheme } from '@emotion/react';
+import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
 type WorkflowSendEmailAttachmentsProps = {
-  files: WorkflowAttachmentType[];
-  onChange: (files: WorkflowAttachmentType[]) => void;
+  files: WorkflowAttachment[];
+  onChange: (files: WorkflowAttachment[]) => void;
   label?: string;
 };
 
@@ -21,26 +22,22 @@ const StyledContainer = styled.div`
   flex-direction: column;
 `;
 
-const StyledFileInput = styled.input`
-  display: none;
-`;
-
 const StyledUploadArea = styled.div<{ hasFiles: boolean }>`
-  background-color: ${({ theme }) => theme.background.transparent.lighter};
-  border: 1px solid ${({ theme }) => theme.border.color.medium};
-  border-radius: ${({ theme }) => theme.border.radius.sm};
+  background-color: ${themeCssVariables.background.transparent.lighter};
+  border: 1px solid ${themeCssVariables.border.color.medium};
+  border-radius: ${themeCssVariables.border.radius.sm};
   display: flex;
   flex-direction: column;
-  min-height: ${({ hasFiles }) => (hasFiles ? 'auto' : '24px')};
   justify-content: center;
-  padding-top: ${({ theme }) => theme.spacing(1)};
-  padding-bottom: ${({ theme }) => theme.spacing(1)};
-  padding-left: ${({ theme }) => theme.spacing(2)};
-  padding-right: ${({ theme }) => theme.spacing(2)};
+  min-height: ${({ hasFiles }) => (hasFiles ? 'auto' : '24px')};
+  padding-bottom: ${themeCssVariables.spacing[1]};
+  padding-left: ${themeCssVariables.spacing[2]};
+  padding-right: ${themeCssVariables.spacing[2]};
+  padding-top: ${themeCssVariables.spacing[1]};
 
   &:hover {
-    background-color: ${({ theme }) => theme.background.transparent.light};
-    border-color: ${({ theme }) => theme.border.color.strong};
+    background-color: ${themeCssVariables.background.transparent.light};
+    border-color: ${themeCssVariables.border.color.strong};
   }
 `;
 
@@ -48,17 +45,16 @@ const StyledChipsContainer = styled.div`
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: ${({ theme }) => theme.spacing(1)};
+  gap: ${themeCssVariables.spacing[1]};
 `;
 
 const StyledUploadAreaLabel = styled.div`
-  justify-content: center;
-  color: ${({ theme }) => theme.font.color.tertiary};
+  color: ${themeCssVariables.font.color.tertiary};
   display: flex;
-  font-size: ${({ theme }) => theme.font.size.sm};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  color: ${({ theme }) => theme.font.color.secondary};
-  gap: ${({ theme }) => theme.spacing(1)};
+  font-size: ${themeCssVariables.font.size.sm};
+  font-weight: ${themeCssVariables.font.weight.medium};
+  gap: ${themeCssVariables.spacing[1]};
+  justify-content: center;
 `;
 
 export const WorkflowSendEmailAttachments = ({
@@ -66,49 +62,28 @@ export const WorkflowSendEmailAttachments = ({
   label,
   onChange,
 }: WorkflowSendEmailAttachmentsProps) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { theme } = useContext(ThemeContext);
   const { uploadWorkflowFile } = useUploadWorkflowFile();
+  const { openFileUpload } = useFileUpload();
   const { t } = useLingui();
-  const theme = useTheme();
 
-  const handleAddFileClick = (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-
-    const isInsideChip = target.closest('[data-chip]') !== null;
-    const isInsideButton = target.closest('button') !== null;
-    const isSvgOrPath = target.tagName === 'svg' || target.tagName === 'path';
-
-    if (isInsideChip || isInsideButton || isSvgOrPath) {
-      return;
-    }
-
-    if (fileInputRef.current !== null) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const onUploadFiles = async (filesToUpload: File[]) => {
+  const handleUploadFiles = async (filesToUpload: File[]) => {
     const uploadedFiles = await Promise.all(
       filesToUpload.map((file) => uploadWorkflowFile(file)),
     );
 
-    const successfulUploads = uploadedFiles.filter(
-      (file): file is WorkflowAttachmentType => file !== null,
-    );
+    const successfulUploads = uploadedFiles.filter(isDefined);
 
     if (successfulUploads.length > 0) {
       onChange([...files, ...successfulUploads]);
     }
   };
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = event.target.files;
-    if (isDefined(selectedFiles)) {
-      onUploadFiles(Array.from(selectedFiles));
-    }
-    if (fileInputRef.current !== null) {
-      fileInputRef.current.value = '';
-    }
+  const handleAddFileClick = () => {
+    openFileUpload({
+      multiple: true,
+      onUpload: handleUploadFiles,
+    });
   };
 
   const handleRemoveFile = (fileId: string) => {
@@ -119,21 +94,14 @@ export const WorkflowSendEmailAttachments = ({
     <StyledContainer>
       {label ? <InputLabel>{label}</InputLabel> : null}
 
-      <StyledFileInput
-        ref={fileInputRef}
-        type="file"
-        multiple
-        onChange={handleFileChange}
-      />
-
       <StyledUploadArea
         hasFiles={files.length > 0}
         onClick={handleAddFileClick}
       >
         {files.length > 0 ? (
           <StyledChipsContainer>
-            {files.map((file: WorkflowAttachmentType) => (
-              <WorkflowAttachmentChip
+            {files.map((file: WorkflowAttachment) => (
+              <AttachmentChip
                 key={file.id}
                 file={file}
                 onRemove={() => handleRemoveFile(file.id)}

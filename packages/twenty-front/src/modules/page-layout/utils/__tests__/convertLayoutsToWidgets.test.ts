@@ -1,6 +1,7 @@
 import {
   AggregateOperations,
   GraphOrderBy,
+  PageLayoutTabLayoutMode,
   WidgetConfigurationType,
   WidgetType,
   type PageLayoutWidget,
@@ -11,6 +12,8 @@ describe('convertLayoutsToWidgets', () => {
   const mockWidgets: PageLayoutWidget[] = [
     {
       id: 'widget-1',
+      applicationId: '',
+      isActive: true,
       pageLayoutTabId: 'tab-1',
       title: 'Widget 1',
       type: WidgetType.GRAPH,
@@ -33,6 +36,8 @@ describe('convertLayoutsToWidgets', () => {
     },
     {
       id: 'widget-2',
+      applicationId: '',
+      isActive: true,
       pageLayoutTabId: 'tab-1',
       title: 'Widget 2',
       type: WidgetType.GRAPH,
@@ -73,7 +78,23 @@ describe('convertLayoutsToWidgets', () => {
       columnSpan: 4,
       rowSpan: 5,
     });
+    expect(result[0].position).toEqual({
+      __typename: 'PageLayoutWidgetGridPosition',
+      layoutMode: PageLayoutTabLayoutMode.GRID,
+      column: 2,
+      row: 3,
+      columnSpan: 4,
+      rowSpan: 5,
+    });
     expect(result[1].gridPosition).toEqual({
+      column: 6,
+      row: 7,
+      columnSpan: 8,
+      rowSpan: 9,
+    });
+    expect(result[1].position).toEqual({
+      __typename: 'PageLayoutWidgetGridPosition',
+      layoutMode: PageLayoutTabLayoutMode.GRID,
       column: 6,
       row: 7,
       columnSpan: 8,

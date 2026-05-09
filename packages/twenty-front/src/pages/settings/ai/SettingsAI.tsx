@@ -1,26 +1,91 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+import { usePersistLogicFunction } from '@/logic-functions/hooks/usePersistLogicFunction';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { SubMenuTopBarContainer } from '@/ui/layout/page/components/SubMenuTopBarContainer';
 import { TabList } from '@/ui/layout/tab-list/components/TabList';
 import { activeTabIdComponentState } from '@/ui/layout/tab-list/states/activeTabIdComponentState';
-import { useRecoilComponentValue } from '@/ui/utilities/state/component-state/hooks/useRecoilComponentValue';
+import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { SettingsPath } from 'twenty-shared/types';
-import { getSettingsPath } from 'twenty-shared/utils';
+import { getSettingsPath, isDefined } from 'twenty-shared/utils';
 
 import { t } from '@lingui/core/macro';
-import { IconSettings, IconSparkles, IconTool } from 'twenty-ui/display';
-import { SettingsAIMCP } from './components/SettingsAIMCP';
-import { SettingsAIRouterSettings } from './components/SettingsAIRouterSettings';
-import { SettingsSkillsTable } from './components/SettingsSkillsTable';
-import { SettingsToolsTable } from './components/SettingsToolsTable';
+import {
+  IconChartBar,
+  IconCpu,
+  IconPlus,
+  IconSettingsBolt,
+  IconSparkles,
+  IconTool,
+} from 'twenty-ui/display';
+import { Button } from 'twenty-ui/input';
+import { UndecoratedLink } from 'twenty-ui/navigation';
+import { SettingsAiMoreTab } from '~/pages/settings/ai/components/SettingsAiMoreTab';
+import { SettingsAgentToolsTab } from '~/pages/settings/ai/components/SettingsAgentToolsTab';
+import { SettingsAiModelsTab } from './components/SettingsAiModelsTab';
+import { SettingsAiUsageTab } from './components/SettingsAiUsageTab';
+import { SettingsAgentSkills } from './components/SettingsAgentSkills';
 import { SETTINGS_AI_TABS } from './constants/SettingsAiTabs';
 
 export const SettingsAI = () => {
-  const activeTabId = useRecoilComponentValue(
+  const navigate = useNavigate();
+  const { enqueueSuccessSnackBar, enqueueErrorSnackBar } = useSnackBar();
+  const { createLogicFunction } = usePersistLogicFunction();
+  const [isCreatingTool, setIsCreatingTool] = useState(false);
+
+  const activeTabId = useAtomComponentStateValue(
     activeTabIdComponentState,
     SETTINGS_AI_TABS.COMPONENT_INSTANCE_ID,
   );
 
+  const handleCreateTool = async () => {
+    setIsCreatingTool(true);
+    try {
+      const result = await createLogicFunction({
+        input: {
+          name: 'new-tool',
+          toolTriggerSettings: {
+            inputSchema: { type: 'object', properties: {} },
+          },
+        },
+      });
+
+      if (result.status === 'successful' && isDefined(result.response?.data)) {
+        const newLogicFunction = result.response.data.createOneLogicFunction;
+        enqueueSuccessSnackBar({ message: t`Tool created` });
+
+        const applicationId = (newLogicFunction as { applicationId?: string })
+          .applicationId;
+        if (isDefined(applicationId)) {
+          navigate(
+            getSettingsPath(SettingsPath.ApplicationLogicFunctionDetail, {
+              applicationId,
+              logicFunctionId: newLogicFunction.id,
+            }),
+          );
+        } else {
+          navigate(
+            getSettingsPath(SettingsPath.LogicFunctionDetail, {
+              logicFunctionId: newLogicFunction.id,
+            }),
+          );
+        }
+      } else {
+        enqueueErrorSnackBar({ message: t`Failed to create tool` });
+      }
+    } finally {
+      setIsCreatingTool(false);
+    }
+  };
+
   const tabs = [
+    {
+      id: SETTINGS_AI_TABS.TABS_IDS.MODELS,
+      title: t`Models`,
+      Icon: IconCpu,
+    },
     {
       id: SETTINGS_AI_TABS.TABS_IDS.SKILLS,
       title: t`Skills`,
@@ -32,19 +97,47 @@ export const SettingsAI = () => {
       Icon: IconTool,
     },
     {
-      id: SETTINGS_AI_TABS.TABS_IDS.SETTINGS,
-      title: t`Settings`,
-      Icon: IconSettings,
+      id: SETTINGS_AI_TABS.TABS_IDS.USAGE,
+      title: t`Usage`,
+      Icon: IconChartBar,
+    },
+    {
+      id: SETTINGS_AI_TABS.TABS_IDS.MORE,
+      title: t`More`,
+      Icon: IconSettingsBolt,
     },
   ];
 
+  const isModelsTab = activeTabId === SETTINGS_AI_TABS.TABS_IDS.MODELS;
   const isSkillsTab = activeTabId === SETTINGS_AI_TABS.TABS_IDS.SKILLS;
   const isToolsTab = activeTabId === SETTINGS_AI_TABS.TABS_IDS.TOOLS;
-  const isSettingsTab = activeTabId === SETTINGS_AI_TABS.TABS_IDS.SETTINGS;
+  const isUsageTab = activeTabId === SETTINGS_AI_TABS.TABS_IDS.USAGE;
+  const isMoreTab = activeTabId === SETTINGS_AI_TABS.TABS_IDS.MORE;
 
   return (
     <SubMenuTopBarContainer
       title={t`AI`}
+      actionButton={
+        isSkillsTab ? (
+          <UndecoratedLink to={getSettingsPath(SettingsPath.AiNewSkill)}>
+            <Button
+              Icon={IconPlus}
+              title={t`New Skill`}
+              accent="blue"
+              size="small"
+            />
+          </UndecoratedLink>
+        ) : isToolsTab ? (
+          <Button
+            Icon={IconPlus}
+            title={t`New Tool`}
+            accent="blue"
+            size="small"
+            onClick={handleCreateTool}
+            disabled={isCreatingTool}
+          />
+        ) : undefined
+      }
       links={[
         {
           children: t`Workspace`,
@@ -58,14 +151,11 @@ export const SettingsAI = () => {
           tabs={tabs}
           componentInstanceId={SETTINGS_AI_TABS.COMPONENT_INSTANCE_ID}
         />
-        {isSkillsTab && <SettingsSkillsTable />}
-        {isToolsTab && <SettingsToolsTable />}
-        {isSettingsTab && (
-          <>
-            <SettingsAIRouterSettings />
-            <SettingsAIMCP />
-          </>
-        )}
+        {isModelsTab && <SettingsAiModelsTab />}
+        {isSkillsTab && <SettingsAgentSkills />}
+        {isToolsTab && <SettingsAgentToolsTab />}
+        {isUsageTab && <SettingsAiUsageTab />}
+        {isMoreTab && <SettingsAiMoreTab />}
       </SettingsPageContainer>
     </SubMenuTopBarContainer>
   );

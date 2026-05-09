@@ -9,7 +9,7 @@ describe('formatBillingDatabaseProductToGraphqlDTO', () => {
   it('should correctly format a billing plan with licensed and metered products', () => {
     const mockPlan = {
       planKey: BillingPlanKey.PRO,
-      licensedProducts: [
+      baseProducts: [
         {
           id: 'product-1',
           name: 'Test Licensed Product',
@@ -23,6 +23,7 @@ describe('formatBillingDatabaseProductToGraphqlDTO', () => {
           ],
         },
       ],
+      resourceCreditProducts: [],
       meteredProducts: [
         {
           id: 'product-2',
@@ -31,7 +32,11 @@ describe('formatBillingDatabaseProductToGraphqlDTO', () => {
             {
               interval: SubscriptionInterval.Month,
               tiers: [
-                { up_to: 10, flat_amount: 500, unit_amount: null },
+                {
+                  up_to: 10000000,
+                  flat_amount: 500,
+                  unit_amount: null,
+                },
                 { up_to: null, flat_amount: null, unit_amount: 0.001 },
               ],
               stripePriceId: 'price_metered1',
@@ -48,7 +53,7 @@ describe('formatBillingDatabaseProductToGraphqlDTO', () => {
 
     expect(result).toEqual({
       planKey: BillingPlanKey.PRO,
-      licensedProducts: [
+      baseProducts: [
         {
           id: 'product-1',
           name: 'Test Licensed Product',
@@ -66,10 +71,12 @@ describe('formatBillingDatabaseProductToGraphqlDTO', () => {
               unitAmount: 1500,
               stripePriceId: 'price_123',
               priceUsageType: BillingUsageType.LICENSED,
+              creditAmount: null,
             },
           ],
         },
       ],
+      resourceCreditProducts: [],
       meteredProducts: [
         {
           id: 'product-2',
@@ -81,7 +88,11 @@ describe('formatBillingDatabaseProductToGraphqlDTO', () => {
             {
               interval: SubscriptionInterval.Month,
               tiers: [
-                { up_to: 10, flat_amount: 500, unit_amount: null },
+                {
+                  up_to: 10000000,
+                  flat_amount: 500,
+                  unit_amount: null,
+                },
                 { up_to: null, flat_amount: null, unit_amount: 0.001 },
               ],
               stripePriceId: 'price_metered1',
@@ -102,5 +113,51 @@ describe('formatBillingDatabaseProductToGraphqlDTO', () => {
         },
       ],
     });
+  });
+
+  it('should convert internal credits to display credits in metered tier upTo', () => {
+    const mockPlan = {
+      planKey: BillingPlanKey.PRO,
+      baseProducts: [],
+      resourceCreditProducts: [],
+      meteredProducts: [
+        {
+          id: 'product-2',
+          name: 'Test Metered Product',
+          billingPrices: [
+            {
+              interval: SubscriptionInterval.Month,
+              tiers: [
+                {
+                  up_to: 50000000,
+                  flat_amount: 0,
+                  unit_amount: null,
+                },
+                {
+                  up_to: null,
+                  flat_amount: null,
+                  unit_amount: null,
+                },
+              ],
+              stripePriceId: 'price_metered1',
+              priceUsageType: BillingUsageType.METERED,
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = formatBillingDatabaseProductToGraphqlDTO(
+      mockPlan as unknown as BillingGetPlanResult,
+    );
+
+    const meteredPrices = result.meteredProducts[0].prices;
+
+    expect(meteredPrices![0].tiers[0]).toEqual(
+      expect.objectContaining({ upTo: 50 }),
+    );
+    expect(meteredPrices![0].tiers[1]).toEqual(
+      expect.objectContaining({ upTo: null }),
+    );
   });
 });

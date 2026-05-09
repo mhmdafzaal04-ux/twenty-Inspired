@@ -1,13 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { isDefined } from 'twenty-shared/utils';
 
-import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
+import { CommandMenuItemService } from 'src/engine/metadata-modules/command-menu-item/command-menu-item.service';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
+import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { buildObjectIdByNameMaps } from 'src/engine/metadata-modules/flat-object-metadata/utils/build-object-id-by-name-maps.util';
-import { LogicFunctionService } from 'src/engine/metadata-modules/logic-function/services/logic-function.service';
+import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
+import { LogicFunctionFromSourceService } from 'src/engine/metadata-modules/logic-function/services/logic-function-from-source.service';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { type WorkspaceRepository } from 'src/engine/twenty-orm/repository/workspace.repository';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
@@ -39,10 +41,13 @@ export type ObjectMetadataInfo = {
 
 @Injectable()
 export class WorkflowCommonWorkspaceService {
+  private readonly logger = new Logger(WorkflowCommonWorkspaceService.name);
+
   constructor(
     private readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
-    private readonly logicFunctionService: LogicFunctionService,
+    private readonly logicFunctionFromSourceService: LogicFunctionFromSourceService,
     private readonly workspaceManyOrAllFlatEntityMapsCacheService: WorkspaceManyOrAllFlatEntityMapsCacheService,
+    private readonly commandMenuItemService: CommandMenuItemService,
   ) {}
 
   async getWorkflowVersionOrFail({
@@ -138,7 +143,10 @@ export class WorkflowCommonWorkspaceService {
       );
     }
 
-    const flatObjectMetadata = flatObjectMetadataMaps.byId[objectId];
+    const flatObjectMetadata = findFlatEntityByIdInFlatEntityMaps({
+      flatEntityId: objectId,
+      flatEntityMaps: flatObjectMetadataMaps,
+    });
 
     if (!isDefined(flatObjectMetadata)) {
       throw new WorkflowCommonException(
@@ -258,37 +266,89 @@ export class WorkflowCommonWorkspaceService {
         { shouldBypassPermissionChecks: true },
       );
 
-    const workflow = await workflowRepository.findOne({
-      where: { id: workflowId },
-      withDeleted: true,
-    });
-
-    if (workflow?.statuses?.includes(WorkflowStatus.ACTIVE)) {
-      const newStatuses = [
-        ...workflow.statuses.filter(
-          (status) => status !== WorkflowStatus.ACTIVE,
-        ),
-        WorkflowStatus.DEACTIVATED,
-      ];
-
-      await workflowRepository.update(workflowId, {
-        statuses: newStatuses,
-      });
-    }
-
     const workflowVersions = await workflowVersionRepository.find({
-      where: {
-        workflowId,
-      },
+      where: { workflowId },
       withDeleted: true,
     });
 
     for (const workflowVersion of workflowVersions) {
       if (workflowVersion.status === WorkflowVersionStatus.ACTIVE) {
-        await workflowVersionRepository.update(workflowVersion.id, {
-          status: WorkflowVersionStatus.DEACTIVATED,
-        });
+        await this.cleanupCommandMenuItemForVersion(
+          workflowVersion.id,
+          workspaceId,
+        );
       }
+    }
+
+    const workspaceDataSource =
+      await this.globalWorkspaceOrmManager.getGlobalWorkspaceDataSource();
+
+    const queryRunner = workspaceDataSource.createQueryRunner();
+
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const workflow = await workflowRepository.findOne(
+        {
+          where: { id: workflowId },
+          withDeleted: true,
+        },
+        queryRunner.manager,
+      );
+
+      if (workflow?.statuses?.includes(WorkflowStatus.ACTIVE)) {
+        const newStatuses = [
+          ...workflow.statuses.filter(
+            (status) => status !== WorkflowStatus.ACTIVE,
+          ),
+          WorkflowStatus.DEACTIVATED,
+        ];
+
+        await workflowRepository.update(
+          workflowId,
+          { statuses: newStatuses },
+          queryRunner.manager,
+        );
+      }
+
+      for (const workflowVersion of workflowVersions) {
+        if (workflowVersion.status === WorkflowVersionStatus.ACTIVE) {
+          await workflowVersionRepository.update(
+            workflowVersion.id,
+            { status: WorkflowVersionStatus.DEACTIVATED },
+            queryRunner.manager,
+          );
+        }
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
+
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  private async cleanupCommandMenuItemForVersion(
+    workflowVersionId: string,
+    workspaceId: string,
+  ) {
+    const existingCommandMenuItem =
+      await this.commandMenuItemService.findByWorkflowVersionId(
+        workflowVersionId,
+        workspaceId,
+      );
+
+    if (isDefined(existingCommandMenuItem)) {
+      await this.commandMenuItemService.delete(
+        existingCommandMenuItem.id,
+        workspaceId,
+      );
     }
   }
 
@@ -318,7 +378,7 @@ export class WorkflowCommonWorkspaceService {
     for (const workflowVersion of workflowVersions) {
       for (const step of workflowVersion.steps ?? []) {
         if (step.type === WorkflowActionType.CODE) {
-          await this.logicFunctionService.destroyOne({
+          await this.logicFunctionFromSourceService.deleteOneWithSource({
             id: step.settings.input.logicFunctionId,
             workspaceId,
           });

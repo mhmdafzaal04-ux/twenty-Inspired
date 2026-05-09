@@ -1,15 +1,17 @@
 import { PENDING_WIDGET_PLACEHOLDER_LAYOUT_KEY } from '@/page-layout/constants/PendingWidgetPlaceholderLayoutKey';
+import { prepareGridLayoutItemsWithPlaceholders } from '@/page-layout/utils/prepareGridLayoutItemsWithPlaceholders';
 import {
   AggregateOperations,
   WidgetConfigurationType,
   WidgetType,
   type PageLayoutWidget,
-} from '~/generated/graphql';
-import { prepareGridLayoutItemsWithPlaceholders } from '@/page-layout/utils/prepareGridLayoutItemsWithPlaceholders';
+} from '~/generated-metadata/graphql';
 
 describe('prepareGridLayoutItemsWithPlaceholders', () => {
   const createMockWidget = (id: string): PageLayoutWidget => ({
     id,
+    applicationId: '',
+    isActive: true,
     pageLayoutTabId: 'tab-1',
     title: `Test Widget ${id}`,
     type: WidgetType.GRAPH,
@@ -215,6 +217,7 @@ describe('prepareGridLayoutItemsWithPlaceholders', () => {
         expect(resultWidget.createdAt).toBe(widget.createdAt);
         expect(resultWidget.updatedAt).toBe(widget.updatedAt);
         expect(resultWidget.deletedAt).toBe(widget.deletedAt);
+        expect(resultWidget.isActive).toBe(widget.isActive);
       }
     });
   });

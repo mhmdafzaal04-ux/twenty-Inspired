@@ -1,6 +1,12 @@
 import { type ConnectedAccount } from '@/accounts/types/ConnectedAccount';
-import { CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
-import { useDestroyOneRecord } from '@/object-record/hooks/useDestroyOneRecord';
+import { useApolloClient, useMutation } from '@apollo/client/react';
+import {
+  CalendarChannelSyncStage,
+  ConnectedAccountProvider,
+  MessageChannelSyncStage,
+  SettingsPath,
+} from 'twenty-shared/types';
+
 import { useTriggerProviderReconnect } from '@/settings/accounts/hooks/useTriggerProviderReconnect';
 import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
 import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
@@ -9,18 +15,19 @@ import { useCloseDropdown } from '@/ui/layout/dropdown/hooks/useCloseDropdown';
 import { ConfirmationModal } from '@/ui/layout/modal/components/ConfirmationModal';
 import { useModal } from '@/ui/layout/modal/hooks/useModal';
 import { Trans, useLingui } from '@lingui/react/macro';
-import { ConnectedAccountProvider, SettingsPath } from 'twenty-shared/types';
 import {
   IconAt,
   IconCalendarEvent,
   IconDotsVertical,
   IconMail,
+  IconPlayerPlay,
   IconRefresh,
   IconTrash,
 } from 'twenty-ui/display';
 import { LightIconButton } from 'twenty-ui/input';
 import { MenuItem } from 'twenty-ui/navigation';
 import { useNavigateSettings } from '~/hooks/useNavigateSettings';
+import { DELETE_CONNECTED_ACCOUNT } from '../graphql/mutations/deleteConnectedAccount';
 
 type SettingsAccountsRowDropdownMenuProps = {
   account: ConnectedAccount;
@@ -39,13 +46,27 @@ export const SettingsAccountsRowDropdownMenu = ({
   const navigate = useNavigateSettings();
   const { closeDropdown } = useCloseDropdown();
 
-  const { destroyOneRecord } = useDestroyOneRecord({
-    objectNameSingular: CoreObjectNameSingular.ConnectedAccount,
-  });
+  const apolloClient = useApolloClient();
+  const [deleteConnectedAccountMutation] = useMutation(
+    DELETE_CONNECTED_ACCOUNT,
+  );
   const { triggerProviderReconnect } = useTriggerProviderReconnect();
 
+  const hasPendingConfiguration =
+    account.messageChannels.some(
+      (channel) =>
+        channel.syncStage === MessageChannelSyncStage.PENDING_CONFIGURATION,
+    ) ||
+    account.calendarChannels.some(
+      (channel) =>
+        channel.syncStage === CalendarChannelSyncStage.PENDING_CONFIGURATION,
+    );
+
   const deleteAccount = async () => {
-    await destroyOneRecord(account.id);
+    await deleteConnectedAccountMutation({
+      variables: { id: account.id },
+    });
+    await apolloClient.refetchQueries({ include: 'active' });
   };
 
   return (
@@ -59,6 +80,18 @@ export const SettingsAccountsRowDropdownMenu = ({
         dropdownComponents={
           <DropdownContent>
             <DropdownMenuItemsContainer>
+              {hasPendingConfiguration && (
+                <MenuItem
+                  LeftIcon={IconPlayerPlay}
+                  text={t`Complete setup`}
+                  onClick={() => {
+                    navigate(SettingsPath.AccountsConfiguration, {
+                      connectedAccountId: account.id,
+                    });
+                    closeDropdown(dropdownId);
+                  }}
+                />
+              )}
               {account.provider ===
                 ConnectedAccountProvider.IMAP_SMTP_CALDAV && (
                 <MenuItem
@@ -112,7 +145,7 @@ export const SettingsAccountsRowDropdownMenu = ({
         }
       />
       <ConfirmationModal
-        modalId={deleteAccountModalId}
+        modalInstanceId={deleteAccountModalId}
         title={t`Data deletion`}
         subtitle={
           <Trans>

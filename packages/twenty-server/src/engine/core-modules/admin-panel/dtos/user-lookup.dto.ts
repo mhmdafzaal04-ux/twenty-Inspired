@@ -1,11 +1,13 @@
 import { Field, ObjectType } from '@nestjs/graphql';
 
+import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
+
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
-import { FeatureFlagEntity } from 'src/engine/core-modules/feature-flag/feature-flag.entity';
+import { FeatureFlagDTO } from 'src/engine/core-modules/feature-flag/dtos/feature-flag.dto';
 import { WorkspaceUrlsDTO } from 'src/engine/core-modules/workspace/dtos/workspace-urls.dto';
 
 @ObjectType('UserInfo')
-class UserInfoDTO {
+export class UserInfoDTO {
   @Field(() => UUIDScalarType)
   id: string;
 
@@ -17,6 +19,12 @@ class UserInfoDTO {
 
   @Field(() => String, { nullable: true })
   lastName?: string;
+
+  @Field(() => String, { nullable: true })
+  avatarUrl?: string | null;
+
+  @Field(() => Date)
+  createdAt: Date;
 }
 
 @ObjectType('WorkspaceInfo')
@@ -36,20 +44,26 @@ class WorkspaceInfoDTO {
   @Field(() => Number)
   totalUsers: number;
 
+  @Field(() => WorkspaceActivationStatus)
+  activationStatus: WorkspaceActivationStatus;
+
+  @Field(() => Date)
+  createdAt: Date;
+
   @Field(() => WorkspaceUrlsDTO)
   workspaceUrls: WorkspaceUrlsDTO;
 
   @Field(() => [UserInfoDTO])
   users: UserInfoDTO[];
 
-  @Field(() => [FeatureFlagEntity])
-  featureFlags: FeatureFlagEntity[];
+  @Field(() => [FeatureFlagDTO])
+  featureFlags: FeatureFlagDTO[];
 }
 
 @ObjectType('UserLookup')
 export class UserLookup {
-  @Field(() => UserInfoDTO)
-  user: UserInfoDTO;
+  @Field(() => UserInfoDTO, { nullable: true })
+  user?: UserInfoDTO | null;
 
   @Field(() => [WorkspaceInfoDTO])
   workspaces: WorkspaceInfoDTO[];

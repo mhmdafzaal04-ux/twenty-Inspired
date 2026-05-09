@@ -1,4 +1,5 @@
 import {
+  FeatureFlagKey,
   type FieldMetadataType,
   type ObjectsPermissions,
 } from 'twenty-shared/types';
@@ -100,6 +101,7 @@ describe('WorkspaceEntityManager', () => {
       labelPlural: 'Test Entities',
       workspaceId: 'test-workspace-id',
       icon: 'test-icon',
+      color: null,
       isCustom: false,
       isRemote: false,
       isAuditLogged: false,
@@ -109,6 +111,8 @@ describe('WorkspaceEntityManager', () => {
       targetTableName: 'test_entity',
       fieldIds: ['field-id'],
       indexMetadataIds: [],
+      objectPermissionIds: [],
+      fieldPermissionIds: [],
       viewIds: [],
       universalIdentifier: 'test-entity-id',
       description: null,
@@ -124,6 +128,8 @@ describe('WorkspaceEntityManager', () => {
       updatedAt: new Date().toISOString(),
       applicationUniversalIdentifier: 'test-application-id',
       fieldUniversalIdentifiers: ['field-id'],
+      objectPermissionUniversalIdentifiers: [],
+      fieldPermissionUniversalIdentifiers: [],
       viewUniversalIdentifiers: [],
       indexMetadataUniversalIdentifiers: [],
       labelIdentifierFieldMetadataUniversalIdentifier: null,
@@ -159,6 +165,7 @@ describe('WorkspaceEntityManager', () => {
       workspaceId: 'test-workspace-id',
       viewFieldIds: [],
       viewFilterIds: [],
+      fieldPermissionIds: [],
       kanbanAggregateOperationViewIds: [],
       calendarViewIds: [],
       mainGroupByFieldMetadataViewIds: [],
@@ -175,24 +182,27 @@ describe('WorkspaceEntityManager', () => {
       kanbanAggregateOperationViewUniversalIdentifiers: [],
       calendarViewUniversalIdentifiers: [],
       mainGroupByFieldMetadataViewUniversalIdentifiers: [],
+      fieldPermissionUniversalIdentifiers: [],
+      viewSortIds: [],
+      viewSortUniversalIdentifiers: [],
       universalSettings: null,
     };
 
     const flatObjectMetadataMaps: FlatEntityMaps<FlatObjectMetadata> = {
-      byId: {
+      byUniversalIdentifier: {
         'test-entity-id': mockFlatObjectMetadata,
       },
-      idByUniversalIdentifier: {
+      universalIdentifierById: {
         'test-entity-id': 'test-entity-id',
       },
       universalIdentifiersByApplicationId: {},
     };
 
     const flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
-      byId: {
+      byUniversalIdentifier: {
         'field-id': mockFlatFieldMetadata,
       },
-      idByUniversalIdentifier: {
+      universalIdentifierById: {
         'field-id': 'field-id',
       },
       universalIdentifiersByApplicationId: {},
@@ -203,18 +213,18 @@ describe('WorkspaceEntityManager', () => {
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
       flatIndexMaps: {
-        byId: {},
-        idByUniversalIdentifier: {},
+        byUniversalIdentifier: {},
+        universalIdentifierById: {},
         universalIdentifiersByApplicationId: {},
       },
       flatRowLevelPermissionPredicateMaps: {
-        byId: {},
-        idByUniversalIdentifier: {},
+        byUniversalIdentifier: {},
+        universalIdentifierById: {},
         universalIdentifiersByApplicationId: {},
       },
       flatRowLevelPermissionPredicateGroupMaps: {
-        byId: {},
-        idByUniversalIdentifier: {},
+        byUniversalIdentifier: {},
+        universalIdentifierById: {},
         universalIdentifiersByApplicationId: {},
       },
       objectIdByNameSingular: {
@@ -223,25 +233,18 @@ describe('WorkspaceEntityManager', () => {
       featureFlagsMap: {
         IS_UNIQUE_INDEXES_ENABLED: false,
         IS_JSON_FILTER_ENABLED: false,
-        IS_AI_ENABLED: false,
-        IS_APPLICATION_ENABLED: false,
-        IS_IMAP_SMTP_CALDAV_ENABLED: false,
-        IS_RECORD_PAGE_LAYOUT_ENABLED: false,
+        IS_MARKETPLACE_SETTING_TAB_VISIBLE: false,
+        IS_RECORD_PAGE_LAYOUT_EDITING_ENABLED: false,
         IS_PUBLIC_DOMAIN_ENABLED: false,
         IS_EMAILING_DOMAIN_ENABLED: false,
-        IS_DASHBOARD_V2_ENABLED: false,
-        IS_ATTACHMENT_MIGRATED: false,
-        IS_TIMELINE_ACTIVITY_MIGRATED: false,
-        IS_GLOBAL_WORKSPACE_DATASOURCE_ENABLED: false,
-        IS_ROW_LEVEL_PERMISSION_PREDICATES_ENABLED: false,
+        IS_EMAIL_GROUP_ENABLED: false,
         IS_JUNCTION_RELATIONS_ENABLED: false,
-        IS_SSE_DB_EVENTS_ENABLED: false,
+        IS_CONNECTED_ACCOUNT_MIGRATED: false,
+        IS_RICH_TEXT_V1_MIGRATED: false,
+        IS_RECORD_PAGE_LAYOUT_GLOBAL_EDITION_ENABLED: false,
+        IS_DATASOURCE_MIGRATED: false,
         IS_COMMAND_MENU_ITEM_ENABLED: false,
-        IS_NAVIGATION_MENU_ITEM_ENABLED: false,
-        IS_FILES_FIELD_ENABLED: false,
-        IS_APPLICATION_INSTALLATION_FROM_TARBALL_ENABLED: false,
-        IS_RECORD_PAGE_LAYOUT_EDITING_ENABLED: false,
-        IS_MARKETPLACE_ENABLED: false,
+        [FeatureFlagKey.IS_BILLING_V2_ENABLED]: false,
       },
       userWorkspaceRoleMap: {},
       eventEmitterService: {
@@ -261,13 +264,8 @@ describe('WorkspaceEntityManager', () => {
       featureFlagMap: {
         IS_UNIQUE_INDEXES_ENABLED: false,
         IS_JSON_FILTER_ENABLED: false,
-        IS_AI_ENABLED: false,
-        IS_APPLICATION_ENABLED: false,
-        IS_RECORD_PAGE_LAYOUT_ENABLED: false,
         IS_PUBLIC_DOMAIN_ENABLED: false,
         IS_EMAILING_DOMAIN_ENABLED: false,
-        IS_DASHBOARD_V2_ENABLED: false,
-        IS_ROW_LEVEL_PERMISSION_PREDICATES_ENABLED: false,
       },
       permissionsPerRoleId: {},
       eventEmitterService: mockInternalContext.eventEmitterService,
@@ -313,6 +311,7 @@ describe('WorkspaceEntityManager', () => {
       userWorkspaceRoleMap: {
         'user-workspace-id': 'role-id',
       },
+      apiKeyRoleMap: {},
     };
 
     setWorkspaceContext(mockWorkspaceContext);

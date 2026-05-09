@@ -1,16 +1,16 @@
 import { styled } from '@linaria/react';
 import { isNonEmptyString, isNull, isUndefined } from '@sniptt/guards';
+import { useAtom } from 'jotai';
 import { useContext } from 'react';
 
-import { invalidAvatarUrlsState } from '@ui/display/avatar/components/states/isInvalidAvatarUrlState';
+import { invalidAvatarUrlsAtomV2 } from '@ui/display/avatar/components/states/invalidAvatarUrlsAtomV2';
 import { AVATAR_PROPERTIES_BY_SIZE } from '@ui/display/avatar/constants/AvatarPropertiesBySize';
 import { type AvatarSize } from '@ui/display/avatar/types/AvatarSize';
 import { type AvatarType } from '@ui/display/avatar/types/AvatarType';
 import { type IconComponent } from '@ui/display/icon/types/IconComponent';
-import { ThemeContext } from '@ui/theme';
+import { ThemeContext } from '@ui/theme-constants';
 import { stringToThemeColorP3String } from '@ui/utilities';
 import { REACT_APP_SERVER_BASE_URL } from '@ui/utilities/config';
-import { useRecoilState } from 'recoil';
 import { type Nullable } from 'twenty-shared/types';
 import { getImageAbsoluteURI } from 'twenty-shared/utils';
 
@@ -20,6 +20,7 @@ const StyledAvatar = styled.div<{
   clickable?: boolean;
   color: string;
   backgroundColor: string;
+  borderColor?: string;
   backgroundTransparentLight: string;
   type?: Nullable<AvatarType>;
 }>`
@@ -29,8 +30,13 @@ const StyledAvatar = styled.div<{
   user-select: none;
 
   border-radius: ${({ rounded, type }) => {
-    return rounded ? '50%' : type === 'icon' ? '4px' : '2px';
+    if (rounded) return '50%';
+    if (type === 'icon') return '4px';
+    return '2px';
   }};
+  border: ${({ type, borderColor }) =>
+    type === 'app' && borderColor ? `1px solid ${borderColor}` : 'none'};
+  box-sizing: border-box;
   display: flex;
   font-size: ${({ size }) => AVATAR_PROPERTIES_BY_SIZE[size].fontSize};
   height: ${({ size }) => AVATAR_PROPERTIES_BY_SIZE[size].width};
@@ -69,10 +75,10 @@ export type AvatarProps = {
   type?: Nullable<AvatarType>;
   color?: string;
   backgroundColor?: string;
+  borderColor?: string;
   onClick?: () => void;
 };
 
-// TODO: Remove recoil because we don't want it into twenty-ui and find a solution for invalid avatar urls
 export const Avatar = ({
   avatarUrl,
   size = 'md',
@@ -84,10 +90,12 @@ export const Avatar = ({
   type = 'squared',
   color,
   backgroundColor,
+  borderColor,
 }: AvatarProps) => {
   const { theme } = useContext(ThemeContext);
-  const [invalidAvatarUrls, setInvalidAvatarUrls] = useRecoilState(
-    invalidAvatarUrlsState,
+
+  const [invalidAvatarUrls, setInvalidAvatarUrls] = useAtom(
+    invalidAvatarUrlsAtomV2,
   );
 
   const avatarImageURI = isNonEmptyString(avatarUrl)
@@ -116,19 +124,33 @@ export const Avatar = ({
     : (color ??
       stringToThemeColorP3String({
         string: placeholderColorSeed ?? '',
-        theme,
         variant: 12,
+        theme,
       }));
   const fixedBackgroundColor = isPlaceholderFirstCharEmpty
     ? theme.background.transparent.light
     : (backgroundColor ??
       stringToThemeColorP3String({
         string: placeholderColorSeed ?? '',
+        variant: type === 'app' ? 5 : 4,
         theme,
-        variant: 4,
       }));
 
+  const fixedBorderColor =
+    type === 'app'
+      ? (borderColor ??
+        (isPlaceholderFirstCharEmpty
+          ? undefined
+          : stringToThemeColorP3String({
+              string: placeholderColorSeed ?? '',
+              variant: 6,
+              theme,
+            })))
+      : undefined;
+
   const showBackgroundColor = showPlaceholder;
+
+  const showBorderColor = showPlaceholder;
 
   return (
     <StyledAvatar
@@ -136,6 +158,7 @@ export const Avatar = ({
       backgroundColor={
         Icon ? 'inherit' : showBackgroundColor ? fixedBackgroundColor : 'none'
       }
+      borderColor={showBorderColor ? fixedBorderColor : undefined}
       color={fixedColor}
       clickable={!isUndefined(onClick)}
       rounded={type === 'rounded'}
@@ -149,7 +172,7 @@ export const Avatar = ({
           size={theme.icon.size.xl}
         />
       ) : showPlaceholder ? (
-        <StyledPlaceholderChar fontWeight={theme.font.weight.medium}>
+        <StyledPlaceholderChar fontWeight={500}>
           {placeholderChar}
         </StyledPlaceholderChar>
       ) : (

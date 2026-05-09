@@ -1,16 +1,24 @@
 export {
-  LOAD_TOOLS_TOOL_NAME,
-  createLoadToolsTool,
-  loadToolsInputSchema,
-  type DynamicToolStore,
-  type LoadToolsInput,
-  type LoadToolsResult,
-} from './load-tools.tool';
+  LEARN_TOOLS_TOOL_NAME,
+  createLearnToolsTool,
+  learnToolsInputSchema,
+  type LearnToolsAspect,
+  type LearnToolsInput,
+  type LearnToolsResult,
+} from './learn-tools.tool';
+
+export {
+  EXECUTE_TOOL_TOOL_NAME,
+  createExecuteToolTool,
+  executeToolInputSchema,
+  type ExecuteToolInput,
+} from './execute-tool.tool';
 
 export {
   LOAD_SKILL_TOOL_NAME,
   createLoadSkillTool,
   loadSkillInputSchema,
+  type ListAvailableSkillNamesFunction,
   type LoadSkillFunction,
   type LoadSkillInput,
   type LoadSkillResult,

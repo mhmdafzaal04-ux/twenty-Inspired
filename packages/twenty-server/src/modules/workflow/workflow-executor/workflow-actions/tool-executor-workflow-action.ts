@@ -1,13 +1,25 @@
 import { Injectable } from '@nestjs/common';
+import type { JSONContent } from '@tiptap/core';
 
-import { resolveInput, resolveRichTextVariables } from 'twenty-shared/utils';
+import {
+  isDefined,
+  parseJson,
+  resolveInput,
+  resolveRichTextVariables,
+} from 'twenty-shared/utils';
 
 import { type WorkflowAction } from 'src/modules/workflow/workflow-executor/interfaces/workflow-action.interface';
 
+import { DraftEmailTool } from 'src/engine/core-modules/tool/tools/email-tool/draft-email-tool';
+import { renderRichTextToHtml } from 'src/engine/core-modules/tool/tools/email-tool/utils/render-rich-text-to-html.util';
 import { HttpTool } from 'src/engine/core-modules/tool/tools/http-tool/http-tool';
-import { SendEmailTool } from 'src/engine/core-modules/tool/tools/send-email-tool/send-email-tool';
+import { SendEmailTool } from 'src/engine/core-modules/tool/tools/email-tool/send-email-tool';
 import { type ToolInput } from 'src/engine/core-modules/tool/types/tool-input.type';
 import { type Tool } from 'src/engine/core-modules/tool/types/tool.type';
+import {
+  WorkflowStepExecutorException,
+  WorkflowStepExecutorExceptionCode,
+} from 'src/modules/workflow/workflow-executor/exceptions/workflow-step-executor.exception';
 import { type WorkflowActionInput } from 'src/modules/workflow/workflow-executor/types/workflow-action-input';
 import { type WorkflowActionOutput } from 'src/modules/workflow/workflow-executor/types/workflow-action-output.type';
 import { type WorkflowSendEmailActionInput } from 'src/modules/workflow/workflow-executor/workflow-actions/mail-sender/types/workflow-send-email-action-input.type';
@@ -20,11 +32,29 @@ export class ToolExecutorWorkflowAction implements WorkflowAction {
   constructor(
     private readonly httpTool: HttpTool,
     private readonly sendEmailTool: SendEmailTool,
+    private readonly draftEmailTool: DraftEmailTool,
   ) {
     this.toolsByActionType = new Map<WorkflowActionType, Tool>([
       [WorkflowActionType.HTTP_REQUEST, this.httpTool],
       [WorkflowActionType.SEND_EMAIL, this.sendEmailTool],
+      [WorkflowActionType.DRAFT_EMAIL, this.draftEmailTool],
     ]);
+  }
+
+  private async resolveEmailBody(
+    body: string,
+    context: Record<string, unknown>,
+  ): Promise<string> {
+    const bodyWithResolvedVariables = resolveRichTextVariables(body, context);
+    const tipTapDocument = isDefined(bodyWithResolvedVariables)
+      ? parseJson<JSONContent>(bodyWithResolvedVariables)
+      : null;
+
+    if (isDefined(tipTapDocument) && tipTapDocument.type === 'doc') {
+      return renderRichTextToHtml(tipTapDocument);
+    }
+
+    return bodyWithResolvedVariables ?? body;
   }
 
   async execute({
@@ -36,24 +66,34 @@ export class ToolExecutorWorkflowAction implements WorkflowAction {
     const step = steps.find((step) => step.id === currentStepId);
 
     if (!step) {
-      throw new Error('Step not found');
+      throw new WorkflowStepExecutorException(
+        'Step not found',
+        WorkflowStepExecutorExceptionCode.STEP_NOT_FOUND,
+      );
     }
 
     const tool = this.toolsByActionType.get(step.type);
 
     if (!tool) {
-      throw new Error(`No tool found for workflow action type: ${step.type}`);
+      throw new WorkflowStepExecutorException(
+        `No tool found for workflow action type: ${step.type}`,
+        WorkflowStepExecutorExceptionCode.INVALID_STEP_TYPE,
+      );
     }
 
     let toolInput = step.settings.input;
 
-    if (step.type === WorkflowActionType.SEND_EMAIL) {
-      const sendEmailInput = toolInput as WorkflowSendEmailActionInput;
+    if (
+      step.type === WorkflowActionType.SEND_EMAIL ||
+      step.type === WorkflowActionType.DRAFT_EMAIL
+    ) {
+      const emailInput = toolInput as WorkflowSendEmailActionInput;
 
-      if (sendEmailInput.body) {
+      if (isDefined(emailInput.body)) {
+        const emailBody = await this.resolveEmailBody(emailInput.body, context);
         toolInput = {
-          ...sendEmailInput,
-          body: resolveRichTextVariables(sendEmailInput.body, context),
+          ...emailInput,
+          body: emailBody,
         };
       }
     }

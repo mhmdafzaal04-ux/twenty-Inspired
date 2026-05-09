@@ -1,10 +1,37 @@
-import path from 'path';
-import * as fs from 'fs-extra';
-import { createRequire } from 'module';
+import { conditionalAvailabilityTransformPlugin } from '@/cli/utilities/build/common/conditional-availability/conditional-availability-transform-plugin';
+import { pathExists, remove } from '@/cli/utilities/file/fs-utils';
+import { type ValidationResult } from '@/sdk/define';
 import * as esbuild from 'esbuild';
+import { createRequire } from 'module';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'os';
+import path from 'path';
 import { isDefined, isPlainObject } from 'twenty-shared/utils';
-import { type ValidationResult } from '@/sdk';
+
+const MANIFEST_MOCK_MODULES = [
+  'twenty-sdk/ui',
+  'twenty-client-sdk/core',
+  'twenty-client-sdk/metadata',
+];
+
+const manifestMockPlugin: esbuild.Plugin = {
+  name: 'manifest-mock',
+  setup: (build) => {
+    const filter = new RegExp(
+      `^(${MANIFEST_MOCK_MODULES.map((module) => module.replace('/', '\\/')).join('|')})$`,
+    );
+
+    build.onResolve({ filter }, ({ path: modulePath }) => ({
+      path: modulePath,
+      namespace: 'manifest-mock',
+    }));
+
+    build.onLoad({ filter: /.*/, namespace: 'manifest-mock' }, () => ({
+      contents: 'module.exports = new Proxy({}, { get: () => () => {} });',
+      loader: 'js',
+    }));
+  },
+};
 
 export const extractManifestFromFile = async <T>({
   filePath,
@@ -26,7 +53,7 @@ const loadModule = async ({
   appPath: string;
 }): Promise<Record<string, unknown>> => {
   const tsconfigPath = path.join(appPath, 'tsconfig.json');
-  const hasTsconfig = await fs.pathExists(tsconfigPath);
+  const hasTsconfig = await pathExists(tsconfigPath);
 
   // Resolve react from the app's node_modules for the alias
   const appRequire = createRequire(path.join(appPath, 'package.json'));
@@ -53,20 +80,21 @@ const loadModule = async ({
       ...(reactPath && { react: reactPath }),
       ...(reactDomPath && { 'react-dom': reactDomPath }),
     },
+    plugins: [conditionalAvailabilityTransformPlugin, manifestMockPlugin],
     logLevel: 'silent',
   });
 
   const code = result.outputFiles[0].text;
 
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'twenty-manifest-'));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'twenty-manifest-'));
   const tempFile = path.join(tempDir, 'module.cjs');
 
   try {
-    await fs.writeFile(tempFile, code);
+    await writeFile(tempFile, code);
 
-    return require(tempFile) as Record<string, unknown>;
+    return appRequire(tempFile) as Record<string, unknown>;
   } finally {
-    await fs.remove(tempDir);
+    await remove(tempDir);
   }
 };
 

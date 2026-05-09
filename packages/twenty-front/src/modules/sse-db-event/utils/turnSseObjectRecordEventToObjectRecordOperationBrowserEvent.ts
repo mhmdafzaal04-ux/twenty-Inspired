@@ -1,18 +1,18 @@
-import { type ObjectMetadataItem } from '@/object-metadata/types/ObjectMetadataItem';
-import { type ObjectRecordOperationBrowserEventDetail } from '@/object-record/types/ObjectRecordOperationBrowserEventDetail';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
+import { type ObjectRecordOperationBrowserEventDetail } from '@/browser-event/types/ObjectRecordOperationBrowserEventDetail';
 import { getObjectRecordOperationUpdateInputs } from '@/sse-db-event/utils/getObjectRecordOperationUpdateInputs';
 import { groupObjectRecordSseEventsByEventType } from '@/sse-db-event/utils/groupObjectRecordSseEventsByEventType';
 import { assertUnreachable, isDefined } from 'twenty-shared/utils';
 import {
   DatabaseEventAction,
   type ObjectRecordEvent,
-} from '~/generated/graphql';
+} from '~/generated-metadata/graphql';
 
 export const turnSseObjectRecordEventsToObjectRecordOperationBrowserEvents = ({
   objectMetadataItem,
   objectRecordEvents,
 }: {
-  objectMetadataItem: ObjectMetadataItem;
+  objectMetadataItem: EnrichedObjectMetadataItem;
   objectRecordEvents: ObjectRecordEvent[];
 }): ObjectRecordOperationBrowserEventDetail[] => {
   const { objectRecordEventsByEventType } =

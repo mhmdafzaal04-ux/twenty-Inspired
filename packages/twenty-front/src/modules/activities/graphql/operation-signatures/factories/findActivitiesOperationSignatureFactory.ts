@@ -1,10 +1,10 @@
 import { generateActivityTargetMorphFieldKeys } from '@/activities/utils/generateActivityTargetMorphFieldKeys';
-import { CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
-import { type ObjectMetadataItem } from '@/object-metadata/types/ObjectMetadataItem';
+import { CoreObjectNameSingular } from 'twenty-shared/types';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { type RecordGqlOperationSignatureFactory } from '@/object-record/graphql/types/RecordGqlOperationSignatureFactory';
 
 type FindActivitiesOperationSignatureFactory = {
-  objectMetadataItems: ObjectMetadataItem[];
+  objectMetadataItems: EnrichedObjectMetadataItem[];
   objectNameSingular: CoreObjectNameSingular;
 };
 
@@ -62,6 +62,7 @@ export const findActivitiesOperationSignatureFactory: RecordGqlOperationSignatur
               __typename: true,
               createdAt: true,
               updatedAt: true,
+              deletedAt: true,
               note: true,
               noteId: true,
               ...generateActivityTargetMorphFieldKeys(objectMetadataItems),
@@ -73,6 +74,7 @@ export const findActivitiesOperationSignatureFactory: RecordGqlOperationSignatur
               __typename: true,
               createdAt: true,
               updatedAt: true,
+              deletedAt: true,
               task: true,
               taskId: true,
               ...generateActivityTargetMorphFieldKeys(objectMetadataItems),

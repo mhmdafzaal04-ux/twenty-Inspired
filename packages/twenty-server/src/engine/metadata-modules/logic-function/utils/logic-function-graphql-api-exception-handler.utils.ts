@@ -5,13 +5,14 @@ import {
   ForbiddenError,
   NotFoundError,
   TimeoutError,
+  UserInputError,
 } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
 import {
   LogicFunctionException,
   LogicFunctionExceptionCode,
 } from 'src/engine/metadata-modules/logic-function/logic-function.exception';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line @typescripttypescript/no-explicit-any
 export const logicFunctionGraphQLApiExceptionHandler = (error: any) => {
   if (error instanceof LogicFunctionException) {
     switch (error.code) {
@@ -27,7 +28,12 @@ export const logicFunctionGraphQLApiExceptionHandler = (error: any) => {
         throw new TimeoutError(error);
       case LogicFunctionExceptionCode.LOGIC_FUNCTION_CODE_UNCHANGED:
       case LogicFunctionExceptionCode.LOGIC_FUNCTION_CREATE_FAILED:
+      case LogicFunctionExceptionCode.LOGIC_FUNCTION_INVALID_SEED_PROJECT:
+      case LogicFunctionExceptionCode.LOGIC_FUNCTION_EXECUTION_FAILED:
+      case LogicFunctionExceptionCode.LOGIC_FUNCTION_LAYER_BUILD_FAILED:
         throw error;
+      case LogicFunctionExceptionCode.LOGIC_FUNCTION_COMPILATION_FAILED:
+        throw new UserInputError(error);
       case LogicFunctionExceptionCode.LOGIC_FUNCTION_DISABLED:
         throw new ForbiddenError(error);
       default: {

@@ -1,7 +1,7 @@
 import { workflowTriggerSchema } from 'twenty-shared/workflow';
 import { z } from 'zod';
 
-import type { UpdateWorkflowVersionTriggerInput } from 'src/engine/core-modules/workflow/dtos/update-workflow-version-trigger-input.dto';
+import type { UpdateWorkflowVersionTriggerInput } from 'src/engine/core-modules/workflow/dtos/update-workflow-version-trigger.input';
 import {
   type WorkflowToolContext,
   type WorkflowToolDependencies,
@@ -10,7 +10,8 @@ import {
 const updateWorkflowVersionTriggerSchema = z.object({
   workflowVersionId: z
     .string()
-    .describe('The ID of the workflow version containing the trigger'),
+    .uuid()
+    .describe('The UUID of the workflow version containing the trigger'),
   trigger: workflowTriggerSchema.describe('The updated trigger configuration'),
 });
 

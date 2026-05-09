@@ -2,18 +2,17 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { AiAgentRoleService } from 'src/engine/metadata-modules/ai/ai-agent-role/ai-agent-role.service';
-import { AgentEntity } from 'src/engine/metadata-modules/ai/ai-agent/entities/agent.entity';
+import { AgentService } from 'src/engine/metadata-modules/ai/ai-agent/agent.service';
 import { createEmptyAllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/constant/create-empty-all-flat-entity-maps.constant';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { LogicFunctionRuntime } from 'src/engine/metadata-modules/logic-function/logic-function.entity';
-import { LogicFunctionService } from 'src/engine/metadata-modules/logic-function/services/logic-function.service';
-import { type FlatLogicFunction } from 'src/engine/metadata-modules/logic-function/types/flat-logic-function.type';
+import { LogicFunctionFromSourceService } from 'src/engine/metadata-modules/logic-function/services/logic-function-from-source.service';
 import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
 import { RoleTargetEntity } from 'src/engine/metadata-modules/role-target/role-target.entity';
-import { RoleEntity } from 'src/engine/metadata-modules/role/role.entity';
 import { GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { WorkflowCommonWorkspaceService } from 'src/modules/workflow/common/workspace-services/workflow-common.workspace-service';
+import { CodeStepBuildService } from 'src/modules/workflow/workflow-builder/workflow-version-step/code-step/services/code-step-build.service';
 import { WorkflowVersionStepOperationsWorkspaceService } from 'src/modules/workflow/workflow-builder/workflow-version-step/workflow-version-step-operations.workspace-service';
 import {
   type WorkflowAction,
@@ -25,35 +24,82 @@ const mockWorkspaceId = 'workspace-id';
 describe('WorkflowVersionStepOperationsWorkspaceService', () => {
   let service: WorkflowVersionStepOperationsWorkspaceService;
   let globalWorkspaceOrmManager: jest.Mocked<GlobalWorkspaceOrmManager>;
-  let logicFunctionService: jest.Mocked<LogicFunctionService>;
-  let agentRepository: jest.Mocked<any>;
+  let logicFunctionFromSourceService: jest.Mocked<LogicFunctionFromSourceService>;
+  let codeStepBuildService: jest.Mocked<CodeStepBuildService>;
+  let agentService: jest.Mocked<AgentService>;
   let roleTargetRepository: jest.Mocked<any>;
-  let roleRepository: jest.Mocked<any>;
   let objectMetadataRepository: jest.Mocked<any>;
   let workflowCommonWorkspaceService: jest.Mocked<WorkflowCommonWorkspaceService>;
   let aiAgentRoleService: jest.Mocked<AiAgentRoleService>;
   let workspaceCacheService: jest.Mocked<WorkspaceCacheService>;
 
   beforeEach(async () => {
-    logicFunctionService = {
-      createOne: jest.fn(),
-      destroyOne: jest.fn(),
-      duplicateLogicFunction: jest.fn(),
-    } as unknown as jest.Mocked<LogicFunctionService>;
+    codeStepBuildService = {
+      seedCodeStepFiles: jest.fn().mockResolvedValue({
+        sourceHandlerPath: 'workflow/logic-fn-id/src/index.ts',
+        builtHandlerPath: 'workflow/logic-fn-id/src/index.mjs',
+        checksum: 'seed-checksum',
+      }),
+      createCodeStepLogicFunction: jest.fn().mockResolvedValue({
+        id: 'new-function-id',
+        name: 'Test Function',
+        description: 'Test Description',
+        workspaceId: mockWorkspaceId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+        runtime: LogicFunctionRuntime.NODE22,
+        timeoutSeconds: 30,
+        sourceHandlerPath: 'src/index.ts',
+        builtHandlerPath: 'index.mjs',
+        handlerName: 'main',
+        checksum: null,
+        toolTriggerSettings: null,
+        workflowActionTriggerSettings: null,
+        universalIdentifier: 'universal-id',
+        applicationId: 'application-id',
+        cronTriggerSettings: null,
+        databaseEventTriggerSettings: null,
+        httpRouteTriggerSettings: null,
+      }),
+      copySourceAndBuiltForNewCodeStep: jest.fn().mockResolvedValue(undefined),
+      duplicateCodeStepLogicFunction: jest.fn().mockResolvedValue({
+        id: 'new-function-id',
+        name: 'Test Function',
+        description: 'Test Description',
+        workspaceId: mockWorkspaceId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+        runtime: LogicFunctionRuntime.NODE22,
+        timeoutSeconds: 30,
+        sourceHandlerPath: 'src/index.ts',
+        builtHandlerPath: 'index.mjs',
+        handlerName: 'main',
+        checksum: null,
+        toolTriggerSettings: null,
+        workflowActionTriggerSettings: null,
+        universalIdentifier: 'universal-id',
+        applicationId: 'application-id',
+        cronTriggerSettings: null,
+        databaseEventTriggerSettings: null,
+        httpRouteTriggerSettings: null,
+      }),
+    } as unknown as jest.Mocked<CodeStepBuildService>;
 
-    agentRepository = {
-      findOne: jest.fn(),
-      delete: jest.fn(),
-    };
+    logicFunctionFromSourceService = {
+      deleteOneWithSource: jest.fn(),
+    } as unknown as jest.Mocked<LogicFunctionFromSourceService>;
+
+    agentService = {
+      deleteManyAgents: jest.fn().mockResolvedValue([]),
+      findOneAgentById: jest.fn(),
+      createOneAgent: jest.fn(),
+    } as unknown as jest.Mocked<AgentService>;
 
     roleTargetRepository = {
       findOne: jest.fn(),
       count: jest.fn(),
-    };
-
-    roleRepository = {
-      findOne: jest.fn(),
-      delete: jest.fn(),
     };
 
     objectMetadataRepository = {
@@ -83,20 +129,20 @@ describe('WorkflowVersionStepOperationsWorkspaceService', () => {
           useValue: globalWorkspaceOrmManager,
         },
         {
-          provide: LogicFunctionService,
-          useValue: logicFunctionService,
+          provide: LogicFunctionFromSourceService,
+          useValue: logicFunctionFromSourceService,
         },
         {
-          provide: getRepositoryToken(AgentEntity),
-          useValue: agentRepository,
+          provide: CodeStepBuildService,
+          useValue: codeStepBuildService,
+        },
+        {
+          provide: AgentService,
+          useValue: agentService,
         },
         {
           provide: getRepositoryToken(RoleTargetEntity),
           useValue: roleTargetRepository,
-        },
-        {
-          provide: getRepositoryToken(RoleEntity),
-          useValue: roleRepository,
         },
         {
           provide: getRepositoryToken(ObjectMetadataEntity),
@@ -154,7 +200,9 @@ describe('WorkflowVersionStepOperationsWorkspaceService', () => {
         workspaceId: mockWorkspaceId,
       });
 
-      expect(logicFunctionService.destroyOne).toHaveBeenCalledWith({
+      expect(
+        logicFunctionFromSourceService.deleteOneWithSource,
+      ).toHaveBeenCalledWith({
         id: 'function-id',
         workspaceId: mockWorkspaceId,
       });
@@ -180,15 +228,13 @@ describe('WorkflowVersionStepOperationsWorkspaceService', () => {
         },
       } as unknown as WorkflowAction;
 
-      agentRepository.findOne.mockResolvedValue({ id: 'agent-id' });
-
       await service.runWorkflowVersionStepDeletionSideEffects({
         step,
         workspaceId: mockWorkspaceId,
       });
 
-      expect(agentRepository.delete).toHaveBeenCalledWith({
-        id: 'agent-id',
+      expect(agentService.deleteManyAgents).toHaveBeenCalledWith({
+        ids: ['agent-id'],
         workspaceId: mockWorkspaceId,
       });
     });
@@ -213,7 +259,6 @@ describe('WorkflowVersionStepOperationsWorkspaceService', () => {
         },
       } as unknown as WorkflowAction;
 
-      agentRepository.findOne.mockResolvedValue({ id: 'agent-id' });
       roleTargetRepository.findOne.mockResolvedValue({
         id: 'role-target-id',
         roleId: 'role-id',
@@ -224,8 +269,8 @@ describe('WorkflowVersionStepOperationsWorkspaceService', () => {
         workspaceId: mockWorkspaceId,
       });
 
-      expect(agentRepository.delete).toHaveBeenCalledWith({
-        id: 'agent-id',
+      expect(agentService.deleteManyAgents).toHaveBeenCalledWith({
+        ids: ['agent-id'],
         workspaceId: mockWorkspaceId,
       });
       expect(
@@ -240,32 +285,6 @@ describe('WorkflowVersionStepOperationsWorkspaceService', () => {
 
   describe('runStepCreationSideEffectsAndBuildStep', () => {
     it('should create code step with logic function', async () => {
-      const mockFlatLogicFunction: FlatLogicFunction = {
-        id: 'new-function-id',
-        name: 'Test Function',
-        description: 'Test Description',
-        workspaceId: mockWorkspaceId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        deletedAt: null,
-        runtime: LogicFunctionRuntime.NODE22,
-        timeoutSeconds: 30,
-        sourceHandlerPath: 'src/index.ts',
-        builtHandlerPath: 'index.mjs',
-        handlerName: 'main',
-        checksum: null,
-        toolInputSchema: null,
-        isTool: false,
-        logicFunctionLayerId: 'layer-id',
-        universalIdentifier: 'universal-id',
-        applicationId: 'application-id',
-        cronTriggerSettings: null,
-        databaseEventTriggerSettings: null,
-        httpRouteTriggerSettings: null,
-      };
-
-      logicFunctionService.createOne.mockResolvedValue(mockFlatLogicFunction);
-
       const result = await service.runStepCreationSideEffectsAndBuildStep({
         type: WorkflowActionType.CODE,
         workspaceId: mockWorkspaceId,
@@ -311,34 +330,6 @@ describe('WorkflowVersionStepOperationsWorkspaceService', () => {
         nextStepIds: ['next-step'],
       } as unknown as WorkflowAction;
 
-      const mockNewFlatLogicFunction: FlatLogicFunction = {
-        id: 'new-function-id',
-        name: 'Test Function',
-        description: 'Test Description',
-        workspaceId: mockWorkspaceId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        deletedAt: null,
-        runtime: LogicFunctionRuntime.NODE22,
-        timeoutSeconds: 30,
-        sourceHandlerPath: 'src/index.ts',
-        builtHandlerPath: 'index.mjs',
-        handlerName: 'main',
-        checksum: null,
-        toolInputSchema: null,
-        isTool: false,
-        logicFunctionLayerId: 'layer-id',
-        universalIdentifier: 'universal-id',
-        applicationId: 'application-id',
-        cronTriggerSettings: null,
-        databaseEventTriggerSettings: null,
-        httpRouteTriggerSettings: null,
-      };
-
-      logicFunctionService.duplicateLogicFunction.mockResolvedValue(
-        mockNewFlatLogicFunction,
-      );
-
       const clonedStep = await service.cloneStep({
         step: originalStep,
         workspaceId: mockWorkspaceId,
@@ -360,6 +351,12 @@ describe('WorkflowVersionStepOperationsWorkspaceService', () => {
       expect(codeResult.settings.input.logicFunctionId).toBe('new-function-id');
 
       expect(duplicateStep.nextStepIds).toEqual([]);
+      expect(
+        codeStepBuildService.duplicateCodeStepLogicFunction,
+      ).toHaveBeenCalledWith({
+        existingLogicFunctionId: 'function-id',
+        workspaceId: mockWorkspaceId,
+      });
     });
 
     it('should duplicate non-code step', async () => {

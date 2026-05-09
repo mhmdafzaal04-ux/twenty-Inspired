@@ -15,6 +15,7 @@ describe('getFieldMetadataIdToColumnNamesMap', () => {
     labelSingular: 'Test',
     labelPlural: 'Tests',
     icon: 'IconTest',
+    color: null,
     targetTableName: 'test',
     isCustom: false,
     isRemote: false,
@@ -25,6 +26,8 @@ describe('getFieldMetadataIdToColumnNamesMap', () => {
     workspaceId: 'test-workspace-id',
     universalIdentifier: 'test-object-id',
     indexMetadataIds: [],
+    objectPermissionIds: [],
+    fieldPermissionIds: [],
     fieldIds,
     viewIds: [],
     applicationId: 'test-application-id',
@@ -40,6 +43,8 @@ describe('getFieldMetadataIdToColumnNamesMap', () => {
     duplicateCriteria: null,
     applicationUniversalIdentifier: 'test-application-id',
     fieldUniversalIdentifiers: fieldIds,
+    objectPermissionUniversalIdentifiers: [],
+    fieldPermissionUniversalIdentifiers: [],
     viewUniversalIdentifiers: [],
     indexMetadataUniversalIdentifiers: [],
     labelIdentifierFieldMetadataUniversalIdentifier: null,
@@ -73,17 +78,17 @@ describe('getFieldMetadataIdToColumnNamesMap', () => {
   const buildFlatFieldMetadataMaps = (
     fields: FlatFieldMetadata[],
   ): FlatEntityMaps<FlatFieldMetadata> => ({
-    byId: fields.reduce(
+    byUniversalIdentifier: fields.reduce(
       (acc, field) => {
-        acc[field.id] = field;
+        acc[field.universalIdentifier] = field;
 
         return acc;
       },
       {} as Record<string, FlatFieldMetadata>,
     ),
-    idByUniversalIdentifier: fields.reduce(
+    universalIdentifierById: fields.reduce(
       (acc, field) => {
-        acc[field.universalIdentifier] = field.id;
+        acc[field.id] = field.universalIdentifier;
 
         return acc;
       },

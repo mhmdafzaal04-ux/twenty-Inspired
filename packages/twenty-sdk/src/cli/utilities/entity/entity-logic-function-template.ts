@@ -1,4 +1,4 @@
-import kebabCase from 'lodash.kebabcase';
+import { kebabCase } from '@/cli/utilities/string/kebab-case';
 import { v4 } from 'uuid';
 
 export const getLogicFunctionBaseFile = ({
@@ -9,9 +9,8 @@ export const getLogicFunctionBaseFile = ({
   universalIdentifier?: string;
 }) => {
   const kebabCaseName = kebabCase(name);
-  const triggerUniversalIdentifier = v4();
 
-  return `import { defineLogicFunction } from 'twenty-sdk';
+  return `import { defineLogicFunction } from 'twenty-sdk/define';
 
 // Logic function handler - rename and implement your logic
 const handler = async (params: {
@@ -32,29 +31,21 @@ export default defineLogicFunction({
   description: 'Add a description for your logic function',
   timeoutSeconds: 5,
   handler,
-  triggers: [
-    // Add your triggers here
+    // Add your trigger here
     // Route trigger example:
-    // {
-    //   universalIdentifier: '${triggerUniversalIdentifier}',
-    //   type: 'route',
+    // httpRouteTriggerSettings: {
     //   path: '/${kebabCaseName}',
     //   httpMethod: 'POST',
     //   isAuthRequired: true,
     // },
     // Cron trigger example:
-    // {
-    //   universalIdentifier: '...',
-    //   type: 'cron',
+    // cronTriggerSettings: {
     //   pattern: '0 0 * * *', // Daily at midnight
     // },
     // Database event trigger example:
-    // {
-    //   universalIdentifier: '...',
-    //   type: 'databaseEvent',
+    // databaseEventTriggerSettings: {
     //   eventName: 'objectName.created',
     // },
-  ],
 });
 `;
 };

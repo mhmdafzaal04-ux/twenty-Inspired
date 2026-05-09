@@ -1,15 +1,19 @@
-import { type ObjectMetadataItem } from '@/object-metadata/types/ObjectMetadataItem';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { isFieldMorphRelation } from '@/object-record/record-field/ui/types/guards/isFieldMorphRelation';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
 import { isSystemSearchVectorField } from '@/object-record/utils/isSystemSearchVectorField';
-import { computeMorphRelationFieldName, isDefined } from 'twenty-shared/utils';
+import {
+  computeMorphRelationGqlFieldName,
+  computeRelationGqlFieldJoinColumnName,
+  isDefined,
+} from 'twenty-shared/utils';
 import { FieldMetadataType, RelationType } from '~/generated-metadata/graphql';
 
 export const sanitizeRecordInput = ({
   objectMetadataItem,
   recordInput,
 }: {
-  objectMetadataItem: ObjectMetadataItem;
+  objectMetadataItem: EnrichedObjectMetadataItem;
   recordInput: Partial<ObjectRecord>;
 }) => {
   const filteredResultRecord = Object.fromEntries(
@@ -26,13 +30,14 @@ export const sanitizeRecordInput = ({
           objectMetadataItem.fields.find(
             (field) =>
               field.type === FieldMetadataType.RELATION &&
-              field.settings?.joinColumnName === fieldName,
+              computeRelationGqlFieldJoinColumnName({ name: field.name }) ===
+                fieldName,
           );
         const potentialMorphRelationJoinColumnNameFieldMetadataItem =
           objectMetadataItem.fields.find((field) => {
             if (!isFieldMorphRelation(field)) return false;
             return field.morphRelations?.some((morphRelation) => {
-              const computedFieldName = computeMorphRelationFieldName({
+              const computedFieldName = computeMorphRelationGqlFieldName({
                 fieldName: field.name,
                 relationType: morphRelation.type,
                 targetObjectMetadataNameSingular:
@@ -71,6 +76,18 @@ export const sanitizeRecordInput = ({
           fieldMetadataItem.relation?.type === RelationType.ONE_TO_MANY
         ) {
           return undefined;
+        }
+
+        if (
+          isDefined(fieldMetadataItem) &&
+          fieldMetadataItem.type === FieldMetadataType.FILES &&
+          Array.isArray(fieldValue)
+        ) {
+          const cleanedFiles = fieldValue.map((file: any) => ({
+            fileId: file.fileId,
+            label: file.label,
+          }));
+          return [fieldName, cleanedFiles];
         }
 
         // Todo: we should check that the fieldValue is a valid value

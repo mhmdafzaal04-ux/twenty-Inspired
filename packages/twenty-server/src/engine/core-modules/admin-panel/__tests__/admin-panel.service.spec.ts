@@ -1,20 +1,14 @@
 import { Test, type TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 
-import axios from 'axios';
-
-import { AdminPanelService } from 'src/engine/core-modules/admin-panel/admin-panel.service';
-import { AuditService } from 'src/engine/core-modules/audit/services/audit.service';
-import { LoginTokenService } from 'src/engine/core-modules/auth/token/services/login-token.service';
-import { WorkspaceDomainsService } from 'src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service';
-import { FileService } from 'src/engine/core-modules/file/services/file.service';
+import { AdminPanelConfigService } from 'src/engine/core-modules/admin-panel/services/admin-panel-config.service';
+import { AdminPanelVersionService } from 'src/engine/core-modules/admin-panel/services/admin-panel-version.service';
+import { SecureHttpClientService } from 'src/engine/core-modules/secure-http-client/secure-http-client.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
-import { UserEntity } from 'src/engine/core-modules/user/user.entity';
 
-const UserFindOneMock = jest.fn();
-const LoginTokenServiceGenerateLoginTokenMock = jest.fn();
 const TwentyConfigServiceGetAllMock = jest.fn();
 const TwentyConfigServiceGetVariableWithMetadataMock = jest.fn();
+const mockHttpClientGet = jest.fn();
+const mockGetHttpClient = jest.fn().mockReturnValue({ get: mockHttpClientGet });
 
 jest.mock(
   'src/engine/core-modules/twenty-config/constants/config-variables-group-metadata',
@@ -39,34 +33,13 @@ jest.mock(
   }),
 );
 
-describe('AdminPanelService', () => {
-  let service: AdminPanelService;
+describe('AdminPanelConfigService', () => {
+  let configService: AdminPanelConfigService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        AdminPanelService,
-        {
-          provide: getRepositoryToken(UserEntity),
-          useValue: {
-            findOne: UserFindOneMock,
-          },
-        },
-        {
-          provide: LoginTokenService,
-          useValue: {
-            generateLoginToken: LoginTokenServiceGenerateLoginTokenMock,
-          },
-        },
-        {
-          provide: WorkspaceDomainsService,
-          useValue: {
-            getWorkspaceUrls: jest.fn().mockReturnValue({
-              customUrl: undefined,
-              subdomainUrl: 'https://twenty.twenty.com',
-            }),
-          },
-        },
+        AdminPanelConfigService,
         {
           provide: TwentyConfigService,
           useValue: {
@@ -75,26 +48,16 @@ describe('AdminPanelService', () => {
               TwentyConfigServiceGetVariableWithMetadataMock,
           },
         },
-        {
-          provide: AuditService,
-          useValue: {
-            createContext: jest.fn().mockReturnValue({
-              insertWorkspaceEvent: jest.fn(),
-            }),
-          },
-        },
-        {
-          provide: FileService,
-          useValue: {},
-        },
       ],
     }).compile();
 
-    service = module.get<AdminPanelService>(AdminPanelService);
+    configService = module.get<AdminPanelConfigService>(
+      AdminPanelConfigService,
+    );
   });
 
   it('should be defined', async () => {
-    expect(service).toBeDefined();
+    expect(configService).toBeDefined();
   });
 
   describe('getConfigVariablesGrouped', () => {
@@ -143,7 +106,7 @@ describe('AdminPanelService', () => {
         },
       });
 
-      const result = service.getConfigVariablesGrouped();
+      const result = configService.getConfigVariablesGrouped();
 
       expect(result).toEqual({
         groups: [
@@ -219,7 +182,7 @@ describe('AdminPanelService', () => {
     it('should handle empty config variables', () => {
       TwentyConfigServiceGetAllMock.mockReturnValue({});
 
-      const result = service.getConfigVariablesGrouped();
+      const result = configService.getConfigVariablesGrouped();
 
       expect(result).toEqual({
         groups: [],
@@ -239,7 +202,7 @@ describe('AdminPanelService', () => {
         },
       });
 
-      const result = service.getConfigVariablesGrouped();
+      const result = configService.getConfigVariablesGrouped();
 
       expect(result.groups[0].variables[0]).toEqual({
         name: 'TEST_VAR',
@@ -250,104 +213,6 @@ describe('AdminPanelService', () => {
         options: undefined,
         source: 'env',
         type: 'string',
-      });
-    });
-  });
-
-  describe('getVersionInfo', () => {
-    const mockEnvironmentGet = jest.fn();
-    const mockAxiosGet = jest.fn();
-
-    beforeEach(() => {
-      mockEnvironmentGet.mockReset();
-      mockAxiosGet.mockReset();
-      jest.spyOn(axios, 'get').mockImplementation(mockAxiosGet);
-      service['twentyConfigService'].get = mockEnvironmentGet;
-    });
-
-    it('should return current and latest version when everything works', async () => {
-      mockEnvironmentGet.mockReturnValue('1.0.0');
-      mockAxiosGet.mockResolvedValue({
-        data: {
-          results: [
-            { name: '2.0.0' },
-            { name: '1.5.0' },
-            { name: '1.0.0' },
-            { name: 'latest' },
-          ],
-        },
-      });
-
-      const result = await service.getVersionInfo();
-
-      expect(result).toEqual({
-        currentVersion: '1.0.0',
-        latestVersion: '2.0.0',
-      });
-    });
-
-    it('should handle undefined APP_VERSION', async () => {
-      mockEnvironmentGet.mockReturnValue(undefined);
-      mockAxiosGet.mockResolvedValue({
-        data: {
-          results: [{ name: '2.0.0' }, { name: 'latest' }],
-        },
-      });
-
-      const result = await service.getVersionInfo();
-
-      expect(result).toEqual({
-        currentVersion: undefined,
-        latestVersion: '2.0.0',
-      });
-    });
-
-    it('should handle Docker Hub API error', async () => {
-      mockEnvironmentGet.mockReturnValue('1.0.0');
-      mockAxiosGet.mockRejectedValue(new Error('API Error'));
-
-      const result = await service.getVersionInfo();
-
-      expect(result).toEqual({
-        currentVersion: '1.0.0',
-        latestVersion: 'latest',
-      });
-    });
-
-    it('should handle empty Docker Hub tags', async () => {
-      mockEnvironmentGet.mockReturnValue('1.0.0');
-      mockAxiosGet.mockResolvedValue({
-        data: {
-          results: [],
-        },
-      });
-
-      const result = await service.getVersionInfo();
-
-      expect(result).toEqual({
-        currentVersion: '1.0.0',
-        latestVersion: 'latest',
-      });
-    });
-
-    it('should handle invalid semver tags', async () => {
-      mockEnvironmentGet.mockReturnValue('1.0.0');
-      mockAxiosGet.mockResolvedValue({
-        data: {
-          results: [
-            { name: '2.0.0' },
-            { name: 'invalid-version' },
-            { name: 'latest' },
-            { name: '1.0.0' },
-          ],
-        },
-      });
-
-      const result = await service.getVersionInfo();
-
-      expect(result).toEqual({
-        currentVersion: '1.0.0',
-        latestVersion: '2.0.0',
       });
     });
   });
@@ -367,7 +232,7 @@ describe('AdminPanelService', () => {
         source: 'env',
       });
 
-      const result = service.getConfigVariable('SERVER_URL');
+      const result = configService.getConfigVariable('SERVER_URL');
 
       expect(result).toEqual({
         name: 'SERVER_URL',
@@ -384,9 +249,133 @@ describe('AdminPanelService', () => {
     it('should throw error when variable not found', () => {
       TwentyConfigServiceGetVariableWithMetadataMock.mockReturnValue(undefined);
 
-      expect(() => service.getConfigVariable('INVALID_VAR')).toThrow(
+      expect(() => configService.getConfigVariable('INVALID_VAR')).toThrow(
         'Config variable INVALID_VAR not found',
       );
+    });
+  });
+});
+
+describe('AdminPanelVersionService', () => {
+  let versionService: AdminPanelVersionService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AdminPanelVersionService,
+        {
+          provide: TwentyConfigService,
+          useValue: {
+            get: jest.fn(),
+          },
+        },
+        {
+          provide: SecureHttpClientService,
+          useValue: {
+            getHttpClient: mockGetHttpClient,
+          },
+        },
+      ],
+    }).compile();
+
+    versionService = module.get<AdminPanelVersionService>(
+      AdminPanelVersionService,
+    );
+  });
+
+  describe('getVersionInfo', () => {
+    const mockEnvironmentGet = jest.fn();
+
+    beforeEach(() => {
+      mockEnvironmentGet.mockReset();
+      mockHttpClientGet.mockReset();
+      versionService['twentyConfigService'].get = mockEnvironmentGet;
+    });
+
+    it('should return current and latest version when everything works', async () => {
+      mockEnvironmentGet.mockReturnValue('1.0.0');
+      mockHttpClientGet.mockResolvedValue({
+        data: {
+          results: [
+            { name: '2.0.0' },
+            { name: '1.5.0' },
+            { name: '1.0.0' },
+            { name: 'latest' },
+          ],
+        },
+      });
+
+      const result = await versionService.getVersionInfo();
+
+      expect(result).toEqual({
+        currentVersion: '1.0.0',
+        latestVersion: '2.0.0',
+      });
+    });
+
+    it('should handle undefined APP_VERSION', async () => {
+      mockEnvironmentGet.mockReturnValue(undefined);
+      mockHttpClientGet.mockResolvedValue({
+        data: {
+          results: [{ name: '2.0.0' }, { name: 'latest' }],
+        },
+      });
+
+      const result = await versionService.getVersionInfo();
+
+      expect(result).toEqual({
+        currentVersion: undefined,
+        latestVersion: '2.0.0',
+      });
+    });
+
+    it('should handle Docker Hub API error', async () => {
+      mockEnvironmentGet.mockReturnValue('1.0.0');
+      mockHttpClientGet.mockRejectedValue(new Error('API Error'));
+
+      const result = await versionService.getVersionInfo();
+
+      expect(result).toEqual({
+        currentVersion: '1.0.0',
+        latestVersion: 'latest',
+      });
+    });
+
+    it('should handle empty Docker Hub tags', async () => {
+      mockEnvironmentGet.mockReturnValue('1.0.0');
+      mockHttpClientGet.mockResolvedValue({
+        data: {
+          results: [],
+        },
+      });
+
+      const result = await versionService.getVersionInfo();
+
+      expect(result).toEqual({
+        currentVersion: '1.0.0',
+        latestVersion: 'latest',
+      });
+    });
+
+    it('should handle invalid semver tags', async () => {
+      mockEnvironmentGet.mockReturnValue('1.0.0');
+      mockHttpClientGet.mockResolvedValue({
+        data: {
+          results: [
+            { name: '2.0.0' },
+            { name: 'invalid-version' },
+            { name: 'latest' },
+            { name: '1.0.0' },
+          ],
+        },
+      });
+
+      const result = await versionService.getVersionInfo();
+
+      expect(result).toEqual({
+        currentVersion: '1.0.0',
+        latestVersion: '2.0.0',
+      });
     });
   });
 });

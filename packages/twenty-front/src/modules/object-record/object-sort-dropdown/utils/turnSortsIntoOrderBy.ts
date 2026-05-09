@@ -1,4 +1,4 @@
-import { type ObjectMetadataItem } from '@/object-metadata/types/ObjectMetadataItem';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 
 import {
   type OrderBy,
@@ -14,12 +14,15 @@ import {
 import { hasObjectMetadataItemPositionField } from '@/object-metadata/utils/hasObjectMetadataItemPositionField';
 import { type RecordSort } from '@/object-record/record-sort/types/RecordSort';
 import { isDefined } from 'twenty-shared/utils';
-import { FieldMetadataType, ViewSortDirection } from '~/generated/graphql';
+import {
+  FieldMetadataType,
+  ViewSortDirection,
+} from '~/generated-metadata/graphql';
 
 export const turnSortsIntoOrderBy = (
-  objectMetadataItem: ObjectMetadataItem,
+  objectMetadataItem: EnrichedObjectMetadataItem,
   sorts: RecordSort[],
-  objectMetadataItems: ObjectMetadataItem[] = [],
+  objectMetadataItems: EnrichedObjectMetadataItem[] = [],
 ): RecordGqlOperationOrderBy => {
   const fields = objectMetadataItem?.fields ?? [];
 

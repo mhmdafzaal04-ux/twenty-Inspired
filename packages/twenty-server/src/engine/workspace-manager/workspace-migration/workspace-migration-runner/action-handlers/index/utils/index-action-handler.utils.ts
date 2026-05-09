@@ -1,7 +1,8 @@
-import { compositeTypeDefinitions } from 'twenty-shared/types';
+import { compositeTypeDefinitions, RelationType } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { type QueryRunner } from 'typeorm';
 
+import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-morph-or-relation-field-join-column-name.util';
 import { computeCompositeColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-column-name.util';
 import { isCompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/utils/is-composite-field-metadata-type.util';
 import {
@@ -15,14 +16,9 @@ import {
   type FlatIndexFieldMetadata,
   type FlatIndexMetadata,
 } from 'src/engine/metadata-modules/flat-index-metadata/types/flat-index-metadata.type';
-import { IndexFieldMetadataEntity } from 'src/engine/metadata-modules/index-metadata/index-field-metadata.entity';
-import { IndexMetadataEntity } from 'src/engine/metadata-modules/index-metadata/index-metadata.entity';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
+import { IndexMetadataEntity } from 'src/engine/metadata-modules/index-metadata/index-metadata.entity';
 import { type WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
-import {
-  WorkspaceMigrationActionExecutionException,
-  WorkspaceMigrationActionExecutionExceptionCode,
-} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/exceptions/workspace-migration-action-execution.exception';
 import { getWorkspaceSchemaContextForMigration } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/get-workspace-schema-context-for-migration.util';
 
 export const computeFlatIndexFieldColumnNames = ({
@@ -46,14 +42,18 @@ export const computeFlatIndexFieldColumnNames = ({
     }
 
     if (isMorphOrRelationFlatFieldMetadata(flatFieldMetadata)) {
-      if (!isDefined(flatFieldMetadata.settings?.joinColumnName)) {
+      if (
+        flatFieldMetadata.settings?.relationType !== RelationType.MANY_TO_ONE
+      ) {
         throw new FlatEntityMapsException(
-          'Join column name is not defined for relation field',
+          'Cannot index a relation field that has no join column',
           FlatEntityMapsExceptionCode.ENTITY_NOT_FOUND,
         );
       }
 
-      return flatFieldMetadata.settings.joinColumnName;
+      return computeMorphOrRelationFieldJoinColumnName({
+        name: flatFieldMetadata.name,
+      });
     }
 
     if (isCompositeFieldMetadataType(flatFieldMetadata.type)) {
@@ -79,45 +79,6 @@ export const computeFlatIndexFieldColumnNames = ({
 
     return flatFieldMetadata.name;
   });
-};
-
-export const insertIndexMetadata = async ({
-  flatIndexMetadata,
-  queryRunner,
-}: {
-  flatIndexMetadata: FlatIndexMetadata;
-  queryRunner: QueryRunner;
-}): Promise<void> => {
-  const indexMetadataRepository =
-    queryRunner.manager.getRepository<IndexMetadataEntity>(IndexMetadataEntity);
-  const indexFieldMetadataRepository =
-    queryRunner.manager.getRepository<IndexFieldMetadataEntity>(
-      IndexFieldMetadataEntity,
-    );
-
-  const { flatIndexFieldMetadatas, ...indexMetadataToInsert } =
-    flatIndexMetadata;
-
-  const indexInsertResult = await indexMetadataRepository.insert(
-    indexMetadataToInsert,
-  );
-
-  if (indexInsertResult.identifiers.length !== 1) {
-    throw new WorkspaceMigrationActionExecutionException({
-      message: 'Failed to create index metadata',
-      code: WorkspaceMigrationActionExecutionExceptionCode.INTERNAL_SERVER_ERROR,
-    });
-  }
-  const indexMetadataId = indexInsertResult.identifiers[0].id;
-
-  const indexFieldMetadataToInsert = flatIndexFieldMetadatas.map(
-    (flatIndexFieldMetadata) => ({
-      ...flatIndexFieldMetadata,
-      indexMetadataId,
-    }),
-  );
-
-  await indexFieldMetadataRepository.insert(indexFieldMetadataToInsert);
 };
 
 export const deleteIndexMetadata = async ({

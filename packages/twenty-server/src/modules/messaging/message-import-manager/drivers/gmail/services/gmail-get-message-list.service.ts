@@ -1,17 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { batchFetchImplementation } from '@jrmdayn/googleapis-batcher';
 import { isNonEmptyString } from '@sniptt/guards';
 import { google } from 'googleapis';
-import { isDefined } from 'twenty-shared/utils';
 
+import { MessageFolderImportPolicy } from 'twenty-shared/types';
+import { MessageChannelEntity } from 'src/engine/metadata-modules/message-channel/entities/message-channel.entity';
 import { OAuth2ClientManagerService } from 'src/modules/connected-account/oauth2-client-manager/services/oauth2-client-manager.service';
-import { type ConnectedAccountWorkspaceEntity } from 'src/modules/connected-account/standard-objects/connected-account.workspace-entity';
-import {
-  MessageChannelWorkspaceEntity,
-  MessageFolderImportPolicy,
-} from 'src/modules/messaging/common/standard-objects/message-channel.workspace-entity';
-import { type MessageFolderWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message-folder.workspace-entity';
+import { type ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+import { type MessageFolderEntity } from 'src/engine/metadata-modules/message-folder/entities/message-folder.entity';
 import {
   MessageImportDriverException,
   MessageImportDriverExceptionCode,
@@ -22,9 +18,6 @@ import { GmailMessageListFetchErrorHandler } from 'src/modules/messaging/message
 import { computeGmailExcludeSearchFilter } from 'src/modules/messaging/message-import-manager/drivers/gmail/utils/compute-gmail-exclude-search-filter.util';
 import { type GetMessageListsArgs } from 'src/modules/messaging/message-import-manager/types/get-message-lists-args.type';
 import { type GetMessageListsResponse } from 'src/modules/messaging/message-import-manager/types/get-message-lists-response.type';
-import { assertNotNull } from 'src/utils/assert';
-
-const GMAIL_BATCH_REQUEST_MAX_SIZE = 50;
 
 @Injectable()
 export class GmailGetMessageListService {
@@ -37,17 +30,14 @@ export class GmailGetMessageListService {
 
   private async getMessageListWithoutCursor(
     connectedAccount: Pick<
-      ConnectedAccountWorkspaceEntity,
+      ConnectedAccountEntity,
       'provider' | 'accessToken' | 'refreshToken' | 'id' | 'handle'
     >,
     messageFolders: Pick<
-      MessageFolderWorkspaceEntity,
+      MessageFolderEntity,
       'name' | 'externalId' | 'isSynced' | 'parentFolderId'
     >[],
-    messageChannel: Pick<
-      MessageChannelWorkspaceEntity,
-      'messageFolderImportPolicy'
-    >,
+    messageChannel: Pick<MessageChannelEntity, 'messageFolderImportPolicy'>,
   ): Promise<GetMessageListsResponse> {
     const oAuth2Client =
       await this.oAuth2ClientManagerService.getGoogleOAuth2Client(
@@ -196,20 +186,6 @@ export class GmailGetMessageListService {
     const { messagesAdded, messagesDeleted } =
       await this.gmailGetHistoryService.getMessageIdsFromHistory(history);
 
-    const messageIdsToFilter =
-      messageChannel.messageFolderImportPolicy ===
-      MessageFolderImportPolicy.SELECTED_FOLDERS
-        ? await this.getEmailIdsFromExcludedFolders(
-            connectedAccount,
-            messageChannel.syncCursor,
-            messageFolders,
-          )
-        : [];
-
-    const messagesAddedFiltered = messagesAdded.filter(
-      (messageId) => !messageIdsToFilter.includes(messageId),
-    );
-
     if (!nextSyncCursor) {
       throw new MessageImportDriverException(
         `No nextSyncCursor found for connected account ${connectedAccount.id}`,
@@ -219,72 +195,12 @@ export class GmailGetMessageListService {
 
     return [
       {
-        messageExternalIds: messagesAddedFiltered,
+        messageExternalIds: messagesAdded,
         messageExternalIdsToDelete: messagesDeleted,
         previousSyncCursor: messageChannel.syncCursor,
         nextSyncCursor,
         folderId: undefined,
       },
     ];
-  }
-
-  private async getEmailIdsFromExcludedFolders(
-    connectedAccount: Pick<
-      ConnectedAccountWorkspaceEntity,
-      'provider' | 'accessToken' | 'refreshToken' | 'id' | 'handle'
-    >,
-    lastSyncHistoryId: string,
-    messageFolders: Pick<
-      MessageFolderWorkspaceEntity,
-      'name' | 'externalId' | 'isSynced'
-    >[],
-  ): Promise<string[]> {
-    const toBeExcludedFolders = messageFolders.filter(
-      (folder) => !folder.isSynced && isDefined(folder.externalId),
-    );
-
-    if (toBeExcludedFolders.length === 0) {
-      return [];
-    }
-
-    const oAuth2Client =
-      await this.oAuth2ClientManagerService.getGoogleOAuth2Client(
-        connectedAccount,
-      );
-
-    const batchedFetchImplementation = batchFetchImplementation({
-      maxBatchSize: GMAIL_BATCH_REQUEST_MAX_SIZE,
-    });
-    const batchedGmailClient = google.gmail({
-      version: 'v1',
-      auth: oAuth2Client,
-      fetchImplementation: batchedFetchImplementation,
-    });
-
-    const historyPromises = toBeExcludedFolders.map((folder) =>
-      this.gmailGetHistoryService.getHistory(
-        batchedGmailClient,
-        lastSyncHistoryId,
-        ['messageAdded'],
-        folder.externalId!,
-      ),
-    );
-
-    const historyResults = await Promise.all(historyPromises);
-
-    const emailIds: string[] = [];
-
-    for (const { history } of historyResults) {
-      const emailIdsFromCategory = history
-        .map((historyItem) => historyItem.messagesAdded)
-        .flat()
-        .map((message) => message?.message?.id)
-        .filter((id) => id)
-        .filter(assertNotNull);
-
-      emailIds.push(...emailIdsFromCategory);
-    }
-
-    return emailIds;
   }
 }

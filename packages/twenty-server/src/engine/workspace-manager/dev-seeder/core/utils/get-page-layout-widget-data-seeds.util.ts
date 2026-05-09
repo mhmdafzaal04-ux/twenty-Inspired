@@ -1,8 +1,14 @@
 import { CalendarStartDay } from 'twenty-shared/constants';
-import { isDefined } from 'twenty-shared/utils';
 import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
+import {
+  AggregateOperations,
+  PageLayoutTabLayoutMode,
+} from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
 
-import { AggregateOperations } from 'src/engine/api/graphql/graphql-query-runner/constants/aggregate-operations.constant';
+import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
+import { type FlatPageLayoutWidget } from 'src/engine/metadata-modules/flat-page-layout-widget/types/flat-page-layout-widget.type';
+import { fromPageLayoutWidgetConfigurationToUniversalConfiguration } from 'src/engine/metadata-modules/flat-page-layout-widget/utils/from-page-layout-widget-configuration-to-universal-configuration.util';
 import { type ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
 import { AxisNameDisplay } from 'src/engine/metadata-modules/page-layout-widget/enums/axis-name-display.enum';
 import { BarChartLayout } from 'src/engine/metadata-modules/page-layout-widget/enums/bar-chart-layout.enum';
@@ -15,6 +21,77 @@ import { PAGE_LAYOUT_WIDGET_SEEDS } from 'src/engine/workspace-manager/dev-seede
 import { type SeederFlatPageLayoutWidget } from 'src/engine/workspace-manager/dev-seeder/core/types/seeder-flat-page-layout-widget.type';
 import { generateSeedId } from 'src/engine/workspace-manager/dev-seeder/core/utils/generate-seed-id.util';
 import { getPageLayoutWidgetDataSeedsV2 } from 'src/engine/workspace-manager/dev-seeder/core/utils/get-page-layout-widget-data-seeds-v2.util';
+import {
+  getSeedFrontComponentDefinitions,
+  getSeedFrontComponentIds,
+} from 'src/engine/workspace-manager/standard-objects-prefill-data/utils/prefill-front-component-definitions.util';
+
+export const getPageLayoutWidgetFlatEntitySeeds = ({
+  workspaceId,
+  flatApplication,
+  objectMetadataItems,
+}: {
+  workspaceId: string;
+  flatApplication: FlatApplication;
+  objectMetadataItems: ObjectMetadataEntity[];
+}): FlatPageLayoutWidget[] => {
+  const seeds = getPageLayoutWidgetDataSeeds(workspaceId, objectMetadataItems);
+  const now = new Date().toISOString();
+
+  const fieldMetadataUniversalIdentifierById: Record<string, string> = {};
+
+  for (const objectMetadata of objectMetadataItems) {
+    if (!isDefined(objectMetadata.fields)) {
+      continue;
+    }
+    for (const field of objectMetadata.fields) {
+      fieldMetadataUniversalIdentifierById[field.id] =
+        field.universalIdentifier;
+    }
+  }
+
+  const frontComponentUniversalIdentifierById: Record<string, string> = {};
+
+  for (const definition of getSeedFrontComponentDefinitions(workspaceId)) {
+    frontComponentUniversalIdentifierById[definition.id] =
+      definition.universalIdentifier;
+  }
+
+  return seeds.map((seed) => {
+    const objectMetadata = isDefined(seed.objectMetadataId)
+      ? objectMetadataItems.find(
+          (objectMetadataItem) =>
+            objectMetadataItem.id === seed.objectMetadataId,
+        )
+      : undefined;
+
+    const universalConfiguration =
+      fromPageLayoutWidgetConfigurationToUniversalConfiguration({
+        configuration: seed.configuration,
+        fieldMetadataUniversalIdentifierById,
+        frontComponentUniversalIdentifierById,
+      });
+
+    return {
+      ...seed,
+      universalIdentifier: seed.id,
+      applicationId: flatApplication.id,
+      applicationUniversalIdentifier: flatApplication.universalIdentifier,
+      workspaceId,
+      pageLayoutTabUniversalIdentifier: seed.pageLayoutTabId,
+      objectMetadataUniversalIdentifier:
+        objectMetadata?.universalIdentifier ?? null,
+      universalConfiguration,
+      conditionalDisplay: null,
+      conditionalAvailabilityExpression: null,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+      universalOverrides: null,
+    } as FlatPageLayoutWidget;
+  });
+};
 
 const getFieldId = (
   object: ObjectMetadataEntity | undefined,
@@ -26,7 +103,6 @@ const getFieldId = (
 export const getPageLayoutWidgetDataSeeds = (
   workspaceId: string,
   objectMetadataItems: ObjectMetadataEntity[],
-  isDashboardV2Enabled: boolean,
 ): SeederFlatPageLayoutWidget[] => {
   const opportunityObject = objectMetadataItems.find(
     (obj) =>
@@ -87,6 +163,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'Total Pipeline Value',
           type: WidgetType.GRAPH,
           gridPosition: { row: 0, column: 0, rowSpan: 2, columnSpan: 3 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 0,
+            column: 0,
+            rowSpan: 2,
+            columnSpan: 3,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.AGGREGATE_CHART,
             aggregateFieldMetadataId: opportunityAmountFieldId,
@@ -96,6 +179,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: opportunityObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
     isDefined(rocketIdFieldId)
@@ -111,6 +195,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'Rocket Count (Object Permission Test)',
           type: WidgetType.GRAPH,
           gridPosition: { row: 0, column: 3, rowSpan: 4, columnSpan: 4 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 0,
+            column: 3,
+            rowSpan: 4,
+            columnSpan: 4,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.AGGREGATE_CHART,
             aggregateFieldMetadataId: rocketIdFieldId,
@@ -120,6 +211,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: rocketObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
     isDefined(opportunityAmountFieldId) &&
@@ -137,6 +229,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'Pipeline Value by Close Date (Stacked by Stage)',
           type: WidgetType.GRAPH,
           gridPosition: { row: 4, column: 0, rowSpan: 8, columnSpan: 6 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 4,
+            column: 0,
+            rowSpan: 8,
+            columnSpan: 6,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.BAR_CHART,
             aggregateFieldMetadataId: opportunityAmountFieldId,
@@ -152,6 +251,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: opportunityObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
 
@@ -169,6 +269,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'Rockets by Created Date (Object Permission Test)',
           type: WidgetType.GRAPH,
           gridPosition: { row: 0, column: 0, rowSpan: 5, columnSpan: 5 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 0,
+            column: 0,
+            rowSpan: 5,
+            columnSpan: 5,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.BAR_CHART,
             aggregateFieldMetadataId: rocketIdFieldId,
@@ -183,6 +290,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: rocketObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
     isDefined(opportunityIdFieldId)
@@ -198,6 +306,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'Opportunity Count',
           type: WidgetType.GRAPH,
           gridPosition: { row: 0, column: 5, rowSpan: 5, columnSpan: 7 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 0,
+            column: 5,
+            rowSpan: 5,
+            columnSpan: 7,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.AGGREGATE_CHART,
             aggregateFieldMetadataId: opportunityIdFieldId,
@@ -207,6 +322,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: opportunityObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
 
@@ -224,6 +340,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'Total Customers',
           type: WidgetType.GRAPH,
           gridPosition: { row: 0, column: 0, rowSpan: 2, columnSpan: 3 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 0,
+            column: 0,
+            rowSpan: 2,
+            columnSpan: 3,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.AGGREGATE_CHART,
             aggregateFieldMetadataId: companyIdFieldId,
@@ -233,6 +356,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: companyObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
     isDefined(companyIdFieldId) &&
@@ -249,7 +373,14 @@ export const getPageLayoutWidgetDataSeeds = (
           ),
           title: 'Companies by Size (Stacked by City)',
           type: WidgetType.GRAPH,
-          gridPosition: { row: 0, column: 8, rowSpan: 10, columnSpan: 8 },
+          gridPosition: { row: 0, column: 6, rowSpan: 10, columnSpan: 6 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 0,
+            column: 6,
+            rowSpan: 10,
+            columnSpan: 6,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.BAR_CHART,
             aggregateFieldMetadataId: companyIdFieldId,
@@ -268,6 +399,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: companyObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
 
@@ -285,6 +417,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'Annual Recurring Revenue',
           type: WidgetType.GRAPH,
           gridPosition: { row: 0, column: 0, rowSpan: 4, columnSpan: 4 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 0,
+            column: 0,
+            rowSpan: 4,
+            columnSpan: 4,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.AGGREGATE_CHART,
             aggregateFieldMetadataId: companyArrFieldId,
@@ -294,6 +433,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: companyObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
     isDefined(companyLinkedinLinkFieldId)
@@ -309,6 +449,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'LinkedIn Profiles Count (Field Permission Test)',
           type: WidgetType.GRAPH,
           gridPosition: { row: 2, column: 0, rowSpan: 4, columnSpan: 3 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 2,
+            column: 0,
+            rowSpan: 4,
+            columnSpan: 3,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.AGGREGATE_CHART,
             aggregateFieldMetadataId: companyLinkedinLinkFieldId,
@@ -318,6 +465,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: companyObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
 
@@ -332,6 +480,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'Team Size',
           type: WidgetType.GRAPH,
           gridPosition: { row: 0, column: 0, rowSpan: 5, columnSpan: 6 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 0,
+            column: 0,
+            rowSpan: 5,
+            columnSpan: 6,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.AGGREGATE_CHART,
             aggregateFieldMetadataId: personIdFieldId,
@@ -341,6 +496,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: personObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
     isDefined(personIdFieldId) && isDefined(personCityFieldId)
@@ -356,6 +512,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'Geographic Distribution',
           type: WidgetType.GRAPH,
           gridPosition: { row: 0, column: 6, rowSpan: 5, columnSpan: 6 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 0,
+            column: 6,
+            rowSpan: 5,
+            columnSpan: 6,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.BAR_CHART,
             aggregateFieldMetadataId: personIdFieldId,
@@ -370,6 +533,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: personObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
 
@@ -387,6 +551,13 @@ export const getPageLayoutWidgetDataSeeds = (
           title: 'Open Tasks',
           type: WidgetType.GRAPH,
           gridPosition: { row: 0, column: 6, rowSpan: 6, columnSpan: 6 },
+          position: {
+            layoutMode: PageLayoutTabLayoutMode.GRID,
+            row: 0,
+            column: 6,
+            rowSpan: 6,
+            columnSpan: 6,
+          },
           configuration: {
             configurationType: WidgetConfigurationType.AGGREGATE_CHART,
             aggregateFieldMetadataId: taskIdFieldId,
@@ -396,6 +567,7 @@ export const getPageLayoutWidgetDataSeeds = (
             firstDayOfTheWeek: CalendarStartDay.MONDAY,
           },
           objectMetadataId: taskObject?.id ?? null,
+          overrides: null,
         } satisfies SeederFlatPageLayoutWidget)
       : null,
 
@@ -409,17 +581,53 @@ export const getPageLayoutWidgetDataSeeds = (
       title: 'Front Component',
       type: WidgetType.FRONT_COMPONENT,
       gridPosition: { row: 2, column: 7, rowSpan: 2, columnSpan: 5 },
+      position: {
+        layoutMode: PageLayoutTabLayoutMode.GRID,
+        row: 2,
+        column: 7,
+        rowSpan: 2,
+        columnSpan: 5,
+      },
       configuration: {
         configurationType: WidgetConfigurationType.FRONT_COMPONENT,
-        frontComponentId: '6cdf2607-4b28-40e6-8c53-cc06799ddc88',
+        frontComponentId: getSeedFrontComponentIds(workspaceId).helloWorldId,
       } as const,
       objectMetadataId: null,
+      overrides: null,
+    } satisfies SeederFlatPageLayoutWidget,
+
+    {
+      id: generateSeedId(
+        workspaceId,
+        PAGE_LAYOUT_WIDGET_SEEDS.DOCUMENTATION_IFRAME,
+      ),
+      pageLayoutTabId: generateSeedId(
+        workspaceId,
+        PAGE_LAYOUT_TAB_SEEDS.DOCUMENTATION,
+      ),
+      title: 'Twenty Star History',
+      type: WidgetType.IFRAME,
+      gridPosition: { row: 0, column: 0, rowSpan: 12, columnSpan: 12 },
+      position: {
+        layoutMode: PageLayoutTabLayoutMode.GRID,
+        row: 0,
+        column: 0,
+        rowSpan: 12,
+        columnSpan: 12,
+      },
+      configuration: {
+        configurationType: WidgetConfigurationType.IFRAME,
+        url: 'https://www.star-history.com/?repos=twentyhq%2Ftwenty&type=date&legend=top-left',
+      },
+      objectMetadataId: null,
+      overrides: null,
     } satisfies SeederFlatPageLayoutWidget,
   ].filter(isDefined);
 
-  const v2Widgets = isDashboardV2Enabled
-    ? getPageLayoutWidgetDataSeedsV2(workspaceId, objectMetadataItems)
-    : [];
+  const v2Widgets = getPageLayoutWidgetDataSeedsV2(
+    workspaceId,
+    objectMetadataItems,
+  );
 
   return [...v1Widgets, ...v2Widgets];
 };

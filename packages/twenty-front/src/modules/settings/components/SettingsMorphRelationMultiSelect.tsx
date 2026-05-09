@@ -1,4 +1,4 @@
-import styled from '@emotion/styled';
+import { styled } from '@linaria/react';
 import { plural } from '@lingui/core/macro';
 import { useMemo, useRef, useState, type MouseEvent } from 'react';
 
@@ -8,6 +8,7 @@ import { DropdownMenuSearchInput } from '@/ui/layout/dropdown/components/Dropdow
 import { DropdownMenuSeparator } from '@/ui/layout/dropdown/components/DropdownMenuSeparator';
 
 import { useFilteredObjectMetadataItems } from '@/object-metadata/hooks/useFilteredObjectMetadataItems';
+import { useObjectMetadataSelectHelpers } from '@/object-metadata/hooks/useObjectMetadataSelectHelpers';
 import { isObjectMetadataAvailableForRelation } from '@/object-metadata/utils/isObjectMetadataAvailableForRelation';
 import { MultiSelectControl } from '@/ui/input/components/MultiSelectControl';
 import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
@@ -18,11 +19,12 @@ import { SelectableList } from '@/ui/layout/selectable-list/components/Selectabl
 import { SelectableListItem } from '@/ui/layout/selectable-list/components/SelectableListItem';
 import { useSelectableList } from '@/ui/layout/selectable-list/hooks/useSelectableList';
 import { selectedItemIdComponentState } from '@/ui/layout/selectable-list/states/selectedItemIdComponentState';
-import { useRecoilComponentValue } from '@/ui/utilities/state/component-state/hooks/useRecoilComponentValue';
+import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { isNonEmptyString } from '@sniptt/guards';
 import { isDefined } from 'twenty-shared/utils';
-import { IconBox, useIcons, type IconComponent } from 'twenty-ui/display';
+import { IconBox, type IconComponent } from 'twenty-ui/display';
 import { MenuItem, MenuItemMultiSelect } from 'twenty-ui/navigation';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 export type SelectSizeVariant = 'small' | 'default';
 
@@ -58,23 +60,23 @@ const StyledContainer = styled.div<{ fullWidth?: boolean }>`
 `;
 
 const StyledLabel = styled.span`
-  color: ${({ theme }) => theme.font.color.light};
+  color: ${themeCssVariables.font.color.light};
   display: block;
-  font-size: ${({ theme }) => theme.font.size.xs};
-  font-weight: ${({ theme }) => theme.font.weight.semiBold};
-  margin-bottom: ${({ theme }) => theme.spacing(1)};
+  font-size: ${themeCssVariables.font.size.xs};
+  font-weight: ${themeCssVariables.font.weight.semiBold};
+  margin-bottom: ${themeCssVariables.spacing[1]};
 `;
 
 const StyledDescription = styled.span`
-  color: ${({ theme }) => theme.font.color.light};
-  font-size: ${({ theme }) => theme.font.size.sm};
+  color: ${themeCssVariables.font.color.light};
+  font-size: ${themeCssVariables.font.size.sm};
 `;
 
 const StyledError = styled.span`
-  color: ${({ theme }) => theme.color.red};
+  color: ${themeCssVariables.color.red};
   display: block;
-  font-size: ${({ theme }) => theme.font.size.xs};
-  margin-top: ${({ theme }) => theme.spacing(1)};
+  font-size: ${themeCssVariables.font.size.xs};
+  margin-top: ${themeCssVariables.spacing[1]};
 `;
 
 export const SettingsMorphRelationMultiSelect = ({
@@ -100,12 +102,13 @@ export const SettingsMorphRelationMultiSelect = ({
 
   const [searchInputValue, setSearchInputValue] = useState('');
 
+  const { getSelectIconPropsFromObjectMetadataItem } =
+    useObjectMetadataSelectHelpers();
   const { activeObjectMetadataItems } = useFilteredObjectMetadataItems();
 
   const [localSelectedObjectMetadataIds, setLocalSelectedObjectMetadataIds] =
     useState<string[]>(selectedObjectMetadataIds);
 
-  const { getIcon } = useIcons();
   const options = activeObjectMetadataItems
     .filter(isObjectMetadataAvailableForRelation)
     .sort((item1, item2) =>
@@ -113,8 +116,8 @@ export const SettingsMorphRelationMultiSelect = ({
     )
     .map((objectMetadataItem) => ({
       label: objectMetadataItem.labelSingular,
-      Icon: getIcon(objectMetadataItem.icon),
       objectMetadataId: objectMetadataItem.id,
+      ...getSelectIconPropsFromObjectMetadataItem(objectMetadataItem),
     }));
 
   const selectedOptions = options.filter((option) =>
@@ -144,7 +147,7 @@ export const SettingsMorphRelationMultiSelect = ({
 
   const selectableItemIdArray = filteredOptions.map((option) => option.label);
 
-  const selectedItemId = useRecoilComponentValue(
+  const selectedItemId = useAtomComponentStateValue(
     selectedItemIdComponentState,
     dropdownId,
   );
@@ -152,7 +155,7 @@ export const SettingsMorphRelationMultiSelect = ({
   const { setSelectedItemId } = useSelectableList(dropdownId);
 
   const handleDropdownOpen = () => {
-    if (selectedOptions && selectedOptions.length > 0 && !searchInputValue) {
+    if (selectedOptions.length > 0 && !searchInputValue) {
       setSelectedItemId(selectedOptions[0].label);
     }
   };
@@ -255,6 +258,7 @@ export const SettingsMorphRelationMultiSelect = ({
                         <MenuItemMultiSelect
                           className=""
                           LeftIcon={option.Icon ?? undefined}
+                          iconThemeColor={option.iconThemeColor}
                           text={option.label}
                           selected={selectedObjectMetadataIds.some(
                             (selectedObjectMetadataId) =>

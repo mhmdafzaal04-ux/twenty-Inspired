@@ -20,7 +20,6 @@ import { WorkspaceAuthGuard } from 'src/engine/guards/workspace-auth.guard';
 import { CreateViewFieldInput } from 'src/engine/metadata-modules/view-field/dtos/inputs/create-view-field.input';
 import { UpdateViewFieldInput } from 'src/engine/metadata-modules/view-field/dtos/inputs/update-view-field.input';
 import { ViewFieldDTO } from 'src/engine/metadata-modules/view-field/dtos/view-field.dto';
-import { ViewFieldEntity } from 'src/engine/metadata-modules/view-field/entities/view-field.entity';
 import {
   generateViewFieldExceptionMessage,
   generateViewFieldUserFriendlyExceptionMessage,
@@ -29,7 +28,7 @@ import {
   ViewFieldExceptionMessageKey,
 } from 'src/engine/metadata-modules/view-field/exceptions/view-field.exception';
 import { ViewFieldRestApiExceptionFilter } from 'src/engine/metadata-modules/view-field/filters/view-field-rest-api-exception.filter';
-import { ViewFieldV2Service } from 'src/engine/metadata-modules/view-field/services/view-field-v2.service';
+import { ViewFieldService } from 'src/engine/metadata-modules/view-field/services/view-field.service';
 import { CreateViewFieldPermissionGuard } from 'src/engine/metadata-modules/view-permissions/guards/create-view-field-permission.guard';
 import { DeleteViewFieldPermissionGuard } from 'src/engine/metadata-modules/view-permissions/guards/delete-view-field-permission.guard';
 import { UpdateViewFieldPermissionGuard } from 'src/engine/metadata-modules/view-permissions/guards/update-view-field-permission.guard';
@@ -38,19 +37,19 @@ import { UpdateViewFieldPermissionGuard } from 'src/engine/metadata-modules/view
 @UseGuards(WorkspaceAuthGuard)
 @UseFilters(ViewFieldRestApiExceptionFilter)
 export class ViewFieldController {
-  constructor(private readonly viewFieldV2Service: ViewFieldV2Service) {}
+  constructor(private readonly viewFieldService: ViewFieldService) {}
 
   @Get()
   @UseGuards(NoPermissionGuard)
   async findMany(
     @AuthWorkspace() workspace: WorkspaceEntity,
     @Query('viewId') viewId?: string,
-  ): Promise<ViewFieldEntity[]> {
+  ): Promise<ViewFieldDTO[]> {
     if (viewId) {
-      return this.viewFieldV2Service.findByViewId(workspace.id, viewId);
+      return this.viewFieldService.findByViewId(workspace.id, viewId);
     }
 
-    return this.viewFieldV2Service.findByWorkspaceId(workspace.id);
+    return this.viewFieldService.findByWorkspaceId(workspace.id);
   }
 
   @Get(':id')
@@ -58,8 +57,8 @@ export class ViewFieldController {
   async findOne(
     @Param('id') id: string,
     @AuthWorkspace() workspace: WorkspaceEntity,
-  ): Promise<ViewFieldEntity> {
-    const viewField = await this.viewFieldV2Service.findById(id, workspace.id);
+  ): Promise<ViewFieldDTO> {
+    const viewField = await this.viewFieldService.findById(id, workspace.id);
 
     if (!isDefined(viewField)) {
       throw new ViewFieldException(
@@ -86,7 +85,7 @@ export class ViewFieldController {
     @Body() input: UpdateViewFieldInput['update'],
     @AuthWorkspace() workspace: WorkspaceEntity,
   ): Promise<ViewFieldDTO> {
-    return await this.viewFieldV2Service.updateOne({
+    return await this.viewFieldService.updateOne({
       updateViewFieldInput: { id, update: input },
       workspaceId: workspace.id,
     });
@@ -98,7 +97,7 @@ export class ViewFieldController {
     @Body() input: CreateViewFieldInput,
     @AuthWorkspace() workspace: WorkspaceEntity,
   ): Promise<ViewFieldDTO> {
-    return await this.viewFieldV2Service.createOne({
+    return await this.viewFieldService.createOne({
       createViewFieldInput: input,
       workspaceId: workspace.id,
     });
@@ -110,7 +109,7 @@ export class ViewFieldController {
     @Param('id') id: string,
     @AuthWorkspace() workspace: WorkspaceEntity,
   ): Promise<{ success: boolean }> {
-    const deletedViewField = await this.viewFieldV2Service.deleteOne({
+    const deletedViewField = await this.viewFieldService.deleteOne({
       deleteViewFieldInput: { id },
       workspaceId: workspace.id,
     });

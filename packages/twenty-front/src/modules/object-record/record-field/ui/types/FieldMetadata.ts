@@ -131,10 +131,6 @@ export type FieldRawJsonMetadata = BaseFieldMetadata & {
   settings?: null;
 };
 
-export type FieldRichTextV2Metadata = BaseFieldMetadata & {
-  settings?: null;
-};
-
 export type FieldRichTextMetadata = BaseFieldMetadata & {
   settings?: null;
 };
@@ -228,7 +224,7 @@ export type FieldMetadata =
   | FieldActorMetadata
   | FieldArrayMetadata
   | FieldTsVectorMetadata
-  | FieldRichTextV2Metadata
+  | FieldRawJsonMetadata
   | FieldRichTextMetadata;
 
 export type FieldTextValue = string;
@@ -280,15 +276,26 @@ export type FieldRelationValue<
   T extends FieldRelationToOneValue | FieldRelationFromManyValue,
 > = T;
 
+export type FieldMorphRelationManyToOneValue = {
+  objectNameSingular: string;
+  objectNamePlural: string;
+  value?: ObjectRecord;
+  foreignKeyFieldValue: string;
+} | null;
+
+export type FieldMorphRelationOneToManyValue = {
+  objectNameSingular: string;
+  objectNamePlural: string;
+  value: ObjectRecord[];
+}[];
+
 export type Json = ZodHelperLiteral | { [key: string]: Json } | Json[];
 export type FieldJsonValue = Record<string, Json> | Json[] | null;
 
-export type FieldRichTextV2Value = {
+export type FieldRichTextValue = {
   blocknote: string | null;
   markdown: string | null;
 };
-
-export type FieldRichTextValue = null | string;
 
 const FieldActorSourceSchema = z.union([
   z.literal('API'),
@@ -335,10 +342,11 @@ export type FieldPhonesValue = {
   additionalPhones?: PhoneRecord[] | null;
 };
 
-export type FieldFileValue = {
+export type FieldFilesValue = {
   fileId: string;
   label: string;
-  fileCategory: FileCategory;
+  extension?: string;
+  url?: string;
+  fileCategory?: FileCategory;
+  isDeleted?: boolean;
 };
-
-export type FieldFilesValue = FieldFileValue[];

@@ -7,13 +7,13 @@ import {
   type PhonesMetadata,
 } from 'twenty-shared/types';
 
+import { type FileOutput } from 'src/engine/api/common/common-args-processors/data-arg-processor/types/file-item.type';
 import { BaseWorkspaceEntity } from 'src/engine/twenty-orm/base.workspace-entity';
 import { type FieldTypeAndNameMetadata } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
 import { type EntityRelation } from 'src/engine/workspace-manager/workspace-migration/types/entity-relation.interface';
 import { type AttachmentWorkspaceEntity } from 'src/modules/attachment/standard-objects/attachment.workspace-entity';
 import { type CalendarEventParticipantWorkspaceEntity } from 'src/modules/calendar/common/standard-objects/calendar-event-participant.workspace-entity';
 import { type CompanyWorkspaceEntity } from 'src/modules/company/standard-objects/company.workspace-entity';
-import { type FavoriteWorkspaceEntity } from 'src/modules/favorite/standard-objects/favorite.workspace-entity';
 import { type MessageParticipantWorkspaceEntity } from 'src/modules/messaging/common/standard-objects/message-participant.workspace-entity';
 import { type NoteTargetWorkspaceEntity } from 'src/modules/note/standard-objects/note-target.workspace-entity';
 import { type OpportunityWorkspaceEntity } from 'src/modules/opportunity/standard-objects/opportunity.workspace-entity';
@@ -42,7 +42,9 @@ export class PersonWorkspaceEntity extends BaseWorkspaceEntity {
   phone: string | null;
   phones: PhonesMetadata;
   city: string | null;
+  /** @deprecated Use `avatarFile` field instead */
   avatarUrl: string | null;
+  avatarFile: FileOutput[] | null;
   position: number;
   createdBy: ActorMetadata;
   updatedBy: ActorMetadata;
@@ -51,7 +53,6 @@ export class PersonWorkspaceEntity extends BaseWorkspaceEntity {
   pointOfContactForOpportunities: EntityRelation<OpportunityWorkspaceEntity[]>;
   taskTargets: EntityRelation<TaskTargetWorkspaceEntity[]>;
   noteTargets: EntityRelation<NoteTargetWorkspaceEntity[]>;
-  favorites: EntityRelation<FavoriteWorkspaceEntity[]>;
   attachments: EntityRelation<AttachmentWorkspaceEntity[]>;
   messageParticipants: EntityRelation<MessageParticipantWorkspaceEntity[]>;
   calendarEventParticipants: EntityRelation<

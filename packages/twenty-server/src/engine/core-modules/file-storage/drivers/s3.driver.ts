@@ -1,8 +1,8 @@
 import { Logger } from '@nestjs/common';
 
 import fs from 'fs';
-import { mkdir, readdir, readFile } from 'fs/promises';
-import { join } from 'path';
+import { readdir, readFile } from 'fs/promises';
+import { dirname, join } from 'path';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 
@@ -20,6 +20,7 @@ import {
   S3,
   type S3ClientConfig,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { isDefined } from 'twenty-shared/utils';
 
 import { type StorageDriver } from 'src/engine/core-modules/file-storage/drivers/interfaces/storage-driver.interface';
@@ -32,15 +33,25 @@ export interface S3DriverOptions extends S3ClientConfig {
   bucketName: string;
   endpoint?: string;
   region: string;
+  presignEnabled?: boolean;
+  presignEndpoint?: string;
 }
 
 export class S3Driver implements StorageDriver {
   private s3Client: S3;
+  private presignClient: S3 | undefined;
   private bucketName: string;
   private readonly logger = new Logger(S3Driver.name);
 
   constructor(options: S3DriverOptions) {
-    const { bucketName, region, endpoint, ...s3Options } = options;
+    const {
+      bucketName,
+      region,
+      endpoint,
+      presignEnabled,
+      presignEndpoint,
+      ...s3Options
+    } = options;
 
     if (!bucketName || !region) {
       return;
@@ -48,6 +59,12 @@ export class S3Driver implements StorageDriver {
 
     this.s3Client = new S3({ ...s3Options, region, endpoint });
     this.bucketName = bucketName;
+
+    if (presignEnabled) {
+      this.presignClient = presignEndpoint
+        ? new S3({ ...s3Options, region, endpoint: presignEndpoint })
+        : this.s3Client;
+    }
   }
 
   public get client(): S3 {
@@ -95,6 +112,23 @@ export class S3Driver implements StorageDriver {
     await this.s3Client.send(command);
   }
 
+  private async createFolder(path: string) {
+    return fs.mkdirSync(path, { recursive: true });
+  }
+
+  async downloadFile(params: {
+    onStoragePath: string;
+    localPath: string;
+  }): Promise<void> {
+    await this.createFolder(dirname(params.localPath));
+
+    const fileStream = await this.readFile({
+      filePath: params.onStoragePath,
+    });
+
+    await pipeline(fileStream, fs.createWriteStream(params.localPath));
+  }
+
   async downloadFolder(params: {
     onStoragePath: string;
     localPath: string;
@@ -124,7 +158,7 @@ export class S3Driver implements StorageDriver {
         ? join(params.localPath, relativePath)
         : params.localPath;
 
-      await mkdir(localFolderPath, { recursive: true });
+      await this.createFolder(localFolderPath);
 
       const fileStream = await this.readFile({
         filePath: `${fromFolderPath}/${filename}`,
@@ -346,6 +380,28 @@ export class S3Driver implements StorageDriver {
     }
   }
 
+  async getPresignedUrl(params: {
+    filePath: string;
+    expiresInSeconds?: number;
+    responseContentType?: string;
+    responseContentDisposition?: string;
+  }): Promise<string | null> {
+    if (!this.presignClient) {
+      return null;
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: params.filePath,
+      ResponseContentType: params.responseContentType,
+      ResponseContentDisposition: params.responseContentDisposition,
+    });
+
+    return getSignedUrl(this.presignClient, command, {
+      expiresIn: params.expiresInSeconds ?? 900,
+    });
+  }
+
   async checkBucketExists(args: HeadBucketCommandInput) {
     try {
       await this.s3Client.headBucket(args);
@@ -387,12 +443,16 @@ export class S3Driver implements StorageDriver {
   private async emptyS3Directory(folderPath: string) {
     const listedObjects = await this.fetchS3FolderContents(folderPath);
 
-    if (listedObjects.Contents?.length === 0) return;
+    if (
+      !isDefined(listedObjects.Contents) ||
+      listedObjects.Contents.length === 0
+    )
+      return;
 
     const deleteParams = {
       Bucket: this.bucketName,
       Delete: {
-        Objects: listedObjects.Contents?.map(({ Key }) => {
+        Objects: listedObjects.Contents.map(({ Key }) => {
           return { Key };
         }),
       },

@@ -6,12 +6,7 @@ import { testRestFailingScenario } from 'test/integration/graphql/suites/inputs-
 import { testRestSuccessfulScenario } from 'test/integration/graphql/suites/inputs-validation/filter-validation/utils/test-rest-successful-scenario.util';
 import { destroyManyObjectsMetadata } from 'test/integration/graphql/suites/inputs-validation/utils/destroy-many-objects-metadata';
 import { setupTestObjectsWithAllFieldTypes } from 'test/integration/graphql/suites/inputs-validation/utils/setup-test-objects-with-all-field-types.util';
-import { makeGraphqlAPIRequest } from 'test/integration/graphql/utils/make-graphql-api-request.util';
-import { updateFeatureFlagFactory } from 'test/integration/graphql/utils/update-feature-flag-factory.util';
 import { FieldMetadataType } from 'twenty-shared/types';
-
-import { FeatureFlagKey } from 'src/engine/core-modules/feature-flag/enums/feature-flag-key.enum';
-import { SEED_APPLE_WORKSPACE_ID } from 'src/engine/workspace-manager/dev-seeder/core/constants/seeder-workspaces.constant';
 
 const FIELD_METADATA_TYPE = FieldMetadataType.FILES;
 
@@ -28,14 +23,6 @@ describe(`Filter input validation - ${FIELD_METADATA_TYPE}`, () => {
   let targetObjectMetadata2Id: string;
 
   beforeAll(async () => {
-    await makeGraphqlAPIRequest(
-      updateFeatureFlagFactory(
-        SEED_APPLE_WORKSPACE_ID,
-        FeatureFlagKey.IS_FILES_FIELD_ENABLED,
-        true,
-      ),
-    );
-
     const setupTest = await setupTestObjectsWithAllFieldTypes(true);
 
     objectMetadataId = setupTest.objectMetadataId;
@@ -51,14 +38,6 @@ describe(`Filter input validation - ${FIELD_METADATA_TYPE}`, () => {
       targetObjectMetadata1Id,
       targetObjectMetadata2Id,
     ]);
-
-    await makeGraphqlAPIRequest(
-      updateFeatureFlagFactory(
-        SEED_APPLE_WORKSPACE_ID,
-        FeatureFlagKey.IS_FILES_FIELD_ENABLED,
-        false,
-      ),
-    );
   });
 
   describe('Gql filter input - failure', () => {
@@ -69,12 +48,11 @@ describe(`Filter input validation - ${FIELD_METADATA_TYPE}`, () => {
       })),
     )(
       `${FIELD_METADATA_TYPE} field type - should fail with filter : $stringifiedFilter`,
-      async ({ gqlFilterInput: filter, gqlErrorMessage: errorMessage }) => {
+      async ({ gqlFilterInput: filter }) => {
         await testGqlFailingScenario(
           objectMetadataSingularName,
           objectMetadataPluralName,
           filter,
-          errorMessage,
         );
       },
     );
@@ -82,18 +60,16 @@ describe(`Filter input validation - ${FIELD_METADATA_TYPE}`, () => {
 
   describe('Rest filter input - failure', () => {
     it.each(
-      failingTestCases.map((testCase) => ({
-        ...testCase,
-        stringifiedFilter: JSON.stringify(testCase.restFilterInput),
-      })),
+      failingTestCases
+        .filter((testCase) => testCase.restFilterInput)
+        .map((testCase) => ({
+          ...testCase,
+          stringifiedFilter: JSON.stringify(testCase.restFilterInput),
+        })),
     )(
       `${FIELD_METADATA_TYPE} field type - should fail with filter : $stringifiedFilter`,
-      async ({ restFilterInput: filter, restErrorMessage: errorMessage }) => {
-        await testRestFailingScenario(
-          objectMetadataPluralName,
-          filter,
-          errorMessage,
-        );
+      async ({ restFilterInput: filter }) => {
+        await testRestFailingScenario(objectMetadataPluralName, filter);
       },
     );
   });

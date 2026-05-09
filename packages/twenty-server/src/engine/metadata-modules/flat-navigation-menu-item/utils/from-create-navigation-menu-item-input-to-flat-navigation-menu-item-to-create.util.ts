@@ -1,6 +1,9 @@
 import { isDefined } from 'twenty-shared/utils';
 import { v4 as uuidv4 } from 'uuid';
 
+import { type FlatApplication } from 'src/engine/core-modules/application/types/flat-application.type';
+import { type AllFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/all-flat-entity-maps.type';
+import { resolveEntityRelationUniversalIdentifiers } from 'src/engine/metadata-modules/flat-entity/utils/resolve-entity-relation-universal-identifiers.util';
 import { type FlatNavigationMenuItemMaps } from 'src/engine/metadata-modules/flat-navigation-menu-item/types/flat-navigation-menu-item-maps.type';
 import { type FlatNavigationMenuItem } from 'src/engine/metadata-modules/flat-navigation-menu-item/types/flat-navigation-menu-item.type';
 import { type CreateNavigationMenuItemInput } from 'src/engine/metadata-modules/navigation-menu-item/dtos/create-navigation-menu-item.input';
@@ -9,15 +12,21 @@ export const fromCreateNavigationMenuItemInputToFlatNavigationMenuItemToCreate =
   ({
     createNavigationMenuItemInput,
     workspaceId,
-    applicationId,
+    flatApplication,
     flatNavigationMenuItemMaps,
+    flatObjectMetadataMaps,
+    flatViewMaps,
+    flatPageLayoutMaps,
   }: {
     createNavigationMenuItemInput: CreateNavigationMenuItemInput;
     workspaceId: string;
-    applicationId: string;
+    flatApplication: FlatApplication;
     flatNavigationMenuItemMaps: FlatNavigationMenuItemMaps;
-  }): FlatNavigationMenuItem => {
-    const id = uuidv4();
+  } & Pick<
+    AllFlatEntityMaps,
+    'flatObjectMetadataMaps' | 'flatViewMaps' | 'flatPageLayoutMaps'
+  >): FlatNavigationMenuItem => {
+    const id = createNavigationMenuItemInput.id ?? uuidv4();
     const now = new Date().toISOString();
 
     let position = createNavigationMenuItemInput.position;
@@ -40,19 +49,51 @@ export const fromCreateNavigationMenuItemInputToFlatNavigationMenuItemToCreate =
       position = maxPosition + 1;
     }
 
+    const {
+      targetObjectMetadataUniversalIdentifier,
+      viewUniversalIdentifier,
+      folderUniversalIdentifier,
+      pageLayoutUniversalIdentifier,
+    } = resolveEntityRelationUniversalIdentifiers({
+      metadataName: 'navigationMenuItem',
+      foreignKeyValues: {
+        targetObjectMetadataId:
+          createNavigationMenuItemInput.targetObjectMetadataId,
+        viewId: createNavigationMenuItemInput.viewId,
+        folderId: createNavigationMenuItemInput.folderId,
+        pageLayoutId: createNavigationMenuItemInput.pageLayoutId,
+      },
+      flatEntityMaps: {
+        flatObjectMetadataMaps,
+        flatViewMaps,
+        flatNavigationMenuItemMaps,
+        flatPageLayoutMaps,
+      },
+    });
+
     return {
       id,
+      type: createNavigationMenuItemInput.type,
       universalIdentifier: id,
       userWorkspaceId: createNavigationMenuItemInput.userWorkspaceId ?? null,
       targetRecordId: createNavigationMenuItemInput.targetRecordId ?? null,
       targetObjectMetadataId:
         createNavigationMenuItemInput.targetObjectMetadataId ?? null,
+      targetObjectMetadataUniversalIdentifier,
       viewId: createNavigationMenuItemInput.viewId ?? null,
+      viewUniversalIdentifier,
       folderId: createNavigationMenuItemInput.folderId ?? null,
+      folderUniversalIdentifier,
+      pageLayoutId: createNavigationMenuItemInput.pageLayoutId ?? null,
+      pageLayoutUniversalIdentifier,
       name: createNavigationMenuItemInput.name ?? null,
+      link: createNavigationMenuItemInput.link ?? null,
+      icon: createNavigationMenuItemInput.icon ?? null,
+      color: createNavigationMenuItemInput.color ?? null,
       position,
       workspaceId,
-      applicationId,
+      applicationId: flatApplication.id,
+      applicationUniversalIdentifier: flatApplication.universalIdentifier,
       createdAt: now,
       updatedAt: now,
     };

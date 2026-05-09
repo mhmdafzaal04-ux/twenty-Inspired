@@ -10,12 +10,22 @@ import {
   Relation,
 } from 'typeorm';
 
+import { FileEntity } from 'src/engine/core-modules/file/entities/file.entity';
 import { AgentMessageEntity } from 'src/engine/metadata-modules/ai/ai-agent-execution/entities/agent-message.entity';
+import type { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 
-@Entity('agentMessagePart')
+@Entity({ name: 'agentMessagePart', schema: 'core' })
 export class AgentMessagePartEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ nullable: false, type: 'uuid' })
+  @Index()
+  workspaceId: string;
+
+  @ManyToOne('WorkspaceEntity', { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'workspaceId' })
+  workspace: Relation<WorkspaceEntity>;
 
   @Column('uuid')
   @Index()
@@ -54,6 +64,12 @@ export class AgentMessagePartEntity {
   @Column({ type: 'varchar', nullable: true })
   state: string | null;
 
+  // True when the tool was executed by the model provider itself
+  // (e.g. Anthropic's server-side web_search). convertToModelMessages
+  // relies on this to emit the correct server-tool wire format.
+  @Column({ type: 'boolean', nullable: true })
+  providerExecuted: boolean | null;
+
   @Column({ type: 'text', nullable: true })
   errorMessage: string | null;
 
@@ -82,17 +98,21 @@ export class AgentMessagePartEntity {
   sourceDocumentFilename: string | null;
 
   @Column({ type: 'varchar', nullable: true })
-  fileMediaType: string | null;
-
-  @Column({ type: 'varchar', nullable: true })
   fileFilename: string | null;
 
-  @Column({ type: 'varchar', nullable: true })
-  fileUrl: string | null;
+  @Column({ type: 'uuid', nullable: true })
+  fileId: string | null;
+
+  @ManyToOne(() => FileEntity, {
+    onDelete: 'RESTRICT',
+    nullable: true,
+  })
+  @JoinColumn({ name: 'fileId' })
+  file: Relation<FileEntity> | null;
 
   @Column({ type: 'jsonb', nullable: true })
   providerMetadata: Record<string, Record<string, JSONValue>> | null;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 }

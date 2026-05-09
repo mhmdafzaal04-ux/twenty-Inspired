@@ -84,11 +84,29 @@ export const mockFlatObjectMetadatas: FlatObjectMetadata[] = [
     universalIdentifier: 'non-searchable-object-universal-id',
     applicationId: workspaceId,
   }),
+  getFlatObjectMetadataMock({
+    id: '20202020-6a7c-4e3f-9b2d-1d8f7a3e5c4b',
+    nameSingular: 'message',
+    namePlural: 'messages',
+    labelSingular: 'Message',
+    labelPlural: 'Messages',
+    description: 'Message',
+    icon: 'IconMessage',
+    isCustom: false,
+    isSystem: true,
+    isSearchable: false,
+    labelIdentifierFieldMetadataId: null,
+    imageIdentifierFieldMetadataId: null,
+    workspaceId,
+    fieldIds: [],
+    universalIdentifier: 'message-universal-id',
+    applicationId: workspaceId,
+  }),
 ];
 
 export const mockFlatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
-  byId: {
-    [personNameFieldId]: getFlatFieldMetadataMock({
+  byUniversalIdentifier: {
+    'person-name-field-universal-id': getFlatFieldMetadataMock({
       id: personNameFieldId,
       type: FieldMetadataType.FULL_NAME,
       icon: 'test-field-icon',
@@ -102,7 +120,7 @@ export const mockFlatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
       universalIdentifier: 'person-name-field-universal-id',
       applicationId: workspaceId,
     }),
-    [companyNameFieldId]: getFlatFieldMetadataMock({
+    'company-name-field-universal-id': getFlatFieldMetadataMock({
       id: companyNameFieldId,
       type: FieldMetadataType.TEXT,
       icon: 'test-field-icon',
@@ -116,7 +134,7 @@ export const mockFlatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
       universalIdentifier: 'company-name-field-universal-id',
       applicationId: workspaceId,
     }),
-    [companyDomainNameFieldId]: getFlatFieldMetadataMock({
+    'company-domain-name-field-universal-id': getFlatFieldMetadataMock({
       id: companyDomainNameFieldId,
       type: FieldMetadataType.LINKS,
       icon: 'test-field-icon',
@@ -134,7 +152,7 @@ export const mockFlatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
       universalIdentifier: 'company-domain-name-field-universal-id',
       applicationId: workspaceId,
     }),
-    [customObjectNameFieldId]: getFlatFieldMetadataMock({
+    'custom-object-name-field-universal-id': getFlatFieldMetadataMock({
       id: customObjectNameFieldId,
       type: FieldMetadataType.TEXT,
       icon: 'test-field-icon',
@@ -148,7 +166,7 @@ export const mockFlatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
       universalIdentifier: 'custom-object-name-field-universal-id',
       applicationId: workspaceId,
     }),
-    [customObjectImageFieldId]: getFlatFieldMetadataMock({
+    'custom-object-image-field-universal-id': getFlatFieldMetadataMock({
       id: customObjectImageFieldId,
       type: FieldMetadataType.TEXT,
       icon: 'test-field-icon',
@@ -163,6 +181,12 @@ export const mockFlatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata> = {
       applicationId: workspaceId,
     }),
   },
-  idByUniversalIdentifier: {},
+  universalIdentifierById: {
+    [personNameFieldId]: 'person-name-field-universal-id',
+    [companyNameFieldId]: 'company-name-field-universal-id',
+    [companyDomainNameFieldId]: 'company-domain-name-field-universal-id',
+    [customObjectNameFieldId]: 'custom-object-name-field-universal-id',
+    [customObjectImageFieldId]: 'custom-object-image-field-universal-id',
+  },
   universalIdentifiersByApplicationId: {},
 };

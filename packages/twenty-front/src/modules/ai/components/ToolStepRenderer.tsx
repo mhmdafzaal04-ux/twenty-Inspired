@@ -1,15 +1,18 @@
-import { useTheme } from '@emotion/react';
-import styled from '@emotion/styled';
-import { useState } from 'react';
+import { styled } from '@linaria/react';
+import { useContext, useState } from 'react';
 
 import { IconChevronDown, IconChevronUp } from 'twenty-ui/display';
 import { JsonTree } from 'twenty-ui/json-visualizer';
 import { AnimatedExpandableContainer } from 'twenty-ui/layout';
+import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
 import { CodeExecutionDisplay } from '@/ai/components/CodeExecutionDisplay';
 import { ShimmeringText } from '@/ai/components/ShimmeringText';
+import {
+  getToolDisplayMessage,
+  resolveToolInput,
+} from '@/ai/utils/getToolDisplayMessage';
 import { getToolIcon } from '@/ai/utils/getToolIcon';
-import { getToolDisplayMessage } from '@/ai/utils/getWebSearchToolDisplayMessage';
 import { useLingui } from '@lingui/react/macro';
 import { type ToolUIPart } from 'ai';
 import { isDefined } from 'twenty-shared/utils';
@@ -19,21 +22,16 @@ import { useCopyToClipboard } from '~/hooks/useCopyToClipboard';
 const StyledContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.spacing(2)};
-`;
-
-const StyledLoadingContainer = styled.div`
-  align-items: center;
-  display: flex;
-  gap: ${({ theme }) => theme.spacing(2)};
+  font-family: ${themeCssVariables.font.family};
+  gap: ${themeCssVariables.spacing[2]};
 `;
 
 const StyledContentContainer = styled.div`
-  background: ${({ theme }) => theme.background.transparent.lighter};
-  border: 1px solid ${({ theme }) => theme.border.color.light};
-  border-radius: ${({ theme }) => theme.border.radius.sm};
+  background: ${themeCssVariables.background.transparent.lighter};
+  border: 1px solid ${themeCssVariables.border.color.light};
+  border-radius: ${themeCssVariables.border.radius.sm};
   min-width: 0;
-  padding: ${({ theme }) => theme.spacing(3)};
+  padding: ${themeCssVariables.spacing[3]};
 `;
 
 const StyledJsonTreeContainer = styled.div`
@@ -48,137 +46,166 @@ const StyledToggleButton = styled.div<{ isExpandable: boolean }>`
   align-items: center;
   background: none;
   border: none;
+  color: ${themeCssVariables.font.color.tertiary};
   cursor: ${({ isExpandable }) => (isExpandable ? 'pointer' : 'auto')};
   display: flex;
-  color: ${({ theme }) => theme.font.color.tertiary};
-  gap: ${({ theme }) => theme.spacing(1)};
-  padding: ${({ theme }) => theme.spacing(1)} 0;
-  transition: color ${({ theme }) => theme.animation.duration.normal}s;
+  gap: ${themeCssVariables.spacing[1]};
   justify-content: space-between;
+  padding: ${themeCssVariables.spacing[1]} 0;
+  transition: color calc(${themeCssVariables.animation.duration.fast} * 1s)
+    ease-in-out;
   width: 100%;
 
   &:hover {
-    color: ${({ theme }) => theme.font.color.secondary};
+    color: ${themeCssVariables.font.color.primary};
   }
 `;
 
 const StyledToolName = styled.span`
-  background: ${({ theme }) => theme.background.transparent.light};
-  border-radius: ${({ theme }) => theme.border.radius.xs};
-  color: ${({ theme }) => theme.font.color.light};
-  font-family: ${({ theme }) => theme.font.family};
-  font-size: ${({ theme }) => theme.font.size.xs};
-  padding: ${({ theme }) => theme.spacing(0.5)}
-    ${({ theme }) => theme.spacing(1)};
+  background: ${themeCssVariables.background.transparent.light};
+  border-radius: ${themeCssVariables.border.radius.xs};
+  color: ${themeCssVariables.font.color.light};
+  font-family: ${themeCssVariables.font.family};
+  font-size: ${themeCssVariables.font.size.xs};
+  padding: ${themeCssVariables.spacing['0.5']} ${themeCssVariables.spacing[1]};
 `;
 
 const StyledLeftContent = styled.div`
-  display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing(1)};
+  display: flex;
+  gap: ${themeCssVariables.spacing[1]};
 `;
 
 const StyledRightContent = styled.div`
-  display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing(2)};
+  display: flex;
+  gap: ${themeCssVariables.spacing[2]};
 `;
 
 const StyledDisplayMessage = styled.span`
-  color: ${({ theme }) => theme.font.color.tertiary};
-  font-size: ${({ theme }) => theme.font.size.md};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${themeCssVariables.font.color.tertiary};
+  font-size: ${themeCssVariables.font.size.md};
+  font-weight: ${themeCssVariables.font.weight.medium};
 `;
 
 const StyledIconTextContainer = styled.div`
-  display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing(1)};
+  display: flex;
+  gap: ${themeCssVariables.spacing[1]};
 
   svg {
-    min-width: ${({ theme }) => theme.icon.size.sm}px;
+    min-width: calc(${themeCssVariables.icon.size.sm} * 1px);
   }
 `;
 
 const StyledTabContainer = styled.div`
-  border-bottom: 1px solid ${({ theme }) => theme.border.color.light};
+  border-bottom: 1px solid ${themeCssVariables.border.color.light};
   display: flex;
-  gap: ${({ theme }) => theme.spacing(3)};
-  margin-bottom: ${({ theme }) => theme.spacing(3)};
+  gap: ${themeCssVariables.spacing[3]};
+  margin-bottom: ${themeCssVariables.spacing[3]};
 `;
 
 const StyledTab = styled.div<{ isActive: boolean }>`
-  color: ${({ theme, isActive }) =>
-    isActive ? theme.font.color.primary : theme.font.color.tertiary};
-  font-size: ${({ theme }) => theme.font.size.sm};
-  font-weight: ${({ theme, isActive }) =>
-    isActive ? theme.font.weight.medium : theme.font.weight.regular};
+  color: ${({ isActive }) =>
+    isActive
+      ? themeCssVariables.font.color.primary
+      : themeCssVariables.font.color.tertiary};
   cursor: pointer;
-  transition: color ${({ theme }) => theme.animation.duration.normal}s;
-  padding-bottom: ${({ theme }) => theme.spacing(2)};
+  font-size: ${themeCssVariables.font.size.sm};
+  font-weight: ${({ isActive }) =>
+    isActive
+      ? themeCssVariables.font.weight.medium
+      : themeCssVariables.font.weight.regular};
+  padding-bottom: ${themeCssVariables.spacing[2]};
+  transition: color calc(${themeCssVariables.animation.duration.fast} * 1s)
+    ease-in-out;
 
   &:hover {
-    color: ${({ theme }) => theme.font.color.secondary};
+    color: ${themeCssVariables.font.color.primary};
   }
 `;
 
 type TabType = 'output' | 'input';
 
-export const ToolStepRenderer = ({ toolPart }: { toolPart: ToolUIPart }) => {
+export const ToolStepRenderer = ({
+  toolPart,
+  isStreaming,
+}: {
+  toolPart: ToolUIPart;
+  isStreaming: boolean;
+}) => {
+  const { theme } = useContext(ThemeContext);
   const { t } = useLingui();
-  const theme = useTheme();
   const { copyToClipboard } = useCopyToClipboard();
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('output');
 
   const { input, output, type, errorText } = toolPart;
-  const toolName = type.split('-')[1];
+  const rawToolName = type.split('-')[1];
 
-  const toolInput =
-    isDefined(input) && typeof input === 'object' && 'input' in input
-      ? input.input
-      : input;
+  const { resolvedInput: toolInput, resolvedToolName: toolName } =
+    resolveToolInput(input, rawToolName);
 
   const hasError = isDefined(errorText);
   const isExpandable = isDefined(output) || hasError;
+  const ToolIcon = getToolIcon(toolName);
+
+  const outputObj =
+    typeof output === 'object' && output !== null
+      ? (output as Record<string, unknown>)
+      : null;
+  const toolMessage =
+    typeof outputObj?.message === 'string' ? outputObj.message : null;
+  const toolError =
+    typeof outputObj?.error === 'string' ? outputObj.error : null;
 
   if (toolName === 'code_interpreter') {
     const codeInput = toolInput as { code?: string } | undefined;
-    const codeOutput = output as {
-      result?: {
-        stdout?: string;
-        stderr?: string;
-        exitCode?: number;
-        files?: Array<{ filename: string; url: string; mimeType?: string }>;
-      };
+    const codeOutput = outputObj as {
+      stdout?: string;
+      stderr?: string;
+      exitCode?: number;
+      files?: Array<{
+        fileId: string;
+        filename: string;
+        url: string;
+        mimeType?: string;
+      }>;
     } | null;
 
-    const isRunning = !output && !hasError;
+    const isRunning = !outputObj && !hasError && isStreaming;
 
     return (
       <CodeExecutionDisplay
         code={codeInput?.code ?? ''}
-        stdout={codeOutput?.result?.stdout ?? ''}
-        stderr={codeOutput?.result?.stderr || errorText || ''}
-        exitCode={codeOutput?.result?.exitCode}
-        files={codeOutput?.result?.files}
+        stdout={codeOutput?.stdout ?? ''}
+        stderr={codeOutput?.stderr || errorText || ''}
+        exitCode={codeOutput?.exitCode}
+        files={codeOutput?.files}
         isRunning={isRunning}
       />
     );
   }
 
   if (!output && !hasError) {
+    const displayText = isStreaming
+      ? getToolDisplayMessage(input, rawToolName, false)
+      : getToolDisplayMessage(input, rawToolName, true);
+
     return (
       <StyledContainer>
         <StyledToggleButton isExpandable={false}>
           <StyledLeftContent>
-            <StyledLoadingContainer>
-              <ShimmeringText>
-                <StyledDisplayMessage>
-                  {getToolDisplayMessage(input, toolName, false)}
-                </StyledDisplayMessage>
-              </ShimmeringText>
-            </StyledLoadingContainer>
+            <StyledIconTextContainer>
+              <ToolIcon size={theme.icon.size.sm} />
+              {isStreaming ? (
+                <ShimmeringText>
+                  <StyledDisplayMessage>{displayText}</StyledDisplayMessage>
+                </ShimmeringText>
+              ) : (
+                <StyledDisplayMessage>{displayText}</StyledDisplayMessage>
+              )}
+            </StyledIconTextContainer>
           </StyledLeftContent>
           <StyledRightContent>
             <StyledToolName>{toolName}</StyledToolName>
@@ -190,19 +217,13 @@ export const ToolStepRenderer = ({ toolPart }: { toolPart: ToolUIPart }) => {
 
   const displayMessage = hasError
     ? t`Tool execution failed`
-    : output &&
-        typeof output === 'object' &&
-        'message' in output &&
-        typeof output.message === 'string'
-      ? output.message
-      : getToolDisplayMessage(input, toolName, true);
+    : rawToolName === 'learn_tools' ||
+        rawToolName === 'execute_tool' ||
+        rawToolName === 'load_skills'
+      ? getToolDisplayMessage(input, rawToolName, true)
+      : (toolMessage ?? getToolDisplayMessage(input, rawToolName, true));
 
-  const result =
-    output && typeof output === 'object' && 'result' in output
-      ? (output as { result: string }).result
-      : output;
-
-  const ToolIcon = getToolIcon(toolName);
+  const result = toolError ? { error: toolError } : outputObj;
 
   return (
     <StyledContainer>

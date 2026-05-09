@@ -1,51 +1,60 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { anthropic } from '@ai-sdk/anthropic';
-import { openai } from '@ai-sdk/openai';
 import {
   convertToModelMessages,
+  type LanguageModelUsage,
   stepCountIs,
+  type StepResult,
   streamText,
+  type SystemModelMessage,
   type ToolSet,
   type UIDataTypes,
   type UIMessage,
   type UITools,
 } from 'ai';
 import { AppPath } from 'twenty-shared/types';
-import { getAppPath } from 'twenty-shared/utils';
+import { getAppPath, isDefined } from 'twenty-shared/utils';
 
-import { type CodeExecutionStreamEmitter } from 'src/engine/core-modules/tool-provider/interfaces/tool-provider.interface';
+import { UsageOperationType } from 'src/engine/core-modules/usage/enums/usage-operation-type.enum';
 
+import { type CodeExecutionStreamEmitter } from 'src/engine/core-modules/tool-provider/interfaces/code-execution-stream-emitter.type';
+
+import { CodeInterpreterService } from 'src/engine/core-modules/code-interpreter/code-interpreter.service';
 import { WorkspaceDomainsService } from 'src/engine/core-modules/domain/workspace-domains/services/workspace-domains.service';
+import { ExceptionHandlerService } from 'src/engine/core-modules/exception-handler/exception-handler.service';
+import { NativeToolBinderService } from 'src/engine/core-modules/tool-provider/native/native-tool-binder.service';
+import { ToolRegistryService } from 'src/engine/core-modules/tool-provider/services/tool-registry.service';
 import {
-  type ToolIndexEntry,
-  ToolRegistryService,
-} from 'src/engine/core-modules/tool-provider/services/tool-registry.service';
-import {
+  createExecuteToolTool,
+  createLearnToolsTool,
   createLoadSkillTool,
-  createLoadToolsTool,
-  type DynamicToolStore,
+  EXECUTE_TOOL_TOOL_NAME,
+  LEARN_TOOLS_TOOL_NAME,
   LOAD_SKILL_TOOL_NAME,
-  LOAD_TOOLS_TOOL_NAME,
 } from 'src/engine/core-modules/tool-provider/tools';
 import { type WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { AgentActorContextService } from 'src/engine/metadata-modules/ai/ai-agent-execution/services/agent-actor-context.service';
 import { AGENT_CONFIG } from 'src/engine/metadata-modules/ai/ai-agent/constants/agent-config.const';
 import { type BrowsingContextType } from 'src/engine/metadata-modules/ai/ai-agent/types/browsingContext.type';
 import { repairToolCall } from 'src/engine/metadata-modules/ai/ai-agent/utils/repair-tool-call.util';
-import { AIBillingService } from 'src/engine/metadata-modules/ai/ai-billing/services/ai-billing.service';
-import { CHAT_SYSTEM_PROMPTS } from 'src/engine/metadata-modules/ai/ai-chat/constants/chat-system-prompts.const';
+import { AiBillingService } from 'src/engine/metadata-modules/ai/ai-billing/services/ai-billing.service';
+import { countNativeWebSearchCallsFromSteps } from 'src/engine/metadata-modules/ai/ai-billing/utils/count-native-web-search-calls-from-steps.util';
+import { extractCacheCreationTokensFromSteps } from 'src/engine/metadata-modules/ai/ai-billing/utils/extract-cache-creation-tokens.util';
+import { AI_CHAT_TOOL_NAMES_TO_PRELOAD } from 'src/engine/metadata-modules/ai/ai-chat/constants/ai-chat-tool-names-to-preload.const';
+import { MessagePruningService } from 'src/engine/metadata-modules/ai/ai-chat/services/message-pruning.service';
+import { SystemPromptBuilderService } from 'src/engine/metadata-modules/ai/ai-chat/services/system-prompt-builder.service';
 import {
   extractCodeInterpreterFiles,
   type ExtractedFile,
 } from 'src/engine/metadata-modules/ai/ai-chat/utils/extract-code-interpreter-files.util';
 import {
-  type AIModelConfig,
-  ModelProvider,
-} from 'src/engine/metadata-modules/ai/ai-models/constants/ai-models.const';
+  injectCacheBreakpoint,
+  getCacheProviderOptions,
+  getCallLevelCacheProviderOptions,
+} from 'src/engine/metadata-modules/ai/ai-chat/utils/inject-cache-breakpoint.util';
 import { AI_TELEMETRY_CONFIG } from 'src/engine/metadata-modules/ai/ai-models/constants/ai-telemetry.const';
 import { AiModelRegistryService } from 'src/engine/metadata-modules/ai/ai-models/services/ai-model-registry.service';
-import { type FlatSkill } from 'src/engine/metadata-modules/flat-skill/types/flat-skill.type';
+import { type AiModelConfig } from 'src/engine/metadata-modules/ai/ai-models/types/ai-model-config.type';
 import { SkillService } from 'src/engine/metadata-modules/skill/skill.service';
 
 export type ChatExecutionOptions = {
@@ -54,15 +63,16 @@ export type ChatExecutionOptions = {
   messages: UIMessage<unknown, UIDataTypes, UITools>[];
   browsingContext: BrowsingContextType | null;
   onCodeExecutionUpdate?: CodeExecutionStreamEmitter;
+  onCompaction?: () => void;
+  modelId?: string;
+  abortSignal?: AbortSignal;
+  conversationSizeTokens: number;
 };
 
 export type ChatExecutionResult = {
   stream: ReturnType<typeof streamText>;
-  preloadedTools: string[];
-  modelConfig: AIModelConfig;
+  modelConfig: AiModelConfig;
 };
-
-const COMMON_PRELOAD_TOOLS = ['search_help_center'];
 
 @Injectable()
 export class ChatExecutionService {
@@ -72,9 +82,14 @@ export class ChatExecutionService {
     private readonly toolRegistry: ToolRegistryService,
     private readonly skillService: SkillService,
     private readonly aiModelRegistryService: AiModelRegistryService,
-    private readonly aiBillingService: AIBillingService,
+    private readonly aiBillingService: AiBillingService,
     private readonly agentActorContextService: AgentActorContextService,
     private readonly workspaceDomainsService: WorkspaceDomainsService,
+    private readonly codeInterpreterService: CodeInterpreterService,
+    private readonly systemPromptBuilder: SystemPromptBuilderService,
+    private readonly exceptionHandlerService: ExceptionHandlerService,
+    private readonly nativeToolBinder: NativeToolBinderService,
+    private readonly messagePruningService: MessagePruningService,
   ) {}
 
   async streamChat({
@@ -83,8 +98,12 @@ export class ChatExecutionService {
     messages,
     browsingContext,
     onCodeExecutionUpdate,
+    onCompaction,
+    modelId,
+    abortSignal,
+    conversationSizeTokens,
   }: ChatExecutionOptions): Promise<ChatExecutionResult> {
-    const { actorContext, roleId, userId } =
+    const { actorContext, roleId, userId, userContext } =
       await this.agentActorContextService.buildUserAndAgentActorContext(
         userWorkspaceId,
         workspace.id,
@@ -118,80 +137,207 @@ export class ChatExecutionService {
     );
 
     const preloadedTools = await this.toolRegistry.getToolsByName(
-      COMMON_PRELOAD_TOOLS,
+      AI_CHAT_TOOL_NAMES_TO_PRELOAD,
       toolContext,
+      { compactOutput: true },
     );
 
-    const preloadedToolNames = Object.keys(preloadedTools);
+    const resolvedModelId = modelId ?? workspace.smartModel;
 
-    const dynamicToolStore: DynamicToolStore = {
-      loadedTools: new Set(preloadedToolNames),
-    };
+    this.aiModelRegistryService.validateModelAvailability(
+      resolvedModelId,
+      workspace,
+    );
 
     const registeredModel =
-      this.aiModelRegistryService.getDefaultPerformanceModel();
+      await this.aiModelRegistryService.resolveModelForAgent({
+        modelId: resolvedModelId,
+      });
 
     const modelConfig = this.aiModelRegistryService.getEffectiveModelConfig(
       registeredModel.modelId,
     );
 
-    const activeTools: ToolSet = {
+    const nativeModelTools = this.nativeToolBinder.bind(registeredModel, {
+      webSearchEnabled: true,
+    });
+
+    // Tools the model can call directly: preloaded registry tools (already
+    // serialized by the hydrator) plus SDK-native tools (opaque, never
+    // serialized). execute_tool routes discovered tools through the registry.
+    const directTools: ToolSet = {
       ...preloadedTools,
-      ...this.getNativeWebSearchTool(registeredModel.provider),
-      [LOAD_TOOLS_TOOL_NAME]: createLoadToolsTool(
+      ...nativeModelTools,
+    };
+
+    const preloadedToolNames = [
+      ...Object.keys(preloadedTools),
+      ...Object.keys(nativeModelTools),
+    ];
+
+    // ToolSet is constant for the entire conversation — no mutation.
+    // learn_tools returns schemas as text; execute_tool dispatches via the registry.
+    const activeTools: ToolSet = {
+      ...directTools,
+      [LEARN_TOOLS_TOOL_NAME]: createLearnToolsTool(
         this.toolRegistry,
         toolContext,
-        dynamicToolStore,
-        async (toolNames) => {
-          const newTools = await this.toolRegistry.getToolsByName(
-            toolNames,
-            toolContext,
+      ),
+      [EXECUTE_TOOL_TOOL_NAME]: createExecuteToolTool(
+        this.toolRegistry,
+        toolContext,
+        { compactOutput: true },
+      ),
+      [LOAD_SKILL_TOOL_NAME]: createLoadSkillTool(
+        (skillNames) =>
+          this.skillService.findFlatSkillsByNames(skillNames, workspace.id),
+        async () => {
+          const allSkills = await this.skillService.findAllFlatSkills(
+            workspace.id,
           );
 
-          Object.assign(activeTools, newTools);
-          this.logger.log(`Dynamically loaded tools: ${toolNames.join(', ')}`);
+          return allSkills.map((skill) => skill.name);
         },
-      ),
-      [LOAD_SKILL_TOOL_NAME]: createLoadSkillTool((skillNames) =>
-        this.skillService.findFlatSkillsByNames(skillNames, workspace.id),
       ),
     };
 
-    const { processedMessages, extractedFiles } =
-      extractCodeInterpreterFiles(messages);
+    let processedMessages: UIMessage[] = messages;
 
     let storedFiles: Array<{
       filename: string;
-      storagePath: string;
-      url: string;
+      fileId: string;
     }> = [];
 
-    if (extractedFiles.length > 0) {
-      storedFiles = await this.storeExtractedFiles(
-        extractedFiles,
-        workspace.id,
-      );
+    if (this.codeInterpreterService.isEnabled()) {
+      const extracted = extractCodeInterpreterFiles(messages);
+
+      processedMessages = extracted.processedMessages;
+
+      if (extracted.extractedFiles.length > 0) {
+        storedFiles = await this.storeExtractedFiles(
+          extracted.extractedFiles,
+          workspace.id,
+        );
+      }
     }
 
-    const systemPrompt = this.buildSystemPrompt(
+    const systemPrompt = this.systemPromptBuilder.buildFullPrompt(
       toolCatalog,
       skillCatalog,
       preloadedToolNames,
       contextString,
       storedFiles,
+      workspace.aiAdditionalInstructions ?? undefined,
+      userContext,
     );
 
     this.logger.log(
       `Starting chat execution with model ${registeredModel.modelId}, ${Object.keys(activeTools).length} active tools`,
     );
 
+    const systemMessage: SystemModelMessage = {
+      role: 'system',
+      content: systemPrompt,
+      providerOptions: getCacheProviderOptions(registeredModel.sdkPackage),
+    };
+
+    const rawModelMessages = await convertToModelMessages(processedMessages);
+
+    const pruningResult =
+      this.messagePruningService.pruneIfOverContextWindowLimit(
+        rawModelMessages,
+        modelConfig.contextWindowTokens,
+        conversationSizeTokens,
+      );
+
+    if (pruningResult.isStillOverLimit) {
+      throw new Error(
+        'This conversation is too long for the model to process. Please start a new thread.',
+      );
+    }
+
+    if (pruningResult.wasPruned) {
+      onCompaction?.();
+    }
+
+    const modelMessages = pruningResult.messages;
+
+    const billUsageFromSteps = async (steps: StepResult<ToolSet>[]) => {
+      const usage = steps.reduce<LanguageModelUsage>(
+        (acc, step) => ({
+          inputTokens: (acc.inputTokens ?? 0) + (step.usage.inputTokens ?? 0),
+          outputTokens:
+            (acc.outputTokens ?? 0) + (step.usage.outputTokens ?? 0),
+          totalTokens: (acc.totalTokens ?? 0) + (step.usage.totalTokens ?? 0),
+          inputTokenDetails: {
+            noCacheTokens:
+              (acc.inputTokenDetails?.noCacheTokens ?? 0) +
+              (step.usage.inputTokenDetails?.noCacheTokens ?? 0),
+            cacheReadTokens:
+              (acc.inputTokenDetails?.cacheReadTokens ?? 0) +
+              (step.usage.inputTokenDetails?.cacheReadTokens ?? 0),
+            cacheWriteTokens:
+              (acc.inputTokenDetails?.cacheWriteTokens ?? 0) +
+              (step.usage.inputTokenDetails?.cacheWriteTokens ?? 0),
+          },
+          outputTokenDetails: {
+            textTokens:
+              (acc.outputTokenDetails?.textTokens ?? 0) +
+              (step.usage.outputTokenDetails?.textTokens ?? 0),
+            reasoningTokens:
+              (acc.outputTokenDetails?.reasoningTokens ?? 0) +
+              (step.usage.outputTokenDetails?.reasoningTokens ?? 0),
+          },
+        }),
+        {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          inputTokenDetails: {
+            noCacheTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+          },
+          outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
+        },
+      );
+
+      const cacheCreationTokens = extractCacheCreationTokensFromSteps(steps);
+
+      await this.aiBillingService.calculateAndBillUsage(
+        registeredModel.modelId,
+        { usage, cacheCreationTokens },
+        workspace.id,
+        UsageOperationType.AI_CHAT_TOKEN,
+        null,
+        userWorkspaceId,
+      );
+
+      // billNativeWebSearchUsage short-circuits when count <= 0, so calling
+      // unconditionally is safe regardless of whether native search fired.
+      this.aiBillingService.billNativeWebSearchUsage(
+        countNativeWebSearchCallsFromSteps(steps),
+        workspace.id,
+        userWorkspaceId,
+      );
+    };
+
     const stream = streamText({
       model: registeredModel.model,
-      system: systemPrompt,
-      messages: convertToModelMessages(processedMessages),
+      messages: [systemMessage, ...modelMessages],
       tools: activeTools,
+      abortSignal,
       stopWhen: stepCountIs(AGENT_CONFIG.MAX_STEPS),
       experimental_telemetry: AI_TELEMETRY_CONFIG,
+      providerOptions: getCallLevelCacheProviderOptions(
+        registeredModel.sdkPackage,
+      ),
+      prepareStep: ({ messages }) => ({
+        messages: injectCacheBreakpoint(messages, registeredModel.sdkPackage),
+      }),
+      onAbort: async ({ steps }) => {
+        await billUsageFromSteps(steps);
+      },
       experimental_repairToolCall: async ({
         toolCall,
         tools: toolsForRepair,
@@ -204,26 +350,30 @@ export class ChatExecutionService {
           inputSchema,
           error,
           model: registeredModel.model,
+          billingContext: {
+            aiBillingService: this.aiBillingService,
+            modelId: registeredModel.modelId,
+            workspaceId: workspace.id,
+            userWorkspaceId,
+            operationType: UsageOperationType.AI_CHAT_TOKEN,
+          },
         });
       },
     });
 
-    stream.usage
-      .then((usage) => {
-        this.aiBillingService.calculateAndBillUsage(
-          registeredModel.modelId,
-          usage,
-          workspace.id,
-          null,
-        );
+    Promise.all([stream.usage, stream.steps])
+      .then(async ([, steps]) => {
+        await billUsageFromSteps(steps);
       })
       .catch((error) => {
-        this.logger.error('Failed to bill usage:', error);
+        if (error?.name === 'AbortError') {
+          return;
+        }
+        this.exceptionHandlerService.captureExceptions([error]);
       });
 
     return {
       stream,
-      preloadedTools: preloadedToolNames,
       modelConfig,
     };
   }
@@ -237,6 +387,8 @@ export class ChatExecutionService {
         workspace,
         browsingContext.objectNameSingular,
         browsingContext.recordId,
+        browsingContext.pageLayoutId,
+        browsingContext.activeTabId,
       );
     }
 
@@ -251,6 +403,8 @@ export class ChatExecutionService {
     workspace: WorkspaceEntity,
     objectNameSingular: string,
     recordId: string,
+    pageLayoutId?: string,
+    activeTabId?: string | null,
   ): string {
     const resourceUrl = this.workspaceDomainsService.buildWorkspaceURL({
       workspace,
@@ -260,7 +414,17 @@ export class ChatExecutionService {
       }),
     });
 
-    return `The user is viewing a ${objectNameSingular} record (ID: ${recordId}, URL: ${resourceUrl}). Use tools to fetch record details if needed.`;
+    let context = `The user is viewing a ${objectNameSingular} record (ID: ${recordId}, URL: ${resourceUrl}). Use tools to fetch record details if needed.`;
+
+    if (isDefined(pageLayoutId)) {
+      context += `\nPage layout ID: ${pageLayoutId}.`;
+    }
+
+    if (isDefined(activeTabId)) {
+      context += `\nActive tab ID: ${activeTabId}.`;
+    }
+
+    return context;
   }
 
   private buildListViewContext(browsingContext: {
@@ -284,190 +448,13 @@ export class ChatExecutionService {
     return context;
   }
 
-  private buildSystemPrompt(
-    toolCatalog: ToolIndexEntry[],
-    skillCatalog: FlatSkill[],
-    preloadedTools: string[],
-    contextString?: string,
-    storedFiles?: Array<{ filename: string; storagePath: string; url: string }>,
-  ): string {
-    const parts: string[] = [
-      CHAT_SYSTEM_PROMPTS.BASE,
-      CHAT_SYSTEM_PROMPTS.RESPONSE_FORMAT,
-    ];
-
-    parts.push(this.buildToolCatalogSection(toolCatalog, preloadedTools));
-    parts.push(this.buildSkillCatalogSection(skillCatalog));
-
-    if (storedFiles && storedFiles.length > 0) {
-      parts.push(this.buildUploadedFilesSection(storedFiles));
-    }
-
-    if (contextString) {
-      parts.push(
-        `\nCONTEXT (what the user is currently viewing):\n${contextString}`,
-      );
-    }
-
-    return parts.join('\n');
-  }
-
-  private buildUploadedFilesSection(
-    storedFiles: Array<{ filename: string; storagePath: string; url: string }>,
-  ): string {
-    const fileList = storedFiles.map((f) => `- ${f.filename}`).join('\n');
-
-    const filesJson = JSON.stringify(
-      storedFiles.map((f) => ({ filename: f.filename, url: f.url })),
-    );
-
-    return `
-## Uploaded Files
-
-The user has uploaded the following files:
-${fileList}
-
-**IMPORTANT**: Use the \`code_interpreter\` tool to analyze these files.
-When calling code_interpreter, include the files parameter with these values:
-\`\`\`json
-${filesJson}
-\`\`\`
-
-In your Python code, access files at \`/home/user/{filename}\`.`;
-  }
-
-  private buildSkillCatalogSection(skillCatalog: FlatSkill[]): string {
-    if (skillCatalog.length === 0) {
-      return '';
-    }
-
-    const skillsList = skillCatalog
-      .map(
-        (skill) => `- \`${skill.name}\`: ${skill.description ?? skill.label}`,
-      )
-      .join('\n');
-
-    return `
-## Available Skills
-
-Skills provide detailed expertise for specialized tasks. Load a skill before attempting complex operations.
-To load a skill, call \`${LOAD_SKILL_TOOL_NAME}\` with the skill name(s).
-
-${skillsList}`;
-  }
-
-  private buildToolCatalogSection(
-    toolCatalog: ToolIndexEntry[],
-    preloadedTools: string[],
-  ): string {
-    const preloadedSet = new Set(preloadedTools);
-
-    const toolsByCategory = new Map<string, ToolIndexEntry[]>();
-
-    for (const tool of toolCatalog) {
-      const category = tool.category;
-      const existing = toolsByCategory.get(category) ?? [];
-
-      existing.push(tool);
-      toolsByCategory.set(category, existing);
-    }
-
-    const sections: string[] = [];
-
-    sections.push(`
-## Available Tools
-
-You have access to ${toolCatalog.length} tools plus native web search. Some are pre-loaded and ready to use immediately.
-To use a tool that isn't pre-loaded, call \`${LOAD_TOOLS_TOOL_NAME}\` with the exact tool name(s) first.
-
-### Pre-loaded Tools (ready to use now)
-- \`web_search\` ✓: Search the web for real-time information (ALWAYS use this for current data, news, research)
-${preloadedTools.length > 0 ? preloadedTools.map((t) => `- \`${t}\` ✓`).join('\n') : ''}
-
-### Tool Catalog by Category`);
-
-    const categoryOrder = [
-      'DATABASE',
-      'ACTION',
-      'WORKFLOW',
-      'DASHBOARD',
-      'METADATA',
-      'VIEW',
-      'LOGIC_FUNCTION',
-    ];
-
-    for (const category of categoryOrder) {
-      const tools = toolsByCategory.get(category);
-
-      if (!tools || tools.length === 0) {
-        continue;
-      }
-
-      const categoryLabel = this.getCategoryLabel(category);
-
-      sections.push(`
-#### ${categoryLabel} (${tools.length} tools)
-${tools
-  .map((t) => {
-    const status = preloadedSet.has(t.name) ? ' ✓' : '';
-
-    return `- \`${t.name}\`${status}: ${t.description}`;
-  })
-  .join('\n')}`);
-    }
-
-    sections.push(`
-### How to Use Tools
-1. **Web search** (\`web_search\`): Use for ANY request requiring current/real-time information from the internet
-2. **Pre-loaded tools** (marked with ✓): Use directly
-3. **Other tools**: First call \`${LOAD_TOOLS_TOOL_NAME}({toolNames: ["tool_name"]})\`, then use the tool`);
-
-    return sections.join('\n');
-  }
-
-  private getCategoryLabel(category: string): string {
-    switch (category) {
-      case 'DATABASE':
-        return 'Database Tools (CRUD operations)';
-      case 'ACTION':
-        return 'Action Tools (HTTP, Email, etc.)';
-      case 'WORKFLOW':
-        return 'Workflow Tools (create/manage workflows)';
-      case 'METADATA':
-        return 'Metadata Tools (schema management)';
-      case 'VIEW':
-        return 'View Tools (query views)';
-      case 'DASHBOARD':
-        return 'Dashboard Tools (create/manage dashboards)';
-      case 'LOGIC_FUNCTION':
-        return 'Logic Functions (custom tools)';
-      default:
-        return category;
-    }
-  }
-
-  private getNativeWebSearchTool(provider: ModelProvider): ToolSet {
-    switch (provider) {
-      case ModelProvider.ANTHROPIC:
-        return { web_search: anthropic.tools.webSearch_20250305() };
-      case ModelProvider.OPENAI:
-        return { web_search: openai.tools.webSearch() };
-      default:
-        // Other providers don't have native web search
-        return {};
-    }
-  }
-
   private async storeExtractedFiles(
     files: ExtractedFile[],
     _workspaceId: string,
-  ): Promise<Array<{ filename: string; storagePath: string; url: string }>> {
-    // Files are already uploaded and have URLs, just return them with their info
-    // The code interpreter tool will download them when needed
+  ): Promise<Array<{ filename: string; fileId: string }>> {
     return files.map((file) => ({
       filename: file.filename,
-      storagePath: file.filename,
-      url: file.url,
+      fileId: file.fileId,
     }));
   }
 }

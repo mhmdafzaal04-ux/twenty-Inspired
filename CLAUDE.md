@@ -28,6 +28,8 @@ npx jest path/to/test.test.ts --config=packages/PROJECT/jest.config.mjs
 npx nx test twenty-front      # Frontend unit tests
 npx nx test twenty-server     # Backend unit tests
 npx nx run twenty-server:test:integration:with-db-reset  # Integration tests with DB reset
+# To run an indivual test or a pattern of tests, use the following command:
+cd packages/{workspace} && npx jest "pattern or filename"
 
 # Storybook
 npx nx storybook:build twenty-front
@@ -69,14 +71,22 @@ npx nx build twenty-server
 # Database management
 npx nx database:reset twenty-server         # Reset database
 npx nx run twenty-server:database:init:prod # Initialize database
-npx nx run twenty-server:database:migrate:prod # Run migrations
+npx nx run twenty-server:database:migrate:prod # Run instance commands (fast only)
 
-# Generate migration (replace [name] with kebab-case descriptive name)
-npx nx run twenty-server:typeorm migration:generate src/database/typeorm/core/migrations/common/[name] -d src/database/typeorm/core/core.datasource.ts
-
-# Sync metadata
-npx nx run twenty-server:command workspace:sync-metadata
+# Generate an instance command (fast or slow)
+npx nx run twenty-server:database:migrate:generate --name <name> --type <fast|slow>
 ```
+
+### Database Inspection (Postgres MCP)
+
+A read-only Postgres MCP server is configured in `.mcp.json`. Use it to:
+- Inspect workspace data, metadata, and object definitions while developing
+- Verify migration results (columns, types, constraints) after running migrations
+- Explore the multi-tenant schema structure (core, metadata, workspace-specific schemas)
+- Debug issues by querying raw data to confirm whether a bug is frontend, backend, or data-level
+- Inspect metadata tables to debug GraphQL schema generation issues
+
+This server is read-only — for write operations (reset, migrations, sync), use the CLI commands above.
 
 ### GraphQL
 ```bash
@@ -88,7 +98,7 @@ npx nx run twenty-front:graphql:generate --configuration=metadata
 ## Architecture Overview
 
 ### Tech Stack
-- **Frontend**: React 18, TypeScript, Recoil (state management), Emotion (styling), Vite
+- **Frontend**: React 18, TypeScript, Jotai (state management), Linaria (styling), Vite
 - **Backend**: NestJS, TypeORM, PostgreSQL, Redis, GraphQL (with GraphQL Yoga)
 - **Monorepo**: Nx workspace managed with Yarn 4
 
@@ -100,7 +110,8 @@ packages/
 ├── twenty-ui/             # Shared UI components library
 ├── twenty-shared/         # Common types and utilities
 ├── twenty-emails/         # Email templates with React Email
-├── twenty-website/        # Next.js documentation website
+├── twenty-website-new/    # Next.js marketing website
+├── twenty-docs/           # Documentation website
 ├── twenty-zapier/         # Zapier integration
 └── twenty-e2e-testing/    # Playwright E2E tests
 ```
@@ -136,7 +147,7 @@ packages/
 - Multi-line comments use multiple `//` lines, not `/** */`
 
 ### State Management
-- **Recoil** for global state: atoms for primitive state, selectors for derived state, atom families for dynamic collections
+- **Jotai** for global state: atoms for primitive state, selectors for derived state, atom families for dynamic collections
 - Component-specific state with React hooks (`useState`, `useReducer` for complex logic)
 - GraphQL cache managed by Apollo Client
 - Use functional state updates: `setState(prev => prev + 1)`
@@ -148,14 +159,17 @@ packages/
 - **Redis** for caching and session management
 - **BullMQ** for background job processing
 
-### Database & Migrations
+### Database & Upgrade Commands
 - **PostgreSQL** as primary database
 - **Redis** for caching and sessions
 - **ClickHouse** for analytics (when enabled)
-- Always generate migrations when changing entity files
-- Migration names must be kebab-case (e.g. `add-agent-turn-evaluation`)
-- Include both `up` and `down` logic in migrations
-- Never delete or rewrite committed migrations
+- When changing entity files, generate an **instance command** (`database:migrate:generate --name <name> --type <fast|slow>`)
+- **Fast** instance commands handle schema changes; **slow** ones add a `runDataMigration` step for data backfills
+- **Workspace commands** iterate over all active/suspended workspaces for per-workspace upgrades
+- Commands use `@RegisteredInstanceCommand` and `@RegisteredWorkspaceCommand` decorators for automatic discovery
+- Include both `up` and `down` logic in instance commands
+- Never delete or rewrite committed instance command `up`/`down` logic
+- See `packages/twenty-server/docs/UPGRADE_COMMANDS.md` for full documentation
 
 ### Utility Helpers
 Use existing helpers from `twenty-shared` instead of manual type guards:
@@ -168,12 +182,12 @@ IMPORTANT: Use Context7 for code generation, setup or configuration steps, or li
 ### Before Making Changes
 1. Always run linting (`lint:diff-with-main`) and type checking after code changes
 2. Test changes with relevant test suites (prefer single-file test runs)
-3. Ensure database migrations are generated for entity changes
+3. Ensure instance commands are generated for entity changes (`database:migrate:generate`)
 4. Check that GraphQL schema changes are backward compatible
 5. Run `graphql:generate` after any GraphQL schema changes
 
 ### Code Style Notes
-- Use **Emotion** for styling with styled-components pattern
+- Use **Linaria** for styling with zero-runtime CSS-in-JS (styled-components pattern)
 - Follow **Nx** workspace conventions for imports
 - Use **Lingui** for internationalization
 - Apply security first, then formatting (sanitize before format)
@@ -186,13 +200,22 @@ IMPORTANT: Use Context7 for code generation, setup or configuration steps, or li
 - Descriptive test names: "should [behavior] when [condition]"
 - Clear mocks between tests with `jest.clearAllMocks()`
 
-## CI Environment (GitHub Actions)
+## Dev Environment Setup
 
-When running in CI, the dev environment is **not** pre-configured. Dependencies are installed but builds, env files, and databases are not set up.
+All dev environments (Claude Code web, Cursor, local) use one script:
 
-- **Before running tests, builds, lint, type checks, or DB operations**, run: `bash packages/twenty-utils/setup-dev-env.sh`
+```bash
+bash packages/twenty-utils/setup-dev-env.sh
+```
+
+This handles everything: starts Postgres + Redis (auto-detects local services vs Docker), creates databases, and copies `.env` files. Idempotent — safe to run multiple times.
+
+- `--docker` — force Docker mode (uses `packages/twenty-docker/docker-compose.dev.yml`)
+- `--down` — stop services
+- `--reset` — wipe data and restart fresh
 - **Skip the setup script** for tasks that only read code — architecture questions, code review, documentation, etc.
-- The script is idempotent and safe to run multiple times.
+
+**Note:** CI workflows (GitHub Actions) manage services via Actions service containers and run setup steps individually — they don't use this script.
 
 ## Important Files
 - `nx.json` - Nx workspace configuration with task definitions

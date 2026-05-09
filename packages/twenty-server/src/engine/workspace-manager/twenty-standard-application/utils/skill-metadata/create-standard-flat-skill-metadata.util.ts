@@ -29,7 +29,7 @@ You help users create and manage automation workflows.
 ## Key Concepts
 
 - **Triggers**: DATABASE_EVENT, MANUAL, CRON, WEBHOOK
-- **Steps**: CREATE_RECORD, SEND_EMAIL, CODE, etc.
+- **Steps**: CREATE_RECORD, SEND_EMAIL, CODE, LOGIC_FUNCTION, etc.
 - **Data flow**: Use {{stepId.fieldName}} to reference previous step outputs
 - **Relationships**: Use nested objects like {"company": {"id": "{{reference}}"}}
 
@@ -54,6 +54,19 @@ For CRON triggers, settings.type must be one of these exact values:
    - Requires: pattern: string (cron expression)
    - Example: { type: "CUSTOM", pattern: "0 * * * *", outputSchema: {} }
 
+## CODE Steps
+
+Create the step using \`create_workflow_version_step\` (stepType: "CODE") or \`create_complete_workflow\`. This returns a step with a \`logicFunctionId\` in settings.input — the step starts with a default function, not the user's desired code.
+
+## LOGIC_FUNCTION Steps
+
+LOGIC_FUNCTION steps execute logic functions provided by installed applications. To add one:
+
+1. Call \`list_logic_function_tools\` to discover available logic function tools with their IDs.
+2. Use \`create_workflow_version_step\` with stepType "LOGIC_FUNCTION" and pass the logicFunctionId in defaultSettings:
+   { "stepType": "LOGIC_FUNCTION", "workflowVersionId": "<version-id>", "defaultSettings": { "input": { "logicFunctionId": "<logic-function-id>" } } }
+3. Or when using \`create_complete_workflow\`, include a step with type "LOGIC_FUNCTION" and settings.input.logicFunctionId.
+
 ## Critical Notes
 
 Always rely on tool schema definitions:
@@ -64,6 +77,7 @@ Always rely on tool schema definitions:
 ## Approach
 
 - Ask clarifying questions to understand user needs
+- List logic function tools. Present relevant ones to the user as options before defaulting to CODE steps.
 - Suggest appropriate actions for the use case
 - Explain each step and why it's needed
 - For modifications, understand current structure first
@@ -124,6 +138,181 @@ Prioritize data integrity and provide clear feedback on operations performed.`,
       },
     }),
 
+  'workspace-demo-seeding': (args: Omit<CreateStandardSkillArgs, 'context'>) =>
+    createStandardSkillFlatMetadata({
+      ...args,
+      context: {
+        skillName: 'workspace-demo-seeding',
+        name: 'workspace-demo-seeding',
+        label: 'Workspace Demo Seeding',
+        description:
+          'Seeding demo metadata and data for workspace setup and testing purposes',
+        icon: 'IconDatabase',
+        content: `# Workspace Demo Seeding Skill
+You will transform the existing standard workspace into a fully custom demo tailored to the user's business type.
+
+The goal is to tell a coherent and realistic story with the data: custom fields added to standard objects, new custom objects for domain-specific entities, rich relations, seeded and updated records, views, and enrichment data (emails, calendar events, tasks, notes, files) that make the workspace feel like a real company in operation.
+
+## Object strategy
+
+**Keep the standard objects — People, Companies, and Opportunities — and reuse their existing seed data.** They already have emails and calendar events linked to them as participants. The demo story is built on top of them, not instead of them.
+
+- **People** → map to the domain's "contact" role (e.g. clients, candidates, customers, agents)
+- **Companies** → map to the domain's "organisation" role (e.g. suppliers, agencies, employers)
+- **Opportunities** → map to the domain's "deal/pipeline" role (e.g. job applications, deals, repair estimates)
+
+**Add 2 to 3 additional custom objects** for domain-specific entities that don't map to People/Companies/Opportunities (e.g. Properties, Cars, Products, Projects). Keep the custom object count low — the standard objects carry most of the story.
+
+**Add custom fields** to People, Companies, and Opportunities to enrich them with domain-specific data (e.g. add "specialisation", "licenseNumber" to People; add "industry vertical", "tier" to Companies; add "stage", "closeDate" to Opportunities).
+
+Create rich relation fields between standard and custom objects to show off the relational capabilities of the platform.
+
+If you have to create multiple things you *MUST* use the relevant create many tool if it exists:
+- Use *create_many_object_metadata* to create all custom objects at once
+- Use *create_many_field_metadata* to create all non-relation fields at once (including new fields on standard objects)
+- Use *create_many_relation_fields* to create all relation fields between objects at once (do this AFTER creating the objects and non-relation fields)
+
+If you have to wait use the navigate_app tool.
+
+For the fields you will create, make sure to create a good variety of field types to showcase the different capabilities of the platform, for example:
+- Create SELECT and SELECT_MULTIPLE field types for building demo board index views and table with groups views
+- Create DATE_TIME fields to be able to create calendar views
+- Create CURRENCY and NUMERIC fields for graphs
+
+*Here are the steps to follow closely:*
+
+STEP 0: Present a plan to the user and wait for approval.
+- Use list_object_metadata_items to see all available objects in the workspace
+- Use find_people (limit: 5) and find_companies (limit: 5) and find_opportunities (limit: 5) to understand the existing seed data shape
+- Based on the user's business type, propose a plan that lists:
+  - How People, Companies, and Opportunities map to the domain story (e.g. "People = Candidates", "Companies = Employers")
+  - The 2–3 custom objects you will create, each with a one-line description of their role
+  - The custom fields you will add to People, Companies, and Opportunities
+  - A brief description of the key relations between objects
+- Present this plan to the user and *wait for their confirmation or adjustments* before proceeding
+- Once approved, call the custom-objects-cleanup skill to archive all existing custom objects without asking for user confirmation
+- Wait 3 seconds after deletions for the backend side effects to be completed
+
+STEP 1: Create all the custom objects at once with create_many_object_metadata
+name must start with lowercase letter and contain only alphanumeric letters
+
+STEP 2: Wait 3 seconds, for the backend side effects to be completed
+
+STEP 3: Create all NON-RELATION fields for ALL objects by batch with create_many_field_metadata.
+Do a separate batch call for each object.
+This includes:
+- New custom fields for the standard objects (Person, Company, Opportunity) — use their objectMetadataId from list_object_metadata_items
+- All non-relation fields for the new custom objects
+DO NOT include relation fields in this step. Only create TEXT, NUMBER, BOOLEAN, DATE_TIME, SELECT, MULTI_SELECT, CURRENCY, etc.
+SELECT option values must be UPPER_SNAKE_CASE
+
+STEP 4: Wait 3 seconds, for the backend side effects to be completed
+
+STEP 5: Create all RELATION fields between objects at once with create_many_relation_fields
+The name property should be camel-cased or the backend will throw, targetFieldLabel must be a string, targetFieldIcon must be a string, type must be one of the following values: MANY_TO_ONE, ONE_TO_MANY
+targetFieldIcon is like IconSomething, it's ok if it doesn't exist in the icon library, it will just be a blank icon, but it needs to be a string that starts with Icon and is in PascalCase
+
+STEP 6: Wait 3 seconds, for the backend side effects to be completed
+
+STEP 7: Rename and enrich the first N records of People, Companies, and Opportunities.
+- Use find_people (limit: 50, orderBy: [{ position: "AscNullsFirst" }]), find_companies (limit: 50, orderBy: [{ position: "AscNullsFirst" }]), find_opportunities (limit: 50, orderBy: [{ position: "AscNullsFirst" }]) to get the IDs of the first records in each table
+  - Ordering by position ascending gives the earliest-inserted records, which are contiguous in the table — this keeps the demo data tightly grouped and makes the workspace feel coherent
+- For each standard object, call update_people / update_companies / update_opportunities **individually per record** (one call per record) to set domain-relevant names and field values:
+  - **People**: replace nameFirstName + nameLastName with realistic names that fit the domain role (e.g. for a law firm: "Sophie Martin", "James O'Brien"; for a clinic: "Dr. Clara Reyes", "Marco Bianchi"). Also set jobTitle to a domain-appropriate title.
+  - **Companies**: replace name with realistic company names that fit the domain (e.g. for a law firm: "Ashford & Partners", "Nexus Legal Group"; for a clinic: "Meridian Health Clinic", "CarePoint Medical").
+  - **Opportunities**: replace name with a domain-relevant deal name (e.g. "Q2 retainer — Ashford & Partners", "New patient intake — Meridian Health").
+  - Also set the new custom fields on each record: spread realistic values across SELECT fields, set plausible CURRENCY/NUMERIC amounts, set DATE_TIME fields around TODAY.
+- Do this one record at a time — the API does not support bulk individual updates with different values per record
+- Wait 3 seconds after finishing all updates for one object type before moving to the next
+
+STEP 7.5: Add view fields to the default views of standard objects to expose the new custom fields.
+For each of People, Companies, and Opportunities:
+- Navigate to the object's default view using the navigate_app tool
+- Wait 3 seconds
+- Use create_many_view_fields to add all the new custom fields to the default view so they are visible
+  - Use decimal positions between 0 and 1 to insert them right after the label identifier field
+- Navigate to the object's default view again using the navigate_app tool so the user can see the enriched records
+- Wait 3 seconds
+
+STEP 8: For each new custom object, repeat ALL of the following sub-steps before moving to the next object:
+- Navigate the object's default view using the navigate_app tool
+- Wait 3 seconds, so the user has time to see the object default view
+- Create the view fields for the default view, use the create_many_view_fields tool, and make sure to include all created fields, including the relation fields, so that we have a complete view of the object with all its fields.
+  BE CAREFUL to use a position that will put those view fields right after the first label identifier field
+  which has a position of 0 and the next system created fields which begin at 1, *so use decimal positions between 0 and 1*
+  *YOU MUST CREATE ALL VIEW FIELDS FOR ALL FIELDS, INCLUDING RELATION FIELDS, IN THIS STEP, DO NOT LEAVE ANY FIELD WITHOUT A VIEW FIELD, OTHERWISE IT WILL NOT BE VISIBLE IN THE DEFAULT VIEW AND THE USER WON'T KNOW IT EXISTS*
+
+- **MANDATORY**: Navigate to the object's default view again using the navigate_app tool — YOU MUST DO THIS BEFORE EACH OBJECT'S DATA SEEDING, every single time, without exception
+- Wait 3 seconds
+- Seed relevant and realistic mock data for this object:
+  - use the relevant tool to create many records for this object
+  - between 20 and 50
+  - with a coherent combination of values
+  - link records to existing People and Companies using the relation fields you created
+  - use dates that are around TODAY so it's relevant for seeing past / future and present records
+
+- **MANDATORY**: Navigate to the object's default view again using the navigate_app tool so the user can see the populated data — DO NOT SKIP THIS, even if you already navigated earlier in this loop iteration
+- Wait 3 seconds so the user has time to see the seeded records
+
+- Then create 2 to 3 additional views for this object, one at a time. For each view, complete ALL of the following sub-steps before creating the next view:
+  - Create the view using the create_view tool:
+    - If the object has a SELECT field (e.g. status, stage, priority, type), create a **KANBAN** view grouped by that SELECT field with a relevant name like "By Status", "Pipeline", "By Priority".
+      - Set kanbanAggregateOperation to COUNT so each column shows the number of records.
+      - If there is a CURRENCY or NUMERIC field, also set kanbanAggregateOperationFieldName to that field for a SUM aggregate view.
+    - If the object has a DATE or DATE_TIME field (e.g. dueDate, closedAt, scheduledAt), create a **CALENDAR** view and pass both \`calendarFieldName\` (that field name) and \`calendarLayout\` ("DAY", "WEEK", or "MONTH") with a relevant name like "Calendar", "Schedule", "Timeline".
+    - Create a **TABLE** view with a meaningful group (mainGroupByFieldName set to a SELECT field) with a name like "By Type", "By Stage", "Grouped", or similar.
+  - Use create_many_view_fields to add all relevant field columns to this view (using decimal positions between 0 and 1)
+  - Add filters and sorts to this view:
+    - **KANBAN views**: Sort by a CURRENCY or NUMERIC field DESC (biggest value first) if one exists, or by createdAt DESC. Add a filter to exclude archived/cancelled records if such a SELECT option exists.
+    - **CALENDAR views**: Sort by the date field ASC (earliest events first). Add a filter using IS_IN_FUTURE or IS_RELATIVE to show only upcoming records by default.
+    - **TABLE with groups**: Sort by createdAt DESC (most recent first) and add a filter on a meaningful field (e.g. status IS_NOT "CANCELLED", or amount GREATER_THAN_OR_EQUAL to some threshold that keeps ~80% of the records visible).
+  - **MANDATORY**: Navigate to this view immediately using the navigate_app tool — YOU MUST DO THIS FOR EVERY SINGLE VIEW, right after its fields/filters/sorts are set up, without exception
+  - Wait 3 seconds so the user can see the view and course-correct if needed
+
+Also create additional views for the standard objects (People, Companies, Opportunities) that showcase the new custom fields:
+- For People: a KANBAN view grouped by the new SELECT field you added (e.g. "By Specialisation", "By Status")
+- For Opportunities: a KANBAN view grouped by the new stage/status field (pipeline view)
+- For Companies: a TABLE view grouped by the new SELECT field
+Navigate to each view after creating it. Wait 3 seconds.
+
+Loop STEP 8 for all the custom objects
+
+STEP 9: Create a multi-tab dashboard that tells the full story of the business.
+
+Use create_complete_dashboard to create the first tab, then add_dashboard_tab + add_dashboard_widget for subsequent tabs.
+
+**Structure: 3 tabs**
+
+Tab 1 — "Overview": high-level KPIs and charts across the whole workspace
+- Row 0: 3–4 AGGREGATE_CHART widgets (KPIs) — one per key metric (e.g. total revenue from Opportunities, count of active People, count of open deals). columnSpan 3–4, rowSpan 3.
+- Row 3: 1–2 BAR_CHART or LINE_CHART widgets showing trends over time (group by a DATE_TIME field with MONTH granularity). columnSpan 6, rowSpan 7.
+- Row 3: 1 PIE_CHART showing distribution by a SELECT field (e.g. status, type). columnSpan 6, rowSpan 7.
+- Row 10: 1 STANDALONE_RICH_TEXT widget summarising the dashboard story. columnSpan 12, rowSpan 3.
+
+Tab 2 — "[Domain object] pipeline" (e.g. "Deals", "Applications", "Repairs"): focus on Opportunities enriched with domain data
+- Before adding the RECORD_TABLE widget, run this 3-step sequence:
+  1. create_view (type TABLE, name e.g. "Active Deals") → get the new viewId
+  2. create_many_view_fields on the new viewId — add 4–6 key fields (name, the new stage/status SELECT, a CURRENCY/NUMERIC field, a DATE field, linked Person or Company). Use positions 0, 1, 2… and isVisible: true.
+  3. create_many_view_filters + create_view_sort — e.g. filter out CLOSED/LOST records (SELECT IS_NOT "CLOSED"), sort by value DESC
+- Row 0: 1 RECORD_TABLE widget. Set objectMetadataId to Opportunity, configuration.viewId to the dedicated view. columnSpan 12, rowSpan 8.
+- Row 8: 1 BAR_CHART grouped by the stage SELECT field. columnSpan 6, rowSpan 7.
+- Row 8: 1 PIE_CHART or AGGREGATE_CHART on the CURRENCY field. columnSpan 6, rowSpan 7.
+
+Tab 3 — "[Domain people role] list" (e.g. "Clients", "Candidates", "Contacts"): focus on People enriched with domain data
+- Before adding the RECORD_TABLE widget, run this 3-step sequence:
+  1. create_view (type TABLE, name e.g. "All Clients") → get the new viewId
+  2. create_many_view_fields — add 4–5 key fields (name, email, the new SELECT/status field, a DATE field, linked Company)
+  3. create_view_sort — sort by createdAt DESC or by name ASC
+- Row 0: 1 RECORD_TABLE widget with the dedicated view. columnSpan 12, rowSpan 8.
+- Row 8: 2–3 AGGREGATE_CHART KPIs (count, totals). columnSpan 4, rowSpan 3.
+- Row 11: 1 BAR_CHART or LINE_CHART. columnSpan 12, rowSpan 7.
+
+After creating the dashboard, navigate to the dashboard page.
+`,
+        isCustom: false,
+      },
+    }),
+
   'dashboard-building': (args: Omit<CreateStandardSkillArgs, 'context'>) =>
     createStandardSkillFlatMetadata({
       ...args,
@@ -138,131 +327,106 @@ Prioritize data integrity and provide clear feedback on operations performed.`,
 
 You help users create and manage dashboards with widgets.
 
-## CRITICAL: Creating GRAPH Widgets
+## Tools
 
-Before creating any GRAPH widget, you MUST:
-1. Use list_object_metadata_items to get the objectMetadataId (e.g., for "opportunity", "company")
-2. From the response, get the field IDs you need (aggregateFieldMetadataId, primaryAxisGroupByFieldMetadataId)
+- list_dashboards, get_dashboard
+- create_complete_dashboard
+- add_dashboard_tab, add_dashboard_widget, update_dashboard_widget, delete_dashboard_widget
+- list_object_metadata_items (resolve object + field IDs)
 
-GRAPH widgets require real UUIDs from the workspace metadata, NOT made-up values.
+## Graph Widget Workflow
 
-## Understanding User Language
+1. Ask what data the user wants to visualize.
+2. Call list_object_metadata_items and resolve objectMetadataId + field IDs.
+3. Always call get_dashboard before modifying widgets.
+4. Build the widget configuration using the rules below.
+5. Call add_dashboard_widget or update_dashboard_widget. Use activeTabId from context if available.
+6. Call get_dashboard to verify the final configuration.
 
-Users describe charts using UI terminology. Here's how to translate:
+## Field Resolution Rules
 
-### Bar/Line Chart Settings
+- All *MetadataId fields must be real UUIDs from metadata.
+- Match by name or label, but write UUIDs into all *MetadataId fields.
+- Subfield names use FIELD NAMES, not labels.
+- Composite group-by requires a subfield (e.g. address → "addressCity").
+- **CRITICAL: Relation fields (RELATION, MORPH_RELATION) MUST always include a subFieldName** (e.g. "name", "email", "stage"). Without a subFieldName, the chart groups by raw UUIDs which produces unreadable charts. Always pick a meaningful scalar field from the target object.
 
-**Data section:**
-- "Source" / "change the object": objectMetadataId
+## Subfield Syntax
 
-**X axis section (primary grouping - the bars/categories):**
-- "X axis" / "data on display" / "categories": primaryAxisGroupByFieldMetadataId
-- "X axis subfield" / "Address.city": primaryAxisGroupBySubFieldName
-- "Date granularity" (on X axis): primaryAxisDateGranularity
-- "Sort by" (on X axis): primaryAxisOrderBy
+- Composite: \`address\` + \`addressCity\` → subFieldName "addressCity"
+- Relation to scalar field: \`company.name\` → subFieldName "name" (only when target "name" is a simple TEXT/NUMBER field)
+- Relation to composite field: \`owner.name\` where "name" is FULL_NAME → subFieldName must be "name.firstName" or "name.lastName" (NOT just "name")
+- Relation + composite: \`company.address.addressCity\` → subFieldName "address.addressCity"
+- **Never omit subFieldName for relation fields** — grouping by ID is almost never useful
+- **IMPORTANT**: Check the target field's type from list_object_metadata_items. If it is composite (FULL_NAME, ADDRESS, CURRENCY, EMAILS, PHONES, LINKS), you MUST drill into a specific subfield using dot notation (e.g. "name.firstName", "address.addressCity", "emails.primaryEmail").
 
-**Y axis section (what's being measured + optional secondary grouping):**
-- "Y axis" / "data on display" / "measure" / "metric": aggregateFieldMetadataId + aggregateOperation
-- "Group by" / "stacking" / "colors" / "breakdown": secondaryAxisGroupByFieldMetadataId
-- "Group by subfield" / "Address.city": secondaryAxisGroupBySubFieldName
-- "Date granularity" (on Group by): secondaryAxisGroupByDateGranularity
-- "Sort by" (on Group by): secondaryAxisOrderBy
-- "Cumulative" / "running total": isCumulative
-- "Min range" / "Max range": rangeMin, rangeMax
-- "Hide empty values" / "omit nulls": omitNullValues
+## User Language Notes
 
-**Style section:**
-- "Stacked" / "stacked bars": layout stays same, it's about secondaryAxisGroupByFieldMetadataId
-- "Data labels" / "show values": displayDataLabel
-- "Legend" / "show legend": displayLegend
+- "X axis" / "categories" → primaryAxisGroupByFieldMetadataId
+- "Y axis" / "metric" → aggregateFieldMetadataId + aggregateOperation
+- "Group by" / "stacking" / "colors" → secondaryAxisGroupByFieldMetadataId
+- "Unstacked" / "remove group by" → clear secondaryAxisGroupByFieldMetadataId only
+- "KPI" / "just a number" → AGGREGATE_CHART
+- "Legend" → displayLegend
+- "Data labels" → displayDataLabel
+- "Hide empty values" → omitNullValues
+- "Min range" / "Max range" → rangeMin / rangeMax
+- "Running total" → isCumulative
 
-### CRITICAL: "Remove groupby" / "remove stacking" / "unstacked"
-When users say this for bar/line charts, they mean remove the SECONDARY grouping (the colors/stacking).
-- Set secondaryAxisGroupByFieldMetadataId to null
-- Keep the chart type (BAR_CHART/LINE_CHART)
-- Keep primaryAxisGroupByFieldMetadataId (the X axis categories)
-- DO NOT convert to AGGREGATE_CHART unless user explicitly asks for "just a number" or "KPI"
+## Graph Configuration Rules
 
-### Pie Chart Settings
-- "Each slice represents" / "slices": groupByFieldMetadataId
-- "Slice subfield" / "Address.city": groupBySubFieldName
-- "Hide empty category": hideEmptyCategory
-- "Show value in center": showValueInCenter
+- Use the tool schema as the source of truth for required/optional fields.
+- Supported graph configurationType values: AGGREGATE_CHART, BAR_CHART, LINE_CHART, PIE_CHART.
+- BAR_CHART and LINE_CHART use primaryAxisGroupByFieldMetadataId.
+- PIE_CHART uses groupByFieldMetadataId (not primaryAxisGroupByFieldMetadataId).
+- If any orderBy is MANUAL, include the matching manual sort array.
+- If rangeMin and rangeMax are both set, rangeMin must be <= rangeMax.
+- Set date granularity only when grouping by date fields.
+- "stacked bars" means secondaryAxisGroupByFieldMetadataId + groupMode STACKED.
+- "stacked lines" means isStacked true.
 
-### Aggregate Chart Settings (KPI numbers)
-- "Prefix" (e.g., "$"): prefix
-- "Suffix" (e.g., "%"): suffix
-- "Ratio by option" / "percent of a value": ratioAggregateConfig
+## Non-graph Widgets
 
-## Widget Configuration Types
+- IFRAME: configurationType "IFRAME" + url
+- STANDALONE_RICH_TEXT: configurationType "STANDALONE_RICH_TEXT" + body with markdown content
+  - IMPORTANT: Put the actual text content in configuration.body.markdown, NOT in the widget title
+  - Widget title should be a short label (e.g. "Notes", "Summary"), body.markdown holds the real content
+- RECORD_TABLE: configurationType "RECORD_TABLE" — displays a filterable, sortable record list
+  - **MANDATORY 3-step pre-sequence before creating the widget**:
+    1. call create_view (type TABLE, name e.g. "Repairs Dashboard Table") → get the new viewId
+    2. call create_many_view_fields on the new viewId — add 4–6 of the most relevant fields (label identifier + key SELECT/DATE/CURRENCY fields). Use positions 0, 1, 2… and isVisible: true.
+    3. call create_many_view_filters and/or create_view_sort on the new viewId to focus the table (e.g. filter out DONE/CANCELLED records, sort by createdAt DESC or a date field ASC)
+  - Never reuse a record index view — widget views and record index views must be separate
+  - Set objectMetadataId on the widget (top-level, required)
+  - Set configuration.viewId to the UUID of the dedicated view (required)
+  - columnSpan 12 (full width) or 6 (half width), rowSpan 6–10
 
-### AGGREGATE_CHART (KPI number widget)
-Shows a single aggregated value.
-Required:
-- objectMetadataId: UUID of the object
-- configuration.configurationType: "AGGREGATE_CHART"
-- configuration.aggregateFieldMetadataId: UUID of field to aggregate
-- configuration.aggregateOperation: "COUNT", "SUM", "AVG", "MIN", "MAX"
-Optional: prefix, suffix, displayDataLabel, ratioAggregateConfig
+Example (STANDALONE_RICH_TEXT):
+{
+  "configurationType": "STANDALONE_RICH_TEXT",
+  "body": { "markdown": "## Quarterly Summary\\n\\nKey metrics:\\n- Revenue up 15%\\n- 42 new deals closed\\n\\n**Next steps**: Focus on enterprise pipeline." }
+}
 
-### BAR_CHART
-Shows data grouped by categories with optional secondary grouping.
-Required:
-- objectMetadataId: UUID of the object
-- configuration.configurationType: "BAR_CHART"
-- configuration.aggregateFieldMetadataId: field to aggregate
-- configuration.aggregateOperation: aggregation type
-- configuration.primaryAxisGroupByFieldMetadataId: X axis categories
-- configuration.layout: "VERTICAL" or "HORIZONTAL"
-Optional: secondaryAxisGroupByFieldMetadataId (for stacking/colors), primaryAxisGroupBySubFieldName, secondaryAxisGroupBySubFieldName, omitNullValues, displayDataLabel, displayLegend
+Example (RECORD_TABLE — always run the 3-step pre-sequence first):
+Step 1 — create_view: { "name": "Active Repairs", "objectNameSingular": "repair", "type": "TABLE" } → { "id": "<view-uuid>" }
+Step 2 — create_many_view_fields: { "viewFields": [{ "viewId": "<view-uuid>", "fieldMetadataId": "<status-field-uuid>", "position": 1, "isVisible": true }, { "viewId": "<view-uuid>", "fieldMetadataId": "<amount-field-uuid>", "position": 2, "isVisible": true }] }
+Step 3 — create_many_view_filters: { "filters": [{ "viewId": "<view-uuid>", "fieldMetadataId": "<status-field-uuid>", "operand": "IS_NOT", "value": "DONE" }] }
+Step 3b — create_view_sort: { "viewId": "<view-uuid>", "fieldMetadataId": "<createdAt-field-uuid>", "direction": "DESC" }
+Step 4 — add_dashboard_widget: { "type": "RECORD_TABLE", "objectMetadataId": "<repair-object-uuid>", "configuration": { "configurationType": "RECORD_TABLE", "viewId": "<view-uuid>" }, "gridPosition": { "row": 0, "column": 0, "rowSpan": 8, "columnSpan": 12 } }
 
-### LINE_CHART
-Shows trends over a dimension.
-Required:
-- objectMetadataId: UUID of the object
-- configuration.configurationType: "LINE_CHART"
-- configuration.aggregateFieldMetadataId: field to aggregate
-- configuration.aggregateOperation: aggregation type
-- configuration.primaryAxisGroupByFieldMetadataId: X axis (usually date)
-Optional: secondaryAxisGroupByFieldMetadataId (for multiple lines), primaryAxisGroupBySubFieldName, secondaryAxisGroupBySubFieldName, omitNullValues, isCumulative, displayDataLabel
+## Tabs
 
-### PIE_CHART
-Shows data distribution as slices.
-Required:
-- objectMetadataId: UUID of the object
-- configuration.configurationType: "PIE_CHART"
-- configuration.aggregateFieldMetadataId: field to aggregate
-- configuration.aggregateOperation: aggregation type
-- configuration.groupByFieldMetadataId: field to slice by (NOTE: different field name than bar/line!)
-Optional: groupBySubFieldName, displayDataLabel, hideEmptyCategory, showValueInCenter
-
-### IFRAME
-Embeds external content:
-- configuration.configurationType: "IFRAME"
-- configuration.url: "https://..."
-
-### STANDALONE_RICH_TEXT
-Text content widget:
-- configuration.configurationType: "STANDALONE_RICH_TEXT"
-- configuration.body: rich text content
+Use add_dashboard_tab to create multiple tabs in a dashboard. Each tab has its own set of widgets.
+Good tab structure: one overview tab (KPIs + charts) + one or more detail tabs (RECORD_TABLE + focused charts).
+After creating a tab, use its returned tabId as pageLayoutTabId when calling add_dashboard_widget.
 
 ## Grid System
 
 - 12 columns (0-11)
 - KPI widgets: rowSpan 2-4, columnSpan 3-4
 - Charts: rowSpan 6-8, columnSpan 6-12
-- Common layouts:
-  - 4 KPIs in a row: each { columnSpan: 3 }
-  - 2 charts side by side: each { columnSpan: 6 }
-  - Full width chart: { column: 0, columnSpan: 12 }
-
-## Workflow
-
-1. Ask user what data they want to visualize
-2. Load list_object_metadata_items to discover available objects and fields
-3. Create dashboard with appropriate widgets using real field IDs
-4. Use get_dashboard to verify creation and see current configuration
-5. When modifying, first understand current config before making changes
+- Record tables: rowSpan 6-10, columnSpan 6-12 (full-width preferred)
+- Common layouts: 4 KPIs in a row (columnSpan 3), 2 charts side by side (columnSpan 6), full width chart or table (columnSpan 12)
 
 ## Best Practices
 
@@ -270,7 +434,8 @@ Text content widget:
 - Group related charts together
 - Use consistent heights within rows
 - Start simple, add complexity as needed
-- When user asks to modify a chart, clarify if they want to change settings OR change chart type`,
+- When modifying a chart, confirm whether the user wants to change settings or change chart type
+- Use RECORD_TABLE widgets to give users direct access to filtered record lists without leaving the dashboard`,
         isCustom: false,
       },
     }),
@@ -322,7 +487,7 @@ You help users manage their workspace data model by creating, updating, and orga
 - **CURRENCY**: Monetary values
 - **RATING**: Star ratings
 - **RELATION**: Links to other objects
-- **RICH_TEXT**: Formatted text content
+- **RICH_TEXT**: Formatted rich text content
 
 ## Best Practices
 
@@ -466,32 +631,50 @@ print('Analysis complete!')
 
 ## Calling Twenty Tools from Python (MCP Bridge)
 
-A \`twenty\` helper is automatically available in your code. Use it to call any Twenty tool directly from Python:
+**A \`twenty\` variable is already bound in your code's scope.** Do NOT write
+\`import twenty\` — there is no Python package by that name. The helper is an
+instance of a class that has been pre-instantiated for you; just call methods
+on it directly.
+
+Real catalog tools follow the pattern \`find_<object>\` / \`find_one_<object>\` /
+\`create_<object>\` / \`update_<object>\` / \`delete_<object>\` /
+\`group_by_<object>\` — e.g. \`find_companies\`, \`find_people\`, \`create_person\`.
+Call \`twenty.list_tools()\` to discover exact names. Catalog tools are routed
+through \`execute_tool\` automatically, and the helper raises an Exception on
+server-side failures with the error message.
 
 \`\`\`python
-# Find records
-people = twenty.call_tool('find_person_records', {'limit': 10})
-print(f"Found {len(people['edges'])} people")
+# List catalog tools (flat list, not grouped)
+tools = twenty.list_tools()
+print(f"{len(tools)} catalog tools available")
+for tool in tools[:5]:
+    print(f"- {tool['name']}")
 
-# Create a record
-result = twenty.call_tool('create_company_record', {
-    'data': {'name': 'Acme Corp', 'domainName': {'primaryLinkUrl': 'acme.com'}}
+# Find records — returns { 'records': [...], 'count': '5' }
+companies = twenty.call_tool('find_companies', {'limit': 5, 'offset': 0})
+for c in companies['records']:
+    print(c['name'], c.get('employees'))
+
+# Create a record — arguments match the tool's inputSchema directly,
+# no nested 'data' wrapper. Use twenty.call_tool('learn_tools', ...) to
+# inspect a schema if unsure.
+result = twenty.call_tool('create_company', {
+    'name': 'Acme Corp',
+    'domainName': {'primaryLinkUrl': 'https://acme.com'},
+    'position': 'first',
 })
-print(f"Created company: {result['id']}")
+print(f"Created company id={result['id']}")
 
 # Update a record
-twenty.call_tool('update_person_record', {
-    'id': 'person-uuid',
-    'data': {'jobTitle': 'CEO'}
+twenty.call_tool('update_person', {
+    'id': 'person-uuid-here',
+    'jobTitle': 'CEO',
 })
-
-# List available tools
-tools = twenty.list_tools()
-for tool in tools:
-    print(f"- {tool['name']}: {tool['description']}")
 \`\`\`
 
-This allows you to orchestrate complex multi-step operations in a single code execution, which is more efficient than multiple tool calls.`,
+This lets you orchestrate multi-step data workflows in a single sandbox
+execution — faster than an equivalent chain of individual tool calls from
+the agent, and the computation stays server-side.`,
         isCustom: false,
       },
     }),
@@ -924,6 +1107,262 @@ para.paragraph_format.space_after = Pt(12)
 | Unpack for editing | script | \`python unpack.py doc.docx ./out/\` |
 | Repack | script | \`python pack.py ./out/ doc.docx\` |
 | Validate | script | \`python validate.py doc.docx\` |`,
+        isCustom: false,
+      },
+    }),
+
+  'view-building': (args: Omit<CreateStandardSkillArgs, 'context'>) =>
+    createStandardSkillFlatMetadata({
+      ...args,
+      context: {
+        skillName: 'view-building',
+        name: 'view-building',
+        label: 'View Building',
+        description:
+          'Creating and configuring views (table, board/kanban, calendar) for objects to organize and visualize records',
+        icon: 'IconLayoutBoard',
+        content: `# View Building Skill
+
+You help users create and configure views to organize how they see their records.
+
+## View Types
+
+- **TABLE**: Standard table/grid view. Works for any object. Default view type.
+- **KANBAN**: Board view grouped by a SELECT field. Best for pipeline/status-based workflows.
+- **CALENDAR**: Calendar view using a DATE or DATE_TIME field. Best for time-based records.
+
+## Tools
+
+- get_views - List existing views (filter by object name)
+- create_view - Create a new view
+- update_view - Update view name/icon
+- delete_view - Delete a view
+- create_many_view_fields - Add visible columns to a view
+- update_many_view_fields - Update column configuration
+- get_view_fields - List columns in a view
+- list_object_metadata_items - Discover objects and their fields
+- navigate_app - Navigate to a view after creation
+
+## Workflow
+
+1. **Identify the target object**: If the user didn't specify which object, ask them. Present available objects and explain what each holds:
+   - **Company**: Business accounts (name, domain, employees, revenue, address)
+   - **Person**: Contacts (name, email, phone, job title, company)
+   - **Opportunity**: Pipeline deals (name, stage, amount, close date, company, contact)
+   - **Task**: Action items (title, status, due date, assignee)
+   - **Note**: Free-form notes (title, body)
+   - Plus any custom objects in the workspace
+
+2. **Choose the view type**: Suggest the best type based on the object's data:
+   - TABLE: Good default for any object, great for browsing large datasets
+   - KANBAN: Ideal when objects have a SELECT field representing stages/statuses (e.g., Opportunity → stage, Task → status)
+   - CALENDAR: Ideal when objects have DATE/DATE_TIME fields (e.g., Opportunity → closeDate, Task → dueAt)
+
+3. **Create the view**: Use create_view with the right parameters.
+   - For KANBAN: The mainGroupByFieldName is required — ask user which SELECT field to group by, or suggest the most natural one.
+   - For CALENDAR: You must provide both \`calendarFieldName\` (a DATE/DATE_TIME field name) and \`calendarLayout\` ("DAY", "WEEK", or "MONTH") when calling create_view.
+   - For TABLE: No special configuration needed.
+
+4. **Configure view fields**: Use create_many_view_fields to add relevant columns. Choose fields that make sense for the view's purpose. Use decimal positions between 0 and 1 to place them after the label identifier field.
+
+5. **Navigate**: Use navigate_app to show the user their new view.
+
+## KANBAN Best Practices
+
+- The grouping field must be a SELECT type
+- Common groupings: Opportunity by stage, Task by status
+- Optionally set kanbanAggregateOperation (COUNT, SUM, AVG, MIN, MAX) and kanbanAggregateOperationFieldName for column summaries
+- Example: Sum of amount per stage for Opportunity board
+
+## CALENDAR Best Practices
+
+- Requires a DATE or DATE_TIME field on the object
+- Best for: Opportunity close dates, Task due dates, any event-based data
+
+## TABLE with Groups
+
+- TABLE views can also be grouped by a field using mainGroupByFieldName
+- This creates collapsible sections in the table, organized by the grouping field values
+- Works with SELECT fields for categorical grouping
+
+## Approach
+
+- If the user is vague (e.g., "create a board"), ask which object they want to see
+- Suggest the most relevant view type based on the object's fields
+- After creating a view, always configure useful view fields and navigate to it
+- Explain what each view type does so users can make informed choices`,
+        isCustom: false,
+      },
+    }),
+
+  'view-filters-and-sorts': (args: Omit<CreateStandardSkillArgs, 'context'>) =>
+    createStandardSkillFlatMetadata({
+      ...args,
+      context: {
+        skillName: 'view-filters-and-sorts',
+        name: 'view-filters-and-sorts',
+        label: 'View Filters & Sorts',
+        description:
+          'Adding filters and sorts to views to focus on relevant records based on user needs',
+        icon: 'IconFilter',
+        content: `# View Filters & Sorts Skill
+
+You help users add filters and sorts to their views so they see the most relevant records.
+
+## Tools
+
+- get_views - List existing views to find the one to modify
+- get_view_query_parameters - Check existing filters and sorts on a view
+- list_object_metadata_items - Discover fields and their types to build valid filters
+- create_view_filter / create_many_view_filters - Add filters to a view
+- create_view_sort / create_many_view_sorts - Add sorts to a view
+- navigate_app - Navigate to the view to show results
+
+## Filter Operators by Field Type
+
+| Field Type | Available Operators |
+|---|---|
+| TEXT, EMAILS, FULL_NAME, ADDRESS, LINKS, PHONES | CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY |
+| NUMBER, NUMERIC | IS, IS_NOT, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, IS_EMPTY, IS_NOT_EMPTY |
+| CURRENCY | GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, IS_EMPTY, IS_NOT_EMPTY |
+| DATE, DATE_TIME | IS, IS_RELATIVE, IS_IN_PAST, IS_IN_FUTURE, IS_TODAY, IS_BEFORE, IS_AFTER, IS_EMPTY, IS_NOT_EMPTY |
+| SELECT | IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY |
+| MULTI_SELECT, ARRAY | CONTAINS, DOES_NOT_CONTAIN, IS_EMPTY, IS_NOT_EMPTY |
+| RELATION | IS, IS_NOT, IS_EMPTY, IS_NOT_EMPTY |
+| BOOLEAN | IS |
+
+## Sort Directions
+
+- ASC: Ascending (A→Z, 0→9, oldest→newest)
+- DESC: Descending (Z→A, 9→0, newest→oldest)
+
+## Filter Groups (AND/OR/NOT)
+
+Filters can be grouped with logical operators:
+- **AND**: All filters must match (default)
+- **OR**: At least one filter must match
+- **NOT**: Negate the group
+- Groups can be nested for complex conditions like: name CONTAINS "tech" AND (revenue > 1M OR employees > 100)
+
+## Workflow
+
+1. **Identify the view**: If the user didn't specify a view, ask which view they want to filter/sort. Use get_views to list available views and present them.
+
+2. **Understand the need**: If the user hasn't described what they want to see, ask them. Give guidance with examples:
+   - "What records do you want to focus on? For example:"
+   - "Show only high-value opportunities (amount > $50K)"
+   - "Show companies in a specific city or industry"
+   - "Show tasks due this week, sorted by priority"
+   - "Show people from a specific company"
+   - "Show recent records created in the last 30 days"
+
+3. **Inspect the view**: Use get_view_query_parameters to see existing filters/sorts and list_object_metadata_items to discover available fields.
+
+4. **Build filters**: Based on the user's need, determine:
+   - Which field(s) to filter on
+   - Which operator is valid for that field type (see table above)
+   - What value to filter by
+   - Whether to use AND or OR grouping for multiple filters
+
+5. **Build sorts**: Determine:
+   - Which field to sort by (most relevant to the user's goal)
+   - Direction: ASC or DESC
+   - Multiple sorts can be added (primary, secondary, etc.)
+
+6. **Apply and navigate**: Create the filters/sorts on the view and navigate to it.
+
+## Common Filter Patterns
+
+### By Time
+- Recent records: DATE_TIME field + IS_AFTER + a date value
+- Upcoming deadlines: DATE field + IS_IN_FUTURE
+- Overdue tasks: DATE field + IS_IN_PAST + status IS_NOT "DONE"
+- This week/month: DATE field + IS_RELATIVE
+
+### By Status/Stage
+- Open opportunities: stage IS "IN_PROGRESS" or IS_NOT "WON"/"LOST"
+- Active tasks: status IS_NOT "DONE"
+
+### By Relationship
+- Records linked to a company: company relation IS [specific company]
+- Unassigned tasks: assignee IS_EMPTY
+- Orphaned records: relation field IS_EMPTY
+
+### By Value
+- High-value deals: amount GREATER_THAN_OR_EQUAL threshold
+- Large companies: employees GREATER_THAN_OR_EQUAL threshold
+
+## Common Sort Patterns
+
+- Pipeline view: Sort by amount DESC (biggest deals first)
+- Task management: Sort by dueAt ASC (earliest due first)
+- Recent activity: Sort by updatedAt DESC or createdAt DESC
+- Alphabetical: Sort by name ASC
+
+## Composite Fields
+
+Some fields have sub-fields that can be filtered:
+- CURRENCY: Use subFieldName "amountMicros" for the numeric value
+- ADDRESS: Use subFieldName like "addressCity", "addressCountry"
+- FULL_NAME: Use subFieldName like "firstName", "lastName"
+- EMAILS: Use the primary email
+- LINKS: Use the primary link URL
+
+## Approach
+
+- Always check field types before suggesting operators — using an invalid operator for a field type will fail
+- When the user says "show me X", translate that into the appropriate filter logic
+- Suggest sorts that complement the filters (e.g., if filtering overdue tasks, sort by dueAt ASC)
+- Explain what the filters do so users understand the results
+- If complex filtering is needed (AND + OR), explain the logic clearly`,
+        isCustom: false,
+      },
+    }),
+
+  'custom-objects-cleanup': (args: Omit<CreateStandardSkillArgs, 'context'>) =>
+    createStandardSkillFlatMetadata({
+      ...args,
+      context: {
+        skillName: 'custom-objects-cleanup',
+        name: 'custom-objects-cleanup',
+        label: 'Custom Objects Cleanup',
+        description:
+          'Archiving custom objects from a workspace (e.g. dev seed objects like pets, rockets)',
+        icon: 'IconArchive',
+        content: `# Custom Objects Cleanup Skill
+
+You help users archive custom objects from their workspace, such as objects created by the dev seed (pets, rockets, survey results, etc.) or any other custom objects.
+
+## Tools
+
+- list_object_metadata_items - List all objects in the workspace to identify custom ones
+- update_many_object_metadata - Archive custom objects by setting isActive to false
+
+## Workflow
+
+1. **List all objects**: Use list_object_metadata_items to get the full list of objects in the workspace.
+
+2. **Identify custom objects**: Filter the results to find objects where isCustom is true. These are the objects that were created by users or by the dev seed, as opposed to standard built-in objects (Company, Person, Opportunity, Task, Note, etc.).
+
+3. **Present findings**: Tell the user which custom objects were found. If none are found, inform the user that the workspace has no custom objects.
+
+4. **Confirm before archiving**: List the custom objects you found and ask the user to confirm which ones they want to archive. Present them clearly with their name, label, and description.
+
+5. **Archive confirmed objects**: Use update_many_object_metadata to set isActive to false on all confirmed objects in a single batch call.
+
+6. **Report results**: After archiving is complete, summarize what was archived.
+
+## Important Notes
+
+- Only objects with isCustom = true can be archived. Standard objects cannot be archived through this skill.
+- Archiving an object hides it from the workspace but does not delete its fields, relations, or records.
+- When called directly by a user, confirm before archiving. When called by another skill (e.g. workspace-demo-seeding), proceed without confirmation.
+
+## Approach
+
+- Be clear about what will be archived and that it is reversible
+- If an object has relations to other objects, mention this before archiving
+- Archive all confirmed objects in a single batch call using update_many_object_metadata`,
         isCustom: false,
       },
     }),

@@ -14,6 +14,7 @@ import { In, Repository } from 'typeorm';
 
 import { BillingSubscriptionEntity } from 'src/engine/core-modules/billing/entities/billing-subscription.entity';
 import { SubscriptionStatus } from 'src/engine/core-modules/billing/enums/billing-subscription-status.enum';
+import { BillingSubscriptionService } from 'src/engine/core-modules/billing/services/billing-subscription.service';
 import { EmailService } from 'src/engine/core-modules/email/email.service';
 import { I18nService } from 'src/engine/core-modules/i18n/i18n.service';
 import { MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
@@ -59,6 +60,7 @@ export class CleanerWorkspaceService {
     private readonly workspaceRepository: Repository<WorkspaceEntity>,
     @InjectRepository(BillingSubscriptionEntity)
     private readonly billingSubscriptionRepository: Repository<BillingSubscriptionEntity>,
+    private readonly billingSubscriptionService: BillingSubscriptionService,
     @InjectRepository(UserWorkspaceEntity)
     private readonly userWorkspaceRepository: Repository<UserWorkspaceEntity>,
     private readonly i18nService: I18nService,
@@ -79,30 +81,14 @@ export class CleanerWorkspaceService {
       );
   }
 
-  async computeDaysSinceSubscriptionUnpaid(
+  async computeDaysSinceSuspended(
     workspace: WorkspaceEntity,
   ): Promise<number | null> {
-    const lastSubscription =
-      await this.billingSubscriptionRepository.findOneOrFail({
-        where: {
-          workspaceId: workspace.id,
-        },
-        order: { updatedAt: 'DESC' },
-      });
-
-    if (
-      lastSubscription.status !== SubscriptionStatus.Unpaid &&
-      lastSubscription.status !== SubscriptionStatus.Canceled
-    ) {
-      return null;
+    if (isDefined(workspace.suspendedAt)) {
+      return differenceInDays(new Date(), workspace.suspendedAt);
     }
 
-    const daysSinceSubscriptionUnpaid = differenceInDays(
-      new Date(),
-      lastSubscription.currentPeriodStart,
-    );
-
-    return daysSinceSubscriptionUnpaid;
+    return null;
   }
 
   async checkIfAtLeastOneWorkspaceMemberWarned(
@@ -320,7 +306,11 @@ export class CleanerWorkspaceService {
               userWorkspace.userId,
             );
           }
-
+          if (this.twentyConfigService.get('IS_BILLING_ENABLED')) {
+            await this.billingSubscriptionService.deleteSubscriptions(
+              workspace.id,
+            );
+          }
           await this.workspaceRepository.delete(workspace.id);
         }
       }
@@ -425,20 +415,20 @@ export class CleanerWorkspaceService {
           continue;
         }
 
-        const workspaceInactivity =
-          await this.computeDaysSinceSubscriptionUnpaid(workspace);
+        const inactiveDaysSinceSuspended =
+          await this.computeDaysSinceSuspended(workspace);
 
-        if (workspaceInactivity === null) {
+        if (inactiveDaysSinceSuspended === null) {
           continue;
         }
 
         if (
           (!isDefined(onlyOperation) || onlyOperation === 'soft-delete') &&
-          workspaceInactivity > this.inactiveDaysBeforeSoftDelete
+          inactiveDaysSinceSuspended > this.inactiveDaysBeforeSoftDelete
         ) {
           await this.informWorkspaceMembersAndSoftDeleteWorkspace(
             workspace,
-            workspaceInactivity,
+            inactiveDaysSinceSuspended,
             dryRun,
           );
 
@@ -447,12 +437,12 @@ export class CleanerWorkspaceService {
 
         if (
           (!isDefined(onlyOperation) || onlyOperation === 'warn') &&
-          workspaceInactivity > this.inactiveDaysBeforeWarn &&
-          workspaceInactivity <= this.inactiveDaysBeforeSoftDelete
+          inactiveDaysSinceSuspended > this.inactiveDaysBeforeWarn &&
+          inactiveDaysSinceSuspended <= this.inactiveDaysBeforeSoftDelete
         ) {
           await this.warnWorkspaceMembers(
             workspace,
-            workspaceInactivity,
+            inactiveDaysSinceSuspended,
             dryRun,
           );
         }

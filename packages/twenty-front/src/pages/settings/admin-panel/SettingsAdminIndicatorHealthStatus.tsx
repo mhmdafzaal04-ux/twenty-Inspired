@@ -1,39 +1,46 @@
+import { useApolloAdminClient } from '@/settings/admin-panel/apollo/hooks/useApolloAdminClient';
 import { SettingsAdminHealthStatusRightContainer } from '@/settings/admin-panel/health-status/components/SettingsAdminHealthStatusRightContainer';
 import { SettingsAdminIndicatorHealthStatusContent } from '@/settings/admin-panel/health-status/components/SettingsAdminIndicatorHealthStatusContent';
 import { SettingsAdminIndicatorHealthContext } from '@/settings/admin-panel/health-status/contexts/SettingsAdminIndicatorHealthContext';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
 import { SettingsSkeletonLoader } from '@/settings/components/SettingsSkeletonLoader';
 import { SubMenuTopBarContainer } from '@/ui/layout/page/components/SubMenuTopBarContainer';
-import styled from '@emotion/styled';
+import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { useParams } from 'react-router-dom';
 import { SettingsPath } from 'twenty-shared/types';
 import { getSettingsPath } from 'twenty-shared/utils';
 import { H2Title, H3Title } from 'twenty-ui/display';
 import { Section } from 'twenty-ui/layout';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { useQuery } from '@apollo/client/react';
 import {
   AdminPanelHealthServiceStatus,
   HealthIndicatorId,
-  useGetIndicatorHealthStatusQuery,
-} from '~/generated-metadata/graphql';
+  GetIndicatorHealthStatusDocument,
+} from '~/generated-admin/graphql';
 
 const StyledTitleContainer = styled.div`
   align-items: center;
   display: flex;
-  gap: ${({ theme }) => theme.spacing(4)};
-  margin-top: ${({ theme }) => theme.spacing(2)};
+  gap: ${themeCssVariables.spacing[4]};
+  margin-top: ${themeCssVariables.spacing[2]};
 `;
 
 export const SettingsAdminIndicatorHealthStatus = () => {
   const { t } = useLingui();
   const { indicatorId } = useParams();
-  const { data, loading: loadingIndicatorHealthStatus } =
-    useGetIndicatorHealthStatusQuery({
+  const apolloAdminClient = useApolloAdminClient();
+  const { data, loading: loadingIndicatorHealthStatus } = useQuery(
+    GetIndicatorHealthStatusDocument,
+    {
+      client: apolloAdminClient,
       variables: {
         indicatorId: indicatorId as HealthIndicatorId,
       },
       fetchPolicy: 'network-only',
-    });
+    },
+  );
 
   if (loadingIndicatorHealthStatus) {
     return <SettingsSkeletonLoader />;
@@ -47,11 +54,7 @@ export const SettingsAdminIndicatorHealthStatus = () => {
           href: getSettingsPath(SettingsPath.AdminPanel),
         },
         {
-          children: t`Admin Panel`,
-          href: getSettingsPath(SettingsPath.AdminPanel),
-        },
-        {
-          children: t`Health Status`,
+          children: t`Admin Panel - Health`,
           href: getSettingsPath(SettingsPath.AdminPanelHealthStatus),
         },
         { children: `${data?.getIndicatorHealthStatus?.label}` },

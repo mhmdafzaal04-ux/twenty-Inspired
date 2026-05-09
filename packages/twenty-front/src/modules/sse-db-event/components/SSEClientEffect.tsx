@@ -1,71 +1,67 @@
-import { getTokenPair } from '@/apollo/utils/getTokenPair';
-import { useIsLogged } from '@/auth/hooks/useIsLogged';
-import { SSE_CONNECTION_RETRY_MAX_WAIT_TIME_IN_MS } from '@/sse-db-event/constants/SseConnectionRetryMaxWaitTimeInMs';
-import { SSE_CONNECTION_RETRY_WAIT_TIME_IN_MS_FOR_DEV_MODE } from '@/sse-db-event/constants/SseConnectionRetryWaitTimeInMsForDevMode';
+import { useHasAccessTokenPair } from '@/auth/hooks/useHasAccessTokenPair';
+import { tokenPairState } from '@/auth/states/tokenPairState';
+import { useHandleSseClientConnectionRetry } from '@/sse-db-event/hooks/useHandleSseClientConnectionRetry';
 import { activeQueryListenersState } from '@/sse-db-event/states/activeQueryListenersState';
 import { sseClientState } from '@/sse-db-event/states/sseClientState';
-import { getSnapshotValue } from '@/ui/utilities/state/utils/getSnapshotValue';
+import { useAtomState } from '@/ui/utilities/state/jotai/hooks/useAtomState';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { isNonEmptyArray } from '@sniptt/guards';
 import { createClient } from 'graphql-sse';
-import { useEffect } from 'react';
-import { useRecoilCallback, useRecoilState } from 'recoil';
+import { useCallback, useEffect } from 'react';
 import { isDefined } from 'twenty-shared/utils';
 import { REACT_APP_SERVER_BASE_URL } from '~/config';
-import { getIsDevelopmentEnvironment } from '~/utils/getIsDevelopmentEnvironment';
-
-import { sleep } from '~/utils/sleep';
+import { useStore } from 'jotai';
 
 export const SSEClientEffect = () => {
-  const isLoggedIn = useIsLogged();
-  const [sseClient, setSseClient] = useRecoilState(sseClientState);
+  const store = useStore();
+  const hasAccessTokenPair = useHasAccessTokenPair();
+  const [sseClient, setSseClient] = useAtomState(sseClientState);
+  const tokenPair = useAtomStateValue(tokenPairState);
 
-  const handleSSEClientConnected = useRecoilCallback(
-    ({ snapshot, set }) =>
-      () => {
-        const currentActiveQueryListeners = getSnapshotValue(
-          snapshot,
-          activeQueryListenersState,
-        );
+  const handleSSEClientConnected = useCallback(() => {
+    const currentActiveQueryListeners = store.get(
+      activeQueryListenersState.atom,
+    );
 
-        if (isNonEmptyArray(currentActiveQueryListeners)) {
-          set(activeQueryListenersState, []);
-        }
-      },
-    [],
-  );
+    if (isNonEmptyArray(currentActiveQueryListeners)) {
+      store.set(activeQueryListenersState.atom, []);
+    }
+  }, [store]);
+
+  const { handleSseClientConnectionRetry } =
+    useHandleSseClientConnectionRetry();
 
   useEffect(() => {
-    if (isLoggedIn && !isDefined(sseClient)) {
-      const tokenPair = getTokenPair();
-      const token = tokenPair?.accessOrWorkspaceAgnosticToken?.token;
-
+    if (hasAccessTokenPair && !isDefined(sseClient) && isDefined(tokenPair)) {
       const newSseClient = createClient({
-        url: `${REACT_APP_SERVER_BASE_URL}/graphql`,
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
+        url: `${REACT_APP_SERVER_BASE_URL}/metadata`,
+        headers: () => {
+          const currentTokenPair = store.get(tokenPairState.atom);
+          const token = currentTokenPair?.accessOrWorkspaceAgnosticToken?.token;
+
+          return {
+            Authorization: token ? `Bearer ${token}` : '',
+          };
         },
         on: {
           connected: handleSSEClientConnected,
         },
         retryAttempts: Infinity,
-        retry: async () => {
-          const randomWaitTimeInMsToSpaceAllClientsReconnection = Math.round(
-            Math.random() * SSE_CONNECTION_RETRY_MAX_WAIT_TIME_IN_MS,
-          );
-
-          const isDevelopmentEnvironment = getIsDevelopmentEnvironment();
-
-          const waitTimeInMs = isDevelopmentEnvironment
-            ? SSE_CONNECTION_RETRY_WAIT_TIME_IN_MS_FOR_DEV_MODE
-            : randomWaitTimeInMsToSpaceAllClientsReconnection;
-
-          await sleep(waitTimeInMs);
-        },
+        retry: (retryCount: number) =>
+          handleSseClientConnectionRetry(retryCount),
       });
 
       setSseClient(newSseClient);
     }
-  }, [handleSSEClientConnected, isLoggedIn, setSseClient, sseClient]);
+  }, [
+    handleSSEClientConnected,
+    hasAccessTokenPair,
+    setSseClient,
+    sseClient,
+    store,
+    tokenPair,
+    handleSseClientConnectionRetry,
+  ]);
 
   return null;
 };

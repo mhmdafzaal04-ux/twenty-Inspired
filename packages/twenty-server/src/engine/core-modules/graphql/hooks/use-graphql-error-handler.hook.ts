@@ -32,6 +32,7 @@ import {
   graphQLErrorCodesToFilter,
   shouldCaptureException,
 } from 'src/engine/utils/global-exception-handler.util';
+import { translateUserFriendlyMessageDescriptors } from 'src/engine/core-modules/i18n/utils/translate-user-friendly-message-descriptors.util';
 
 const DEFAULT_EVENT_ID_KEY = 'exceptionEventId';
 const SCHEMA_VERSION_HEADER = 'x-schema-version';
@@ -73,7 +74,7 @@ export const useGraphQLErrorHandlerHook = <
     return {
       id: req.workspace.id,
       displayName: req.workspace.displayName,
-      createdAt: req.workspace.createdAt?.toISOString() ?? null,
+      createdAt: req.workspace.createdAt ?? null,
       activationStatus: req.workspace.activationStatus,
     };
   }
@@ -92,7 +93,15 @@ export const useGraphQLErrorHandlerHook = <
       }
 
       const operationType = rootOperation.operation;
-      const user = args.contextValue.req.user;
+      const rawUser = args.contextValue.req.user;
+      const user = rawUser
+        ? {
+            id: rawUser.id,
+            email: rawUser.email,
+            firstName: rawUser.firstName,
+            lastName: rawUser.lastName,
+          }
+        : undefined;
       const document = getDocumentString(args.document, print);
       const opName =
         args.operationName ||
@@ -215,13 +224,15 @@ export const useGraphQLErrorHandlerHook = <
                 error instanceof BaseGraphQLError
                   ? {
                       ...error,
-                      extensions: {
-                        ...error.extensions,
-                        userFriendlyMessage: i18n._(
-                          error.extensions.userFriendlyMessage ??
+                      extensions: translateUserFriendlyMessageDescriptors(
+                        {
+                          ...error.extensions,
+                          userFriendlyMessage:
+                            error.extensions.userFriendlyMessage ??
                             defaultErrorMessage,
-                        ),
-                      },
+                        },
+                        i18n,
+                      ),
                     }
                   : generateGraphQLErrorFromError(error, i18n);
 
@@ -283,8 +294,8 @@ export const useGraphQLErrorHandlerHook = <
         }
 
         if (
-          !frontEndAppVersion ||
-          !backendAppVersion ||
+          !isDefined(frontEndAppVersion) ||
+          !isDefined(backendAppVersion) ||
           !semver.valid(frontEndAppVersion) ||
           !semver.valid(backendAppVersion)
         ) {

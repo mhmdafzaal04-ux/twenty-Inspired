@@ -2,8 +2,6 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  Index,
-  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   type Relation,
@@ -12,7 +10,6 @@ import {
 } from 'typeorm';
 
 import { type WorkspaceEntityDuplicateCriteria } from 'src/engine/api/graphql/workspace-query-builder/types/workspace-entity-duplicate-criteria.type';
-import { DataSourceEntity } from 'src/engine/metadata-modules/data-source/data-source.entity';
 import { FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
 import { IndexMetadataEntity } from 'src/engine/metadata-modules/index-metadata/index-metadata.entity';
 import { type ObjectStandardOverridesDTO } from 'src/engine/metadata-modules/object-metadata/dtos/object-standard-overrides.dto';
@@ -31,7 +28,6 @@ import { type JsonbProperty } from 'src/engine/workspace-manager/workspace-migra
   'namePlural',
   'workspaceId',
 ])
-@Index('IDX_OBJECT_METADATA_DATA_SOURCE_ID', ['dataSourceId'])
 export class ObjectMetadataEntity
   extends SyncableEntity
   implements Required<ObjectMetadataEntity>
@@ -39,7 +35,8 @@ export class ObjectMetadataEntity
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ nullable: false, type: 'uuid' })
+  // @deprecated - FK dropped, column kept for data preservation only
+  @Column({ nullable: true, type: 'uuid' })
   dataSourceId: string;
 
   @Column({ nullable: false })
@@ -59,6 +56,9 @@ export class ObjectMetadataEntity
 
   @Column({ nullable: true, type: 'varchar' })
   icon: string | null;
+
+  @Column({ nullable: true, type: 'text' })
+  color: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
   standardOverrides: JsonbProperty<ObjectStandardOverridesDTO> | null;
@@ -97,7 +97,7 @@ export class ObjectMetadataEntity
   shortcut: string | null;
 
   // TODO: This should not be nullable - legacy field introduced when label identifier was nullable
-  // TODO: This should be a joinColumn and we should have a FK on this too
+  // TODO: This should be a joinColumn and we should have a FK on this too https://github.com/twentyhq/core-team-issues/issues/2172
   @Column({ nullable: true, type: 'uuid' })
   labelIdentifierFieldMetadataId: string | null;
 
@@ -116,17 +116,6 @@ export class ObjectMetadataEntity
     cascade: true,
   })
   indexMetadatas: Relation<IndexMetadataEntity[]>;
-
-  @OneToMany(
-    () => FieldMetadataEntity,
-    (field) => field.relationTargetObjectMetadataId,
-  )
-  targetRelationFields: Relation<FieldMetadataEntity[]>;
-
-  @ManyToOne(() => DataSourceEntity, (dataSource) => dataSource.objects, {
-    onDelete: 'CASCADE',
-  })
-  dataSource: Relation<DataSourceEntity>;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

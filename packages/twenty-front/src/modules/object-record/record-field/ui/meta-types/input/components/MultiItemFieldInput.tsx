@@ -1,28 +1,34 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Key } from 'ts-key-enum';
+import { useDebounce } from 'use-debounce';
 
 import {
   MultiItemBaseInput,
   type MultiItemBaseInputProps,
 } from '@/object-record/record-field/ui/meta-types/input/components/MultiItemBaseInput';
+import { computeUpdatedMultiItemFieldItems } from '@/object-record/record-field/ui/meta-types/input/utils/computeUpdatedMultiItemFieldItems';
+import { sanitizeAndValidateInput } from '@/object-record/record-field/ui/meta-types/input/utils/sanitizeAndValidateInput';
 import { RecordFieldComponentInstanceContext } from '@/object-record/record-field/ui/states/contexts/RecordFieldComponentInstanceContext';
 import { type PhoneRecord } from '@/object-record/record-field/ui/types/FieldMetadata';
 import { DropdownContent } from '@/ui/layout/dropdown/components/DropdownContent';
 import { DropdownMenuItemsContainer } from '@/ui/layout/dropdown/components/DropdownMenuItemsContainer';
+import { DropdownMenuSearchInput } from '@/ui/layout/dropdown/components/DropdownMenuSearchInput';
 import { DropdownMenuSeparator } from '@/ui/layout/dropdown/components/DropdownMenuSeparator';
 import { currentFocusedItemSelector } from '@/ui/utilities/focus/states/currentFocusedItemSelector';
 import { FocusComponentType } from '@/ui/utilities/focus/types/FocusComponentType';
 import { useHotkeysOnFocusedElement } from '@/ui/utilities/hotkey/hooks/useHotkeysOnFocusedElement';
 import { useListenClickOutside } from '@/ui/utilities/pointer-event/hooks/useListenClickOutside';
 import { useAvailableComponentInstanceIdOrThrow } from '@/ui/utilities/state/component-state/hooks/useAvailableComponentInstanceIdOrThrow';
-import { useRecoilValue } from 'recoil';
-import { CustomError } from 'twenty-shared/utils';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { isNonEmptyString } from '@sniptt/guards';
+import { CustomError, isDefined } from 'twenty-shared/utils';
 import { IconCheck, IconPlus } from 'twenty-ui/display';
 import { LightIconButton } from 'twenty-ui/input';
 import { MenuItem } from 'twenty-ui/navigation';
 import { FieldMetadataType } from '~/generated-metadata/graphql';
 import { moveArrayItem } from '~/utils/array/moveArrayItem';
 import { toSpliced } from '~/utils/array/toSpliced';
+import { normalizeSearchText } from '~/utils/normalizeSearchText';
 import { turnIntoEmptyStringIfWhitespacesOnly } from '~/utils/string/turnIntoEmptyStringIfWhitespacesOnly';
 
 type MultiItemFieldInputProps<T> = {
@@ -34,7 +40,7 @@ type MultiItemFieldInputProps<T> = {
   onError?: (hasError: boolean, values: any[]) => void;
   placeholder: string;
   validateInput?: (input: string) => { isValid: boolean; errorMessage: string };
-  formatInput?: (input: string) => T;
+  formatInput?: (input: string, itemIndex?: number) => T;
   renderItem: (props: {
     value: T;
     index: number;
@@ -43,6 +49,7 @@ type MultiItemFieldInputProps<T> = {
     handleDelete: () => void;
   }) => React.ReactNode;
   newItemLabel?: string;
+  onAddClick?: () => void;
   fieldMetadataType: FieldMetadataType;
   renderInput?: MultiItemBaseInputProps['renderInput'];
   maxItemCount?: number;
@@ -61,6 +68,7 @@ export const MultiItemFieldInput = <T,>({
   formatInput,
   renderItem,
   newItemLabel,
+  onAddClick,
   fieldMetadataType,
   renderInput,
   onClickOutside,
@@ -72,7 +80,7 @@ export const MultiItemFieldInput = <T,>({
     RecordFieldComponentInstanceContext,
   );
 
-  const currentFocusedItem = useRecoilValue(currentFocusedItemSelector);
+  const currentFocusedItem = useAtomStateValue(currentFocusedItemSelector);
 
   useListenClickOutside({
     refs: [containerRef],
@@ -83,55 +91,70 @@ export const MultiItemFieldInput = <T,>({
       ) {
         return;
       }
-      const { isValid } = validateInputAndComputeUpdatedItems();
 
-      if (!isValid && isInputDisplayed) {
+      if (isInputDisplayed) {
+        const { isValid, updatedItems } = validateInputAndComputeUpdatedItems();
+
+        if (!isValid) {
+          return;
+        }
+
+        onChange(updatedItems);
+        onClickOutside(updatedItems, event);
+
         return;
       }
 
-      handleSubmitChanges();
       onClickOutside(items, event);
     },
     listenerId: instanceId,
   });
 
-  const getItemValueAsString = (index: number): string => {
-    if (index >= items.length) {
-      return '';
-    }
+  const getItemValueAsString = useCallback(
+    (index: number): string => {
+      if (index >= items.length) {
+        return '';
+      }
 
-    let item;
-    switch (fieldMetadataType) {
-      case FieldMetadataType.LINKS:
-        item = items[index] as { label: string; url: string };
-        return item.url || '';
-      case FieldMetadataType.PHONES:
-        item = items[index] as PhoneRecord;
-        return item.callingCode + item.number;
-      case FieldMetadataType.EMAILS:
-        item = items[index] as string;
-        return item;
-      case FieldMetadataType.ARRAY:
-        item = items[index] as string;
-        return item;
-      default:
-        throw new CustomError(
-          `Unsupported field type: ${fieldMetadataType}`,
-          'UNSUPPORTED_FIELD_TYPE',
-        );
-    }
-  };
+      let item;
+      switch (fieldMetadataType) {
+        case FieldMetadataType.LINKS:
+          item = items[index] as { label: string; url: string };
+          return item.url || '';
+        case FieldMetadataType.PHONES:
+          item = items[index] as PhoneRecord;
+          return item.callingCode + item.number;
+        case FieldMetadataType.EMAILS:
+          item = items[index] as string;
+          return item;
+        case FieldMetadataType.ARRAY:
+          item = items[index] as string;
+          return item;
+        case FieldMetadataType.FILES:
+          item = items[index] as { label: string };
+          return item.label || '';
+        default:
+          throw new CustomError(
+            `Unsupported field type: ${fieldMetadataType}`,
+            'UNSUPPORTED_FIELD_TYPE',
+          );
+      }
+    },
+    [items, fieldMetadataType],
+  );
 
   const shouldAutoEnterBecauseOnlyOneItemIsAllowed = maxItemCount === 1;
   const shouldAutoEditFirstItemOnOpen =
     items.length === 0 || maxItemCount === 1;
 
   const [isInputDisplayed, setIsInputDisplayed] = useState(
-    shouldAutoEditFirstItemOnOpen,
+    shouldAutoEditFirstItemOnOpen && !isDefined(onAddClick),
   );
 
   const [inputValue, setInputValue] = useState(
-    shouldAutoEditFirstItemOnOpen ? getItemValueAsString(0) : '',
+    shouldAutoEditFirstItemOnOpen && !isDefined(onAddClick)
+      ? getItemValueAsString(0)
+      : '',
   );
 
   const [itemToEditIndex, setItemToEditIndex] = useState(0);
@@ -141,6 +164,22 @@ export const MultiItemFieldInput = <T,>({
     isValid: true,
     errorMessage: '',
   });
+
+  const [searchFilter, setSearchFilter] = useState('');
+  const [debouncedSearchFilter] = useDebounce(searchFilter, 150);
+
+  const shouldShowSearch = items.length > 3;
+
+  const filteredItems = useMemo(() => {
+    if (!shouldShowSearch || !debouncedSearchFilter) {
+      return items;
+    }
+    const searchTerm = normalizeSearchText(debouncedSearchFilter);
+    return items.filter((_item, index) => {
+      const itemText = getItemValueAsString(index);
+      return normalizeSearchText(itemText).includes(searchTerm);
+    });
+  }, [items, debouncedSearchFilter, shouldShowSearch, getItemValueAsString]);
 
   const isLimitReached =
     typeof maxItemCount === 'number' && items.length >= maxItemCount;
@@ -162,6 +201,11 @@ export const MultiItemFieldInput = <T,>({
       return;
     }
 
+    if (isDefined(onAddClick)) {
+      onAddClick();
+      return;
+    }
+
     setIsAddingNewItem(true);
     setInputValue('');
     setIsInputDisplayed(true);
@@ -180,7 +224,7 @@ export const MultiItemFieldInput = <T,>({
       return;
     }
 
-    handleSubmitChanges();
+    onChange(updatedItems);
     if (shouldAutoEnterBecauseOnlyOneItemIsAllowed) {
       onEnter(updatedItems);
     }
@@ -189,59 +233,51 @@ export const MultiItemFieldInput = <T,>({
     setInputValue('');
   };
 
-  const handleSubmitChanges = () => {
-    const { isValid, updatedItems } = validateInputAndComputeUpdatedItems();
-    if (!isValid) {
-      return;
+  const showInputIfNoItemsRemain = (remainingItems: T[]) => {
+    const shouldShowInput =
+      remainingItems.length === 0 && !isDefined(onAddClick);
+    setIsInputDisplayed(shouldShowInput);
+    setIsAddingNewItem(false);
+    if (shouldShowInput) {
+      setInputValue('');
     }
-
-    onChange(updatedItems);
   };
 
   const validateInputAndComputeUpdatedItems = (): {
     isValid: boolean;
     updatedItems: T[];
   } => {
-    const sanitizedInput = inputValue.trim();
+    const { sanitizedInput, isValid, errorMessage } = sanitizeAndValidateInput(
+      inputValue,
+      validateInput,
+    );
 
-    const newItem = formatInput
-      ? formatInput(sanitizedInput)
-      : (sanitizedInput as unknown as T);
-
-    if (sanitizedInput === '' && isAddingNewItem) {
-      return { isValid: true, updatedItems: items };
+    if (!isValid) {
+      onError?.(true, items);
+      setErrorData({ isValid: false, errorMessage });
+      return { isValid: false, updatedItems: items };
     }
 
-    if (sanitizedInput === '' && shouldAutoEnterBecauseOnlyOneItemIsAllowed) {
-      return {
-        isValid: true,
-        updatedItems: [],
-      };
+    const editingIndex = isAddingNewItem ? null : itemToEditIndex;
+
+    const updatedItems = computeUpdatedMultiItemFieldItems({
+      sanitizedInput,
+      items,
+      editingIndex,
+      singleItemMode: shouldAutoEnterBecauseOnlyOneItemIsAllowed,
+      formatInput,
+    });
+
+    const isItemDeletion =
+      !isNonEmptyString(sanitizedInput) &&
+      isDefined(editingIndex) &&
+      !shouldAutoEnterBecauseOnlyOneItemIsAllowed;
+
+    if (isItemDeletion) {
+      showInputIfNoItemsRemain(updatedItems);
     }
 
-    if (sanitizedInput === '' && !isAddingNewItem) {
-      handleDeleteItem(itemToEditIndex);
-      return {
-        isValid: true,
-        updatedItems: toSpliced(items, itemToEditIndex, 1),
-      };
-    }
-
-    if (validateInput !== undefined) {
-      const validationData = validateInput(sanitizedInput) ?? { isValid: true };
-      if (!validationData.isValid) {
-        onError?.(true, items);
-        setErrorData(validationData);
-        return { isValid: false, updatedItems: items };
-      }
-    }
-
-    return {
-      isValid: true,
-      updatedItems: isAddingNewItem
-        ? [...items, newItem]
-        : toSpliced(items, itemToEditIndex, 1, newItem),
-    };
+    return { isValid: true, updatedItems };
   };
 
   const handleSetPrimaryItem = (index: number) => {
@@ -252,8 +288,7 @@ export const MultiItemFieldInput = <T,>({
   const handleDeleteItem = (index: number) => {
     const updatedItems = toSpliced(items, index, 1);
     onChange(updatedItems);
-    setIsInputDisplayed(false);
-    setIsAddingNewItem(false);
+    showInputIfNoItemsRemain(updatedItems);
   };
 
   const handleEscape = () => {
@@ -269,31 +304,46 @@ export const MultiItemFieldInput = <T,>({
 
   return (
     <DropdownContent ref={containerRef}>
-      {!!items.length &&
+      {shouldShowSearch && !isInputDisplayed && (
+        <>
+          <DropdownMenuSearchInput
+            value={searchFilter}
+            onChange={(event) =>
+              setSearchFilter(
+                turnIntoEmptyStringIfWhitespacesOnly(event.currentTarget.value),
+              )
+            }
+            autoFocus
+          />
+          <DropdownMenuSeparator />
+        </>
+      )}
+      {!!filteredItems.length &&
         (!shouldAutoEnterBecauseOnlyOneItemIsAllowed || !isInputDisplayed) && (
           <>
             <DropdownMenuItemsContainer hasMaxHeight>
-              {items.map((item, index) =>
-                renderItem({
+              {filteredItems.map((item) => {
+                const originalIndex = items.indexOf(item);
+                return renderItem({
                   value: item,
-                  index,
-                  handleEdit: () => handleEditButtonClick(index),
-                  handleSetPrimary: () => handleSetPrimaryItem(index),
+                  index: originalIndex,
+                  handleEdit: () => handleEditButtonClick(originalIndex),
+                  handleSetPrimary: () => handleSetPrimaryItem(originalIndex),
                   handleDelete: () => {
-                    handleDeleteItem(index);
+                    handleDeleteItem(originalIndex);
                   },
-                }),
-              )}
+                });
+              })}
             </DropdownMenuItemsContainer>
             {isInputDisplayed || !isLimitReached ? (
               <DropdownMenuSeparator />
             ) : null}
           </>
         )}
-      {isInputDisplayed || !items.length ? (
+      {isInputDisplayed ? (
         <MultiItemBaseInput
           instanceId={instanceId}
-          autoFocus
+          autoFocus={!shouldShowSearch}
           placeholder={placeholder}
           value={inputValue}
           hasError={!errorData.isValid}

@@ -4,36 +4,36 @@ import { msg, t } from '@lingui/core/macro';
 import { ALL_METADATA_NAME } from 'twenty-shared/metadata';
 import { isDefined } from 'twenty-shared/utils';
 
-import { validateFlatObjectMetadataIdentifiers } from 'src/engine/metadata-modules/flat-object-metadata/validators/utils/validate-flat-object-metadata-identifiers.util';
+import { findFlatEntityByUniversalIdentifier } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier.util';
 import { validateFlatObjectMetadataNameAndLabels } from 'src/engine/metadata-modules/flat-object-metadata/validators/utils/validate-flat-object-metadata-name-and-labels.util';
 import { ObjectMetadataExceptionCode } from 'src/engine/metadata-modules/object-metadata/object-metadata.exception';
 import { belongsToTwentyStandardApp } from 'src/engine/metadata-modules/utils/belongs-to-twenty-standard-app.util';
+import { isCallerTwentyStandardApp } from 'src/engine/metadata-modules/utils/is-caller-twenty-standard-app.util';
 import { FailedFlatEntityValidation } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/types/failed-flat-entity-validation.type';
 import { getEmptyFlatEntityValidationError } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/utils/get-flat-entity-validation-error.util';
-import { FlatEntityUpdateValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/flat-entity-update-validation-args.type';
-import { FlatEntityValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/flat-entity-validation-args.type';
-import { fromFlatEntityPropertiesUpdatesToPartialFlatEntity } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/from-flat-entity-properties-updates-to-partial-flat-entity';
+import { FlatEntityUpdateValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/universal-flat-entity-update-validation-args.type';
+import { UniversalFlatEntityValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/universal-flat-entity-validation-args.type';
 
 @Injectable()
 export class FlatObjectMetadataValidatorService {
   public validateFlatObjectMetadataUpdate({
-    flatEntityId,
-    flatEntityUpdates,
+    universalIdentifier,
+    flatEntityUpdate,
     buildOptions,
     optimisticFlatEntityMapsAndRelatedFlatEntityMaps: {
       flatObjectMetadataMaps: optimisticFlatObjectMetadataMaps,
-      flatFieldMetadataMaps,
     },
   }: FlatEntityUpdateValidationArgs<
     typeof ALL_METADATA_NAME.objectMetadata
   >): FailedFlatEntityValidation<'objectMetadata', 'update'> {
-    const existingFlatObjectMetadata =
-      optimisticFlatObjectMetadataMaps.byId[flatEntityId];
+    const existingFlatObjectMetadata = findFlatEntityByUniversalIdentifier({
+      universalIdentifier,
+      flatEntityMaps: optimisticFlatObjectMetadataMaps,
+    });
 
     const validationResult = getEmptyFlatEntityValidationError({
       flatEntityMinimalInformation: {
-        id: flatEntityId,
-        universalIdentifier: existingFlatObjectMetadata?.universalIdentifier,
+        universalIdentifier,
       },
       metadataName: 'objectMetadata',
       type: 'update',
@@ -51,71 +51,79 @@ export class FlatObjectMetadataValidatorService {
 
     const updatedFlatObjectMetadata = {
       ...existingFlatObjectMetadata,
-      ...fromFlatEntityPropertiesUpdatesToPartialFlatEntity({
-        updates: flatEntityUpdates,
-      }),
+      ...flatEntityUpdate,
     };
 
     validationResult.flatEntityMinimalInformation = {
       ...validationResult.flatEntityMinimalInformation,
-      id: existingFlatObjectMetadata.id,
       namePlural: existingFlatObjectMetadata.namePlural,
       nameSingular: existingFlatObjectMetadata.nameSingular,
     };
 
+    if (!buildOptions.isSystemBuild && existingFlatObjectMetadata.isSystem) {
+      const allowedOverrideKeys = new Set(['standardOverrides', 'isActive']);
+      const disallowedProperties = Object.keys(flatEntityUpdate).filter(
+        (property) => !allowedOverrideKeys.has(property),
+      );
+
+      if (disallowedProperties.length > 0) {
+        validationResult.errors.push({
+          code: ObjectMetadataExceptionCode.INVALID_OBJECT_INPUT,
+          message: t`System objects cannot be updated directly. Use standardOverrides for cosmetic changes.`,
+          userFriendlyMessage: msg`System objects cannot be updated`,
+        });
+      }
+    }
+
     validationResult.errors.push(
       ...validateFlatObjectMetadataNameAndLabels({
-        optimisticFlatObjectMetadataMaps,
-        flatObjectMetadataToValidate: updatedFlatObjectMetadata,
+        optimisticUniversalFlatObjectMetadataMaps:
+          optimisticFlatObjectMetadataMaps,
+        universalFlatObjectMetadataToValidate: updatedFlatObjectMetadata,
         buildOptions,
       }),
     );
-
-    const labelIdentifierFieldMetadataIdUpdate = flatEntityUpdates.find(
-      (update) => update.property === 'labelIdentifierFieldMetadataId',
-    );
-
     // TODO remove this once we migrated labelIdentifierFieldMetadataId as non nullable
-    if (isDefined(labelIdentifierFieldMetadataIdUpdate)) {
-      if (!isDefined(labelIdentifierFieldMetadataIdUpdate.to)) {
+    if (
+      flatEntityUpdate.labelIdentifierFieldMetadataUniversalIdentifier !==
+      undefined
+    ) {
+      if (
+        flatEntityUpdate.labelIdentifierFieldMetadataUniversalIdentifier ===
+        null
+      ) {
         validationResult.errors.push({
           code: ObjectMetadataExceptionCode.INVALID_OBJECT_INPUT,
           message: 'labelIdentifierFieldMetadataId cannot be null',
           userFriendlyMessage: msg`Field label identifier is required`,
         });
       }
-
-      validationResult.errors.push(
-        ...validateFlatObjectMetadataIdentifiers({
-          flatObjectMetadata: updatedFlatObjectMetadata,
-          flatFieldMetadataMaps,
-        }),
-      );
     }
 
     return validationResult;
   }
 
   public validateFlatObjectMetadataDeletion({
-    flatEntityToValidate: { id: objectMetadataToDeleteId, universalIdentifier },
+    flatEntityToValidate: { universalIdentifier },
     optimisticFlatEntityMapsAndRelatedFlatEntityMaps: {
       flatObjectMetadataMaps: optimisticFlatObjectMetadataMaps,
     },
     buildOptions,
-  }: FlatEntityValidationArgs<
+  }: UniversalFlatEntityValidationArgs<
     typeof ALL_METADATA_NAME.objectMetadata
   >): FailedFlatEntityValidation<'objectMetadata', 'delete'> {
+    const flatObjectMetadataToDelete = findFlatEntityByUniversalIdentifier({
+      universalIdentifier,
+      flatEntityMaps: optimisticFlatObjectMetadataMaps,
+    });
+
     const validationResult = getEmptyFlatEntityValidationError({
       flatEntityMinimalInformation: {
-        id: objectMetadataToDeleteId,
         universalIdentifier,
       },
       metadataName: 'objectMetadata',
       type: 'delete',
     });
-
-    const flatObjectMetadataToDelete =
-      optimisticFlatObjectMetadataMaps.byId[objectMetadataToDeleteId];
 
     if (!isDefined(flatObjectMetadataToDelete)) {
       validationResult.errors.push({
@@ -138,8 +146,16 @@ export class FlatObjectMetadataValidatorService {
         });
       }
 
+      if (!buildOptions.isSystemBuild && flatObjectMetadataToDelete.isSystem) {
+        validationResult.errors.push({
+          code: ObjectMetadataExceptionCode.INVALID_OBJECT_INPUT,
+          message: t`System objects cannot be deleted`,
+          userFriendlyMessage: msg`System objects cannot be deleted`,
+        });
+      }
+
       if (
-        !buildOptions.isSystemBuild &&
+        !isCallerTwentyStandardApp(buildOptions) &&
         belongsToTwentyStandardApp(flatObjectMetadataToDelete)
       ) {
         validationResult.errors.push({
@@ -156,16 +172,14 @@ export class FlatObjectMetadataValidatorService {
   public validateFlatObjectMetadataCreation({
     flatEntityToValidate: flatObjectMetadataToValidate,
     optimisticFlatEntityMapsAndRelatedFlatEntityMaps: {
-      flatObjectMetadataMaps: optimisticFlatObjectMetadataMaps,
-      flatFieldMetadataMaps,
+      flatObjectMetadataMaps: optimisticUniversalFlatObjectMetadataMaps,
     },
     buildOptions,
-  }: FlatEntityValidationArgs<
+  }: UniversalFlatEntityValidationArgs<
     typeof ALL_METADATA_NAME.objectMetadata
   >): FailedFlatEntityValidation<'objectMetadata', 'create'> {
     const objectValidationResult = getEmptyFlatEntityValidationError({
       flatEntityMinimalInformation: {
-        id: flatObjectMetadataToValidate.id,
         universalIdentifier: flatObjectMetadataToValidate.universalIdentifier,
         namePlural: flatObjectMetadataToValidate.namePlural,
         nameSingular: flatObjectMetadataToValidate.nameSingular,
@@ -176,13 +190,16 @@ export class FlatObjectMetadataValidatorService {
 
     if (
       isDefined(
-        optimisticFlatObjectMetadataMaps.byId[flatObjectMetadataToValidate.id],
+        findFlatEntityByUniversalIdentifier({
+          universalIdentifier: flatObjectMetadataToValidate.universalIdentifier,
+          flatEntityMaps: optimisticUniversalFlatObjectMetadataMaps,
+        }),
       )
     ) {
       objectValidationResult.errors.push({
         code: ObjectMetadataExceptionCode.INVALID_OBJECT_INPUT,
-        message: t`Object with same id already exists`,
-        userFriendlyMessage: msg`Object with same id already exists`,
+        message: t`Object with same universal identifier already exists`,
+        userFriendlyMessage: msg`Object with same universal identifier already exists`,
       });
     }
 
@@ -195,15 +212,9 @@ export class FlatObjectMetadataValidatorService {
     }
 
     objectValidationResult.errors.push(
-      ...validateFlatObjectMetadataIdentifiers({
-        flatObjectMetadata: flatObjectMetadataToValidate,
-        flatFieldMetadataMaps,
-      }),
-    );
-    objectValidationResult.errors.push(
       ...validateFlatObjectMetadataNameAndLabels({
-        optimisticFlatObjectMetadataMaps,
-        flatObjectMetadataToValidate,
+        optimisticUniversalFlatObjectMetadataMaps,
+        universalFlatObjectMetadataToValidate: flatObjectMetadataToValidate,
         buildOptions,
       }),
     );

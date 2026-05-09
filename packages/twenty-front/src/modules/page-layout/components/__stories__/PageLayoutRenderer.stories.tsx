@@ -1,29 +1,27 @@
-import {
-  type ApolloClient,
-  type NormalizedCacheObject,
-  useApolloClient,
-} from '@apollo/client';
+import { type ApolloClient } from '@apollo/client';
+import { useApolloClient } from '@apollo/client/react';
 import { type MockedResponse } from '@apollo/client/testing';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, within } from 'storybook/test';
 
-import { FIND_ONE_PAGE_LAYOUT } from '@/dashboards/graphql/queries/findOnePageLayout';
 import { ApolloCoreClientContext } from '@/object-metadata/contexts/ApolloCoreClientContext';
-import { CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
+import { CoreObjectNameSingular } from 'twenty-shared/types';
 import { generateGroupByAggregateQuery } from '@/object-record/record-aggregate/utils/generateGroupByAggregateQuery';
 import { PageLayoutRenderer } from '@/page-layout/components/PageLayoutRenderer';
 import { LayoutRenderingProvider } from '@/ui/layout/contexts/LayoutRenderingContext';
-import { GraphOrderBy, WidgetType } from '~/generated-metadata/graphql';
 import {
   AggregateOperations,
   AxisNameDisplay,
   type BarChartConfiguration,
   BarChartLayout,
+  FindOnePageLayoutDocument,
+  GraphOrderBy,
   PageLayoutType,
   type PageLayoutWidget,
   WidgetConfigurationType,
-} from '~/generated/graphql';
+  WidgetType,
+} from '~/generated-metadata/graphql';
 import { getJestMetadataAndApolloMocksWrapper } from '~/testing/jest/getJestMetadataAndApolloMocksWrapper';
 import { getMockFieldMetadataItemOrThrow } from '~/testing/utils/getMockFieldMetadataItemOrThrow';
 import { getMockObjectMetadataItemOrThrow } from '~/testing/utils/getMockObjectMetadataItemOrThrow';
@@ -66,6 +64,7 @@ const mixedGraphsPageLayoutMocks = {
   tabs: [
     {
       __typename: 'PageLayoutTab',
+      isActive: true,
       id: 'mixed-tab',
       title: 'Mixed Graphs',
       position: 0,
@@ -76,6 +75,8 @@ const mixedGraphsPageLayoutMocks = {
       widgets: [
         {
           __typename: 'PageLayoutWidget',
+          applicationId: '',
+          isActive: true,
           id: 'number-widget',
           pageLayoutTabId: 'mixed-tab',
           type: WidgetType.GRAPH,
@@ -100,6 +101,8 @@ const mixedGraphsPageLayoutMocks = {
         } satisfies PageLayoutWidget,
         {
           __typename: 'PageLayoutWidget',
+          applicationId: '',
+          isActive: true,
           id: 'gauge-widget',
           pageLayoutTabId: 'mixed-tab',
           type: WidgetType.GRAPH,
@@ -125,6 +128,8 @@ const mixedGraphsPageLayoutMocks = {
         } satisfies PageLayoutWidget,
         {
           __typename: 'PageLayoutWidget',
+          applicationId: '',
+          isActive: true,
           id: 'pie-widget',
           pageLayoutTabId: 'mixed-tab',
           type: WidgetType.GRAPH,
@@ -151,6 +156,8 @@ const mixedGraphsPageLayoutMocks = {
         } satisfies PageLayoutWidget,
         {
           __typename: 'PageLayoutWidget',
+          applicationId: '',
+          isActive: true,
           id: 'bar-widget',
           pageLayoutTabId: 'mixed-tab',
           type: WidgetType.GRAPH,
@@ -191,7 +198,7 @@ const barChartGroupByQuery = generateGroupByAggregateQuery({
 const graphqlMocks: MockedResponse[] = [
   {
     request: {
-      query: FIND_ONE_PAGE_LAYOUT,
+      query: FindOnePageLayoutDocument,
       variables: {
         id: 'mixed-graphs-layout',
       },
@@ -253,7 +260,7 @@ const CoreClientProviderWrapper = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const apolloClient = useApolloClient() as ApolloClient<NormalizedCacheObject>;
+  const apolloClient = useApolloClient() as ApolloClient;
 
   return (
     <ApolloCoreClientContext.Provider value={apolloClient}>
@@ -276,7 +283,7 @@ const meta: Meta<typeof PageLayoutRenderer> = {
           <CoreClientProviderWrapper>
             <LayoutRenderingProvider
               value={{
-                isInRightDrawer: false,
+                isInSidePanel: false,
                 layoutType: PageLayoutType.DASHBOARD,
                 targetRecordIdentifier: {
                   targetObjectNameSingular: CoreObjectNameSingular.Dashboard,

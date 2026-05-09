@@ -1,9 +1,7 @@
-import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
-import { getItemTagInfo } from '@/settings/data-model/utils/getItemTagInfo';
-import { useTheme } from '@emotion/react';
-import styled from '@emotion/styled';
-import { useRecoilValue } from 'recoil';
+import { AppChip } from '@/applications/components/AppChip';
 import { Avatar } from 'twenty-ui/display';
+import { Chip, ChipAccent, ChipVariant } from 'twenty-ui/components';
+import { isDefined } from 'twenty-shared/utils';
 
 type SettingsItemTypeTagProps = {
   item: {
@@ -14,36 +12,30 @@ type SettingsItemTypeTagProps = {
   className?: string;
 };
 
-const StyledContainer = styled.div`
-  align-items: center;
-  display: flex;
-  font-size: ${({ theme }) => theme.font.size.sm};
-  gap: ${({ theme }) => theme.spacing(1)};
-`;
-
 export const SettingsItemTypeTag = ({
   className,
-  item: { isCustom, isRemote, applicationId },
+  item: { isRemote, applicationId },
 }: SettingsItemTypeTagProps) => {
-  const theme = useTheme();
-  const currentWorkspace = useRecoilValue(currentWorkspaceState);
-  const itemTagInfo = getItemTagInfo({
-    item: { isCustom, isRemote, applicationId },
-    workspaceCustomApplicationId:
-      currentWorkspace?.workspaceCustomApplication?.id,
-  });
-
-  return (
-    <StyledContainer className={className}>
-      <Avatar
-        placeholder={itemTagInfo.labelText}
-        placeholderColorSeed={itemTagInfo.labelText}
-        type="squared"
-        size="xs"
-        color={theme.tag.text[itemTagInfo.labelColor]}
-        backgroundColor={theme.tag.background[itemTagInfo.labelColor]}
+  if (isDefined(applicationId)) {
+    return <AppChip applicationId={applicationId} className={className} />;
+  } else if (isRemote === true) {
+    return (
+      <Chip
+        className={className}
+        label="Remote"
+        variant={ChipVariant.Transparent}
+        accent={ChipAccent.TextPrimary}
+        leftComponent={
+          <Avatar
+            type="app"
+            size="sm"
+            placeholder="Remote"
+            placeholderColorSeed="Remote"
+          />
+        }
       />
-      {itemTagInfo.labelText}
-    </StyledContainer>
-  );
+    );
+  } else {
+    return null;
+  }
 };

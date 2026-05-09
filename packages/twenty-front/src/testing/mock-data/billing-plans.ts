@@ -1,11 +1,11 @@
-import type { ListPlansQueryResult } from '~/generated-metadata/graphql';
+import type { ListPlansQuery } from '~/generated-metadata/graphql';
 
 export const mockBillingPlans = {
   listPlans: [
     {
-      __typename: 'BillingPlanOutput',
+      __typename: 'BillingPlan',
       planKey: 'PRO',
-      licensedProducts: [
+      baseProducts: [
         {
           __typename: 'BillingLicensedProduct',
           name: 'Pro Plan',
@@ -24,6 +24,7 @@ export const mockBillingPlans = {
               unitAmount: 1200,
               recurringInterval: 'Month',
               priceUsageType: 'LICENSED',
+              creditAmount: null,
             },
             {
               __typename: 'BillingPriceLicensed',
@@ -31,10 +32,12 @@ export const mockBillingPlans = {
               unitAmount: 10800,
               recurringInterval: 'Year',
               priceUsageType: 'LICENSED',
+              creditAmount: null,
             },
           ],
         },
       ],
+      resourceCreditProducts: [],
       meteredProducts: [
         {
           __typename: 'BillingMeteredProduct',
@@ -58,7 +61,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 999000,
                   unitAmount: null,
-                  upTo: 7500000000,
+                  upTo: 7500000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -78,7 +81,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 399000,
                   unitAmount: null,
-                  upTo: 2600000000,
+                  upTo: 2600000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -98,7 +101,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 199000,
                   unitAmount: null,
-                  upTo: 1200000000,
+                  upTo: 1200000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -118,7 +121,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 99000,
                   unitAmount: null,
-                  upTo: 540000000,
+                  upTo: 540000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -138,7 +141,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 29000,
                   unitAmount: null,
-                  upTo: 130000000,
+                  upTo: 130000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -158,7 +161,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 0,
                   unitAmount: null,
-                  upTo: 50000000,
+                  upTo: 50000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -178,7 +181,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 99900,
                   unitAmount: null,
-                  upTo: 700000000,
+                  upTo: 700000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -198,7 +201,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 39900,
                   unitAmount: null,
-                  upTo: 240000000,
+                  upTo: 240000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -218,7 +221,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 19900,
                   unitAmount: null,
-                  upTo: 110000000,
+                  upTo: 110000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -238,7 +241,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 9900,
                   unitAmount: null,
-                  upTo: 50000000,
+                  upTo: 50000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -258,7 +261,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 2900,
                   unitAmount: null,
-                  upTo: 10000000,
+                  upTo: 10000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -278,7 +281,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 0,
                   unitAmount: null,
-                  upTo: 5000000,
+                  upTo: 5000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -293,9 +296,9 @@ export const mockBillingPlans = {
       ],
     },
     {
-      __typename: 'BillingPlanOutput',
+      __typename: 'BillingPlan',
       planKey: 'ENTERPRISE',
-      licensedProducts: [
+      baseProducts: [
         {
           __typename: 'BillingLicensedProduct',
           name: 'Organization Plan',
@@ -314,6 +317,7 @@ export const mockBillingPlans = {
               unitAmount: 2500,
               recurringInterval: 'Month',
               priceUsageType: 'LICENSED',
+              creditAmount: null,
             },
             {
               __typename: 'BillingPriceLicensed',
@@ -321,10 +325,12 @@ export const mockBillingPlans = {
               unitAmount: 22800,
               recurringInterval: 'Year',
               priceUsageType: 'LICENSED',
+              creditAmount: null,
             },
           ],
         },
       ],
+      resourceCreditProducts: [],
       meteredProducts: [
         {
           __typename: 'BillingMeteredProduct',
@@ -348,7 +354,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 999000,
                   unitAmount: null,
-                  upTo: 7500000000,
+                  upTo: 7500000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -368,7 +374,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 399000,
                   unitAmount: null,
-                  upTo: 2600000000,
+                  upTo: 2600000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -388,7 +394,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 199000,
                   unitAmount: null,
-                  upTo: 1200000000,
+                  upTo: 1200000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -408,7 +414,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 99000,
                   unitAmount: null,
-                  upTo: 540000000,
+                  upTo: 540000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -428,7 +434,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 29000,
                   unitAmount: null,
-                  upTo: 130000000,
+                  upTo: 130000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -448,7 +454,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 0,
                   unitAmount: null,
-                  upTo: 50000000,
+                  upTo: 50000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -468,7 +474,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 99900,
                   unitAmount: null,
-                  upTo: 700000000,
+                  upTo: 700000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -488,7 +494,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 39900,
                   unitAmount: null,
-                  upTo: 240000000,
+                  upTo: 240000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -508,7 +514,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 19900,
                   unitAmount: null,
-                  upTo: 110000000,
+                  upTo: 110000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -528,7 +534,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 9900,
                   unitAmount: null,
-                  upTo: 50000000,
+                  upTo: 50000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -548,7 +554,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 2900,
                   unitAmount: null,
-                  upTo: 10000000,
+                  upTo: 10000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -568,7 +574,7 @@ export const mockBillingPlans = {
                   __typename: 'BillingPriceTier',
                   flatAmount: 0,
                   unitAmount: null,
-                  upTo: 5000000,
+                  upTo: 5000,
                 },
                 {
                   __typename: 'BillingPriceTier',
@@ -583,4 +589,4 @@ export const mockBillingPlans = {
       ],
     },
   ],
-} as NonNullable<ListPlansQueryResult['data']>;
+} as ListPlansQuery;

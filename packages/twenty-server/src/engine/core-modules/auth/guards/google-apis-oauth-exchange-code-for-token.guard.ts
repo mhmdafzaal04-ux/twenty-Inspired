@@ -3,7 +3,6 @@ import { AuthGuard } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { Repository } from 'typeorm';
-
 import {
   AuthException,
   AuthExceptionCode,
@@ -45,6 +44,10 @@ export class GoogleAPIsOauthExchangeCodeForTokenGuard extends AuthGuard(
           AuthExceptionCode.GOOGLE_API_AUTH_DISABLED,
         );
       }
+
+      await this.transientTokenService.verifyTransientToken(
+        state.transientToken,
+      );
 
       new GoogleAPIsOauthExchangeCodeForTokenStrategy(this.twentyConfigService);
 

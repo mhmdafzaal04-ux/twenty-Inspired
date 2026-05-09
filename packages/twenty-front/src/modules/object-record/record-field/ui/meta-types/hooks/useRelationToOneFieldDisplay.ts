@@ -12,7 +12,10 @@ import { FieldContext } from '@/object-record/record-field/ui/contexts/FieldCont
 import { assertFieldMetadata } from '@/object-record/record-field/ui/types/guards/assertFieldMetadata';
 import { isFieldRelation } from '@/object-record/record-field/ui/types/guards/isFieldRelation';
 import { useRecordFieldValue } from '@/object-record/record-store/hooks/useRecordFieldValue';
-import { isDefined } from 'twenty-shared/utils';
+import {
+  computeRelationGqlFieldJoinColumnName,
+  isDefined,
+} from 'twenty-shared/utils';
 
 export const useRelationToOneFieldDisplay = () => {
   const { recordId, fieldDefinition, maxWidth } = useContext(FieldContext);
@@ -39,6 +42,16 @@ export const useRelationToOneFieldDisplay = () => {
     recordId,
     fieldName,
     fieldDefinition,
+  );
+
+  const joinColumnName = computeRelationGqlFieldJoinColumnName({
+    name: fieldName,
+  });
+
+  const foreignKeyFieldValue = useRecordFieldValue<string | null | undefined>(
+    recordId,
+    joinColumnName,
+    { type: FieldMetadataType.UUID, metadata: { fieldName: joinColumnName } },
   );
 
   const maxWidthForField =
@@ -69,6 +82,7 @@ export const useRelationToOneFieldDisplay = () => {
   return {
     fieldDefinition,
     fieldValue,
+    foreignKeyFieldValue,
     maxWidth: maxWidthForField,
     recordId,
     generateRecordChipData,

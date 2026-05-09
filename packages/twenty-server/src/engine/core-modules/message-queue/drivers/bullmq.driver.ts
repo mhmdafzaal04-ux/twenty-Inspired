@@ -1,5 +1,10 @@
-import { Logger, type OnModuleDestroy } from '@nestjs/common';
+import {
+  Logger,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from '@nestjs/common';
 
+import * as Sentry from '@sentry/node';
 import {
   type JobsOptions,
   MetricsTime,
@@ -24,12 +29,15 @@ import { type MessageQueue } from 'src/engine/core-modules/message-queue/message
 import { getJobKey } from 'src/engine/core-modules/message-queue/utils/get-job-key.util';
 import { type MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
 import { MetricsKeys } from 'src/engine/core-modules/metrics/types/metrics-keys.type';
+import { applyWorkspaceSentryContextFromJobData } from 'src/engine/core-modules/sentry/utils/apply-workspace-sentry-context-from-job-data.util';
 
 export type BullMQDriverOptions = QueueOptions;
 
 const V4_LENGTH = 36;
 
-export class BullMQDriver implements MessageQueueDriver, OnModuleDestroy {
+export class BullMQDriver
+  implements MessageQueueDriver, OnModuleDestroy, OnModuleInit
+{
   private logger = new Logger(BullMQDriver.name);
   private queueMap: Record<MessageQueue, Queue> = {} as Record<
     MessageQueue,
@@ -44,6 +52,31 @@ export class BullMQDriver implements MessageQueueDriver, OnModuleDestroy {
     private options: BullMQDriverOptions,
     private metricsService: MetricsService,
   ) {}
+
+  onModuleInit() {
+    this.metricsService.createObservableGauge({
+      metricName: 'twenty_queue_jobs_waiting_total',
+      options: { description: 'Current number of jobs waiting in queue' },
+      callback: async () => {
+        let totalWaiting = 0;
+
+        for (const [queueName, queue] of Object.entries(this.queueMap)) {
+          try {
+            const waitingCount = await queue.count();
+
+            totalWaiting += waitingCount;
+          } catch (error) {
+            this.logger.error(
+              `Failed to collect waiting jobs metrics for queue ${queueName}`,
+              error,
+            );
+          }
+        }
+
+        return totalWaiting;
+      },
+    });
+  }
 
   register(queueName: MessageQueue): void {
     this.queueMap[queueName] = new Queue(queueName, this.options);
@@ -77,21 +110,28 @@ export class BullMQDriver implements MessageQueueDriver, OnModuleDestroy {
 
     this.workerMap[queueName] = new Worker(
       queueName,
-      async (job) => {
-        // TODO: Correctly support for job.id
-        const timeStart = performance.now();
+      async (job) =>
+        Sentry.withIsolationScope(async () => {
+          applyWorkspaceSentryContextFromJobData(job.data);
 
-        this.logger.log(
-          `Processing job ${job.id} with name ${job.name} on queue ${queueName}`,
-        );
-        await handler({ data: job.data, id: job.id ?? '', name: job.name });
-        const timeEnd = performance.now();
-        const executionTime = timeEnd - timeStart;
+          // TODO: Correctly support for job.id
+          const timeStart = performance.now();
+          const workspaceId = job.data?.workspaceId;
+          const workspaceSuffix = workspaceId
+            ? ` [workspace=${workspaceId}]`
+            : '';
 
-        this.logger.log(
-          `Job ${job.id} with name ${job.name} processed on queue ${queueName} in ${executionTime.toFixed(2)}ms`,
-        );
-      },
+          this.logger.log(
+            `Processing job ${job.id} with name ${job.name} on queue ${queueName}${workspaceSuffix}`,
+          );
+          await handler({ data: job.data, id: job.id ?? '', name: job.name });
+          const timeEnd = performance.now();
+          const executionTime = timeEnd - timeStart;
+
+          this.logger.log(
+            `Job ${job.id} with name ${job.name} processed on queue ${queueName} in ${executionTime.toFixed(2)}ms${workspaceSuffix}`,
+          );
+        }),
       workerOptions,
     );
 

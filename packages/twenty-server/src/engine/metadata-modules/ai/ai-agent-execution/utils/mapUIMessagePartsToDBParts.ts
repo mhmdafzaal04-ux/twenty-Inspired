@@ -1,5 +1,8 @@
 import { type ToolUIPart } from 'ai';
-import { type ExtendedUIMessagePart } from 'twenty-shared/ai';
+import {
+  isExtendedFileUIPart,
+  type ExtendedUIMessagePart,
+} from 'twenty-shared/ai';
 
 import { type AgentMessagePartEntity } from 'src/engine/metadata-modules/ai/ai-agent-execution/entities/agent-message-part.entity';
 
@@ -10,6 +13,7 @@ const isToolPart = (part: ExtendedUIMessagePart): part is ToolUIPart => {
 export const mapUIMessagePartsToDBParts = (
   uiMessageParts: ExtendedUIMessagePart[],
   messageId: string,
+  workspaceId: string,
 ): Partial<AgentMessagePartEntity>[] => {
   return uiMessageParts
     .map((part, index) => {
@@ -17,6 +21,7 @@ export const mapUIMessagePartsToDBParts = (
         messageId,
         orderIndex: index,
         type: part.type,
+        workspaceId,
       };
 
       switch (part.type) {
@@ -30,13 +35,17 @@ export const mapUIMessagePartsToDBParts = (
             ...basePart,
             reasoningContent: part.text,
           };
-        case 'file':
+        case 'file': {
+          if (!isExtendedFileUIPart(part)) {
+            throw new Error('Expected file part');
+          }
+
           return {
             ...basePart,
-            fileMediaType: part.mediaType,
             fileFilename: part.filename,
-            fileUrl: part.url,
+            fileId: part.fileId,
           };
+        }
         case 'source-url':
           return {
             ...basePart,
@@ -56,6 +65,8 @@ export const mapUIMessagePartsToDBParts = (
           };
         case 'step-start':
           return basePart;
+        case 'data-compaction':
+          return null;
         case 'data-routing-status':
           return {
             ...basePart,
@@ -65,6 +76,9 @@ export const mapUIMessagePartsToDBParts = (
         case 'data-code-execution':
           // Code execution parts are streamed during execution but don't need
           // to be persisted - the final result is captured in the tool part
+          return null;
+        case 'data-thread-title':
+          // Thread title is a transient notification for the client
           return null;
         default:
           {
@@ -78,6 +92,7 @@ export const mapUIMessagePartsToDBParts = (
                 toolOutput: output,
                 errorMessage: errorText,
                 state,
+                providerExecuted: part.providerExecuted ?? null,
               };
             }
           }

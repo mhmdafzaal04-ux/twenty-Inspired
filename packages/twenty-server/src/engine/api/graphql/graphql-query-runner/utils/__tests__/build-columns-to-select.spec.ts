@@ -115,17 +115,17 @@ describe('buildColumnsToSelect', () => {
   const buildFlatFieldMetadataMaps = (
     fields: FlatFieldMetadata[],
   ): FlatEntityMaps<FlatFieldMetadata> => ({
-    byId: fields.reduce(
+    byUniversalIdentifier: fields.reduce(
       (acc, field) => {
-        acc[field.id] = field;
+        acc[field.universalIdentifier] = field;
 
         return acc;
       },
       {} as Record<string, FlatFieldMetadata>,
     ),
-    idByUniversalIdentifier: fields.reduce(
+    universalIdentifierById: fields.reduce(
       (acc, field) => {
-        acc[field.universalIdentifier] = field.id;
+        acc[field.id] = field.universalIdentifier;
 
         return acc;
       },
@@ -137,18 +137,18 @@ describe('buildColumnsToSelect', () => {
   const buildFlatObjectMetadataMaps = (
     objects: FlatObjectMetadata[],
   ): FlatEntityMaps<FlatObjectMetadata> => ({
-    byId: objects.reduce(
+    byUniversalIdentifier: objects.reduce(
       (acc, obj) => {
-        acc[obj.id] = obj;
+        acc[obj.universalIdentifier as string] = obj;
 
         return acc;
       },
       {} as Record<string, FlatObjectMetadata>,
     ),
-    idByUniversalIdentifier: objects.reduce(
+    universalIdentifierById: objects.reduce(
       (acc, obj) => {
         if (obj.universalIdentifier) {
-          acc[obj.universalIdentifier] = obj.id;
+          acc[obj.id] = obj.universalIdentifier;
         }
 
         return acc;
@@ -338,56 +338,6 @@ describe('buildColumnsToSelect', () => {
     const flatFieldMetadataMaps = buildFlatFieldMetadataMaps([
       nameField,
       oneToManyCompanyField,
-    ]);
-    const flatObjectMetadataMaps = buildFlatObjectMetadataMaps([
-      flatObjectMetadata,
-      companyObjectMetadata,
-    ]);
-
-    const select = {
-      nameFirstName: true,
-    };
-
-    const relations = {
-      company: {},
-    };
-
-    const result = buildColumnsToSelect({
-      select,
-      relations,
-      flatObjectMetadata,
-      flatObjectMetadataMaps,
-      flatFieldMetadataMaps,
-    });
-
-    expect(result).toEqual({
-      nameFirstName: true,
-      id: true,
-    });
-  });
-
-  it('should handle relation field without joinColumnName', () => {
-    const noJoinColumnCompanyField = createMockField({
-      id: companyFieldId,
-      type: FieldMetadataType.RELATION,
-      name: 'company',
-      label: 'Company',
-      objectMetadataId: personObjectId,
-      defaultValue: null,
-      settings: {
-        relationType: RelationType.MANY_TO_ONE,
-        joinColumnName: null,
-      },
-      relationTargetObjectMetadataId: companyObjectId,
-    });
-
-    const flatObjectMetadata = buildMockFlatObjectMetadata([
-      nameFieldId,
-      companyFieldId,
-    ]);
-    const flatFieldMetadataMaps = buildFlatFieldMetadataMaps([
-      nameField,
-      noJoinColumnCompanyField,
     ]);
     const flatObjectMetadataMaps = buildFlatObjectMetadataMaps([
       flatObjectMetadata,

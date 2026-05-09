@@ -3,11 +3,11 @@ import { Field, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { IDField } from '@ptc-org/nestjs-query-graphql';
 
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
-import { ViewSortDirection } from 'src/engine/metadata-modules/view-sort/enums/view-sort-direction';
+import { ViewSortDirection } from 'twenty-shared/types';
 
 registerEnumType(ViewSortDirection, { name: 'ViewSortDirection' });
 
-@ObjectType('CoreViewSort')
+@ObjectType('ViewSort')
 export class ViewSortDTO {
   @IDField(() => UUIDScalarType)
   id: string;

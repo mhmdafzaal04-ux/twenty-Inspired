@@ -3,13 +3,19 @@ import { Injectable } from '@nestjs/common';
 import { type ToolSet } from 'ai';
 import { PermissionFlagType } from 'twenty-shared/constants';
 
-import {
-  type ToolProvider,
-  type ToolProviderContext,
-} from 'src/engine/core-modules/tool-provider/interfaces/tool-provider.interface';
+import { type GenerateDescriptorOptions } from 'src/engine/core-modules/tool-provider/interfaces/generate-descriptor-options.type';
+import { type ToolProvider } from 'src/engine/core-modules/tool-provider/interfaces/tool-provider.interface';
+import { type ToolProviderContext } from 'src/engine/core-modules/tool-provider/interfaces/tool-provider-context.type';
 
-import { ToolCategory } from 'src/engine/core-modules/tool-provider/enums/tool-category.enum';
+import { ToolCategory } from 'twenty-shared/ai';
+import { type ToolDescriptor } from 'src/engine/core-modules/tool-provider/types/tool-descriptor.type';
+import { type ToolIndexEntry } from 'src/engine/core-modules/tool-provider/types/tool-index-entry.type';
+import { executeToolFromToolSet } from 'src/engine/core-modules/tool-provider/utils/execute-tool-from-tool-set.util';
+import { toolSetToDescriptors } from 'src/engine/core-modules/tool-provider/utils/tool-set-to-descriptors.util';
+import { type ToolOutput } from 'src/engine/core-modules/tool/types/tool-output.type';
 import { PermissionsService } from 'src/engine/metadata-modules/permissions/permissions.service';
+import { ViewFilterToolsFactory } from 'src/engine/metadata-modules/view-filter/tools/view-filter-tools.factory';
+import { ViewSortToolsFactory } from 'src/engine/metadata-modules/view-sort/tools/view-sort-tools.factory';
 import { ViewToolsFactory } from 'src/engine/metadata-modules/view/tools/view-tools.factory';
 
 @Injectable()
@@ -18,6 +24,8 @@ export class ViewToolProvider implements ToolProvider {
 
   constructor(
     private readonly viewToolsFactory: ViewToolsFactory,
+    private readonly viewFilterToolsFactory: ViewFilterToolsFactory,
+    private readonly viewSortToolsFactory: ViewSortToolsFactory,
     private readonly permissionsService: PermissionsService,
   ) {}
 
@@ -25,14 +33,39 @@ export class ViewToolProvider implements ToolProvider {
     return true;
   }
 
-  async generateTools(context: ToolProviderContext): Promise<ToolSet> {
+  async generateDescriptors(
+    context: ToolProviderContext,
+    options?: GenerateDescriptorOptions,
+  ): Promise<(ToolIndexEntry | ToolDescriptor)[]> {
+    const toolSet = await this.buildToolSet(context);
+
+    return toolSetToDescriptors(toolSet, ToolCategory.VIEW, {
+      includeSchemas: options?.includeSchemas ?? true,
+    });
+  }
+
+  async executeStaticTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    context: ToolProviderContext,
+  ): Promise<ToolOutput> {
+    const toolSet = await this.buildToolSet(context);
+
+    return executeToolFromToolSet(toolSet, toolName, args, ToolCategory.VIEW);
+  }
+
+  private async buildToolSet(context: ToolProviderContext): Promise<ToolSet> {
     const workspaceMemberId = context.actorContext?.workspaceMemberId;
 
-    const readTools = this.viewToolsFactory.generateReadTools(
-      context.workspaceId,
-      workspaceMemberId ?? undefined,
-      workspaceMemberId ?? undefined,
-    );
+    const readTools = {
+      ...this.viewToolsFactory.generateReadTools(
+        context.workspaceId,
+        workspaceMemberId ?? undefined,
+        workspaceMemberId ?? undefined,
+      ),
+      ...this.viewFilterToolsFactory.generateReadTools(context.workspaceId),
+      ...this.viewSortToolsFactory.generateReadTools(context.workspaceId),
+    };
 
     const hasViewPermission =
       await this.permissionsService.checkRolesPermissions(
@@ -41,15 +74,19 @@ export class ViewToolProvider implements ToolProvider {
         PermissionFlagType.VIEWS,
       );
 
-    if (hasViewPermission) {
-      const writeTools = this.viewToolsFactory.generateWriteTools(
-        context.workspaceId,
-        workspaceMemberId ?? undefined,
-      );
-
-      return { ...readTools, ...writeTools };
+    if (!hasViewPermission) {
+      return readTools;
     }
 
-    return readTools;
+    const writeTools = {
+      ...this.viewToolsFactory.generateWriteTools(
+        context.workspaceId,
+        workspaceMemberId ?? undefined,
+      ),
+      ...this.viewFilterToolsFactory.generateWriteTools(context.workspaceId),
+      ...this.viewSortToolsFactory.generateWriteTools(context.workspaceId),
+    };
+
+    return { ...readTools, ...writeTools };
   }
 }

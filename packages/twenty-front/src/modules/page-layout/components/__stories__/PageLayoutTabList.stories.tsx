@@ -1,27 +1,30 @@
-import styled from '@emotion/styled';
 import { type DropResult, type ResponderProvided } from '@hello-pangea/dnd';
+import { styled } from '@linaria/react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useMemo, useState } from 'react';
-import { RecoilRoot } from 'recoil';
 import { ComponentWithRouterDecorator } from 'twenty-ui/testing';
 
 import { PageLayoutTabList } from '@/page-layout/components/PageLayoutTabList';
 import { PAGE_LAYOUT_TAB_LIST_DROPPABLE_IDS } from '@/page-layout/components/PageLayoutTabListDroppableIds';
 import { PageLayoutTabListEffect } from '@/page-layout/components/PageLayoutTabListEffect';
+import { PageLayoutEditModeProviderContext } from '@/page-layout/contexts/PageLayoutEditModeContext';
 import { PageLayoutComponentInstanceContext } from '@/page-layout/states/contexts/PageLayoutComponentInstanceContext';
 import { type PageLayoutTab } from '@/page-layout/types/PageLayoutTab';
 import { calculateNewPosition } from '@/ui/layout/draggable-list/utils/calculateNewPosition';
-import { PageLayoutType } from '~/generated/graphql';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
+import { PageLayoutType } from '~/generated-metadata/graphql';
 
 const StyledContainer = styled.div`
-  border: 1px solid ${({ theme }) => theme.border.color.strong};
-  padding: ${({ theme }) => theme.spacing(4)};
+  border: 1px solid ${themeCssVariables.border.color.strong};
+  padding: ${themeCssVariables.spacing[4]};
   width: 720px;
 `;
 
 const createInitialTabs = (): PageLayoutTab[] => [
   {
     __typename: 'PageLayoutTab',
+    isActive: true,
+    applicationId: '',
     id: 'overview',
     title: 'Overview',
     position: 0,
@@ -34,6 +37,8 @@ const createInitialTabs = (): PageLayoutTab[] => [
   },
   {
     __typename: 'PageLayoutTab',
+    isActive: true,
+    applicationId: '',
     id: 'revenue',
     title: 'Revenue',
     position: 1,
@@ -45,6 +50,8 @@ const createInitialTabs = (): PageLayoutTab[] => [
   },
   {
     __typename: 'PageLayoutTab',
+    isActive: true,
+    applicationId: '',
     id: 'forecasts',
     title: 'Forecasts',
     position: 2,
@@ -73,6 +80,8 @@ const PageLayoutTabListPlayground = ({
       ...prev,
       {
         __typename: 'PageLayoutTab',
+        isActive: true,
+        applicationId: '',
         id: `new-tab-${nextIndex}`,
         title: `New Tab ${nextIndex}`,
         position: nextIndex,
@@ -161,7 +170,11 @@ const PageLayoutTabListPlayground = ({
         componentInstanceId="page-layout-tab-list-story"
         behaveAsLinks={false}
         loading={false}
-        onAddTab={isReorderEnabled ? handleAddTab : undefined}
+        addTabStrategy={
+          isReorderEnabled
+            ? { mode: 'direct', onCreate: handleAddTab }
+            : undefined
+        }
         isReorderEnabled={isReorderEnabled}
         onReorder={isReorderEnabled ? handleReorder : undefined}
         pageLayoutType={PageLayoutType.DASHBOARD}
@@ -179,13 +192,13 @@ const meta: Meta<typeof PageLayoutTabListPlayground> = {
   decorators: [
     ComponentWithRouterDecorator,
     (Story) => (
-      <RecoilRoot>
+      <PageLayoutEditModeProviderContext value={{ isInEditMode: false }}>
         <PageLayoutComponentInstanceContext.Provider
           value={{ instanceId: 'instance-id' }}
         >
           <Story />
         </PageLayoutComponentInstanceContext.Provider>
-      </RecoilRoot>
+      </PageLayoutEditModeProviderContext>
     ),
   ],
 };

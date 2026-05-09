@@ -4,7 +4,7 @@ import { resolveInput } from 'twenty-shared/utils';
 
 import { type WorkflowAction } from 'src/modules/workflow/workflow-executor/interfaces/workflow-action.interface';
 
-import { LogicFunctionExecutorService } from 'src/engine/core-modules/logic-function/logic-function-executor/services/logic-function-executor.service';
+import { LogicFunctionExecutorService } from 'src/engine/core-modules/logic-function/logic-function-executor/logic-function-executor.service';
 import {
   WorkflowStepExecutorException,
   WorkflowStepExecutorExceptionCode,
@@ -44,23 +44,18 @@ export class CodeWorkflowAction implements WorkflowAction {
       context,
     ) as WorkflowCodeActionInput;
 
-    try {
-      const { workspaceId } = runInfo;
+    const { workspaceId } = runInfo;
 
-      const result =
-        await this.logicFunctionExecutorService.executeOneLogicFunction({
-          id: workflowActionInput.logicFunctionId,
-          workspaceId,
-          payload: workflowActionInput.logicFunctionInput,
-        });
+    const result = await this.logicFunctionExecutorService.execute({
+      logicFunctionId: workflowActionInput.logicFunctionId,
+      workspaceId,
+      payload: workflowActionInput.logicFunctionInput,
+    });
 
-      if (result.error) {
-        return { error: result.error.errorMessage };
-      }
-
-      return { result: result.data || {} };
-    } catch (error) {
-      return { error: error.message };
+    if (result.error) {
+      return { error: result.error.errorMessage };
     }
+
+    return { result: result.data || {} };
   }
 }

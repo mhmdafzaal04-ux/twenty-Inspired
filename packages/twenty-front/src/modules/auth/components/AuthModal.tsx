@@ -1,15 +1,18 @@
 import { AuthModalMountEffect } from '@/auth/components/AuthModalMountEffect';
 import { AUTH_MODAL_ID } from '@/auth/constants/AuthModalId';
 import { getAuthModalConfig } from '@/auth/utils/getAuthModalConfig';
-import { Modal } from '@/ui/layout/modal/components/Modal';
+import { ModalStatefulWrapper } from '@/ui/layout/modal/components/ModalStatefulWrapper';
 import { ScrollWrapper } from '@/ui/utilities/scroll/components/ScrollWrapper';
-import styled from '@emotion/styled';
+import { styled } from '@linaria/react';
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 
 const StyledContent = styled.div`
   align-items: center;
+  display: flex;
+  flex-direction: column;
   justify-content: center;
+  min-height: 320px;
 `;
 
 type AuthModalProps = {
@@ -23,11 +26,11 @@ export const AuthModal = ({ children }: AuthModalProps) => {
   return (
     <>
       <AuthModalMountEffect />
-      <Modal
-        modalId={AUTH_MODAL_ID}
+      <ModalStatefulWrapper
+        modalInstanceId={AUTH_MODAL_ID}
         padding="none"
         size={config.size}
-        modalVariant={config.variant}
+        overlay={config.overlay}
       >
         {config.showScrollWrapper ? (
           <ScrollWrapper componentInstanceId="scroll-wrapper-modal-content">
@@ -36,7 +39,7 @@ export const AuthModal = ({ children }: AuthModalProps) => {
         ) : (
           <>{children}</>
         )}
-      </Modal>
+      </ModalStatefulWrapper>
     </>
   );
 };

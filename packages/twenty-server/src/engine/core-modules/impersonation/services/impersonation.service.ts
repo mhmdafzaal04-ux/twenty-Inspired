@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
+import { PermissionFlagType } from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
 import { Repository } from 'typeorm';
-import { PermissionFlagType } from 'twenty-shared/constants';
 
 import { NodeEnvironment } from 'src/engine/core-modules/twenty-config/interfaces/node-environment.interface';
 
@@ -127,6 +127,21 @@ export class ImpersonationService {
       );
     }
 
+    const targetHasAdminPrivileges =
+      toImpersonateUserWorkspace.user.canImpersonate === true ||
+      toImpersonateUserWorkspace.user.canAccessFullAdminPanel === true;
+
+    const impersonatorHasAdminPrivileges =
+      impersonatorUserWorkspace.user.canImpersonate === true ||
+      impersonatorUserWorkspace.user.canAccessFullAdminPanel === true;
+
+    if (targetHasAdminPrivileges && !impersonatorHasAdminPrivileges) {
+      throw new AuthException(
+        'Cannot impersonate a user with admin privileges. Only administrators can impersonate other administrators.',
+        AuthExceptionCode.FORBIDDEN_EXCEPTION,
+      );
+    }
+
     return this.generateImpersonationLoginToken(
       impersonatorUserWorkspace,
       toImpersonateUserWorkspace,
@@ -141,7 +156,7 @@ export class ImpersonationService {
   ) {
     const auditService = this.auditService.createContext({
       workspaceId: impersonatorUserWorkspace.workspace.id,
-      userId: impersonatorUserWorkspace.user.id,
+      userId: impersonatorUserWorkspace.userId,
     });
 
     auditService.insertWorkspaceEvent(MONITORING_EVENT, {

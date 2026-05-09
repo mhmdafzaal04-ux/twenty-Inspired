@@ -23,13 +23,10 @@
     "**/__mocks__/**/*",
     "**/__tests__/**/*",
     "vite.config.ts",
-    "scripts/generateBarrels.ts",
+    "vite.config.node.ts",
+    "vite.config.browser.ts",
+    "vite.config.define.ts",
+    "vite.config.front-component.ts",
     "jest.config.mjs"
-  ],
-  "exclude": [
-    "src/front-component/remote/mock/**/*",
-    "src/front-component/host/generated/host-component-registry.ts",
-    "src/front-component/remote/generated/remote-components.ts",
-    "src/front-component/remote/generated/remote-elements.ts"
   ]
 }

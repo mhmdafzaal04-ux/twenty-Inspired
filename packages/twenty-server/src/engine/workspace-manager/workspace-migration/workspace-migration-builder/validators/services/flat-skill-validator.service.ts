@@ -4,22 +4,21 @@ import { msg, t } from '@lingui/core/macro';
 import { ALL_METADATA_NAME } from 'twenty-shared/metadata';
 import { isDefined } from 'twenty-shared/utils';
 
-import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
-import { type FlatSkill } from 'src/engine/metadata-modules/flat-skill/types/flat-skill.type';
+import { findFlatEntityByUniversalIdentifier } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier.util';
 import { SkillExceptionCode } from 'src/engine/metadata-modules/skill/skill.exception';
+import { type UniversalFlatSkill } from 'src/engine/workspace-manager/workspace-migration/universal-flat-entity/types/universal-flat-skill.type';
 import { belongsToTwentyStandardApp } from 'src/engine/metadata-modules/utils/belongs-to-twenty-standard-app.util';
-import { findFlatEntityPropertyUpdate } from 'src/engine/workspace-manager/workspace-migration/utils/find-flat-entity-property-update.util';
+import { isCallerTwentyStandardApp } from 'src/engine/metadata-modules/utils/is-caller-twenty-standard-app.util';
 import { type FailedFlatEntityValidation } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/types/failed-flat-entity-validation.type';
 import { getEmptyFlatEntityValidationError } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/builders/utils/get-flat-entity-validation-error.util';
-import { type FlatEntityUpdateValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/flat-entity-update-validation-args.type';
-import { type FlatEntityValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/flat-entity-validation-args.type';
+import { type FlatEntityUpdateValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/universal-flat-entity-update-validation-args.type';
+import { type UniversalFlatEntityValidationArgs } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/types/universal-flat-entity-validation-args.type';
 import { validateSkillNameUniqueness } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/validators/utils/validate-skill-name-uniqueness.util';
 import {
   validateSkillContentIsDefined,
   validateSkillLabelIsDefined,
   validateSkillRequiredProperties,
 } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-builder/validators/utils/validate-skill-required-properties.util';
-import { fromFlatEntityPropertiesUpdatesToPartialFlatEntity } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/from-flat-entity-properties-updates-to-partial-flat-entity';
 
 @Injectable()
 export class FlatSkillValidatorService {
@@ -28,12 +27,11 @@ export class FlatSkillValidatorService {
     optimisticFlatEntityMapsAndRelatedFlatEntityMaps: {
       flatSkillMaps: optimisticFlatSkillMaps,
     },
-  }: FlatEntityValidationArgs<
+  }: UniversalFlatEntityValidationArgs<
     typeof ALL_METADATA_NAME.skill
   >): FailedFlatEntityValidation<'skill', 'create'> {
     const validationResult = getEmptyFlatEntityValidationError({
       flatEntityMinimalInformation: {
-        id: flatSkill.id,
         universalIdentifier: flatSkill.universalIdentifier,
         name: flatSkill.name,
       },
@@ -41,9 +39,9 @@ export class FlatSkillValidatorService {
       type: 'create',
     });
 
-    const existingSkills = Object.values(optimisticFlatSkillMaps.byId).filter(
-      isDefined,
-    );
+    const existingSkills = Object.values(
+      optimisticFlatSkillMaps.byUniversalIdentifier,
+    ).filter(isDefined);
 
     validationResult.errors.push(
       ...validateSkillRequiredProperties({ flatSkill }),
@@ -65,12 +63,11 @@ export class FlatSkillValidatorService {
       flatSkillMaps: optimisticFlatSkillMaps,
     },
     buildOptions,
-  }: FlatEntityValidationArgs<
+  }: UniversalFlatEntityValidationArgs<
     typeof ALL_METADATA_NAME.skill
   >): FailedFlatEntityValidation<'skill', 'delete'> {
     const validationResult = getEmptyFlatEntityValidationError({
       flatEntityMinimalInformation: {
-        id: flatEntityToValidate.id,
         universalIdentifier: flatEntityToValidate.universalIdentifier,
         name: flatEntityToValidate.name,
       },
@@ -78,8 +75,8 @@ export class FlatSkillValidatorService {
       type: 'delete',
     });
 
-    const existingSkill = findFlatEntityByIdInFlatEntityMaps({
-      flatEntityId: flatEntityToValidate.id,
+    const existingSkill = findFlatEntityByUniversalIdentifier({
+      universalIdentifier: flatEntityToValidate.universalIdentifier,
       flatEntityMaps: optimisticFlatSkillMaps,
     });
 
@@ -94,13 +91,11 @@ export class FlatSkillValidatorService {
     }
 
     if (
-      !buildOptions.isSystemBuild &&
-      // TODO refactor once skill has been migrated to universal pattern
-      isDefined(existingSkill.__universal) &&
+      !isCallerTwentyStandardApp(buildOptions) &&
       belongsToTwentyStandardApp({
         universalIdentifier: existingSkill.universalIdentifier,
         applicationUniversalIdentifier:
-          existingSkill.__universal.applicationUniversalIdentifier,
+          existingSkill.applicationUniversalIdentifier,
       })
     ) {
       validationResult.errors.push({
@@ -114,8 +109,8 @@ export class FlatSkillValidatorService {
   }
 
   public validateFlatSkillUpdate({
-    flatEntityId,
-    flatEntityUpdates,
+    universalIdentifier,
+    flatEntityUpdate,
     optimisticFlatEntityMapsAndRelatedFlatEntityMaps: {
       flatSkillMaps: optimisticFlatSkillMaps,
     },
@@ -123,15 +118,14 @@ export class FlatSkillValidatorService {
   }: FlatEntityUpdateValidationArgs<
     typeof ALL_METADATA_NAME.skill
   >): FailedFlatEntityValidation<'skill', 'update'> {
-    const fromFlatSkill = findFlatEntityByIdInFlatEntityMaps({
-      flatEntityId,
+    const fromFlatSkill = findFlatEntityByUniversalIdentifier({
+      universalIdentifier,
       flatEntityMaps: optimisticFlatSkillMaps,
     });
 
     const validationResult = getEmptyFlatEntityValidationError({
       flatEntityMinimalInformation: {
-        id: flatEntityId,
-        universalIdentifier: fromFlatSkill?.universalIdentifier,
+        universalIdentifier,
       },
       metadataName: 'skill',
       type: 'update',
@@ -147,27 +141,20 @@ export class FlatSkillValidatorService {
       return validationResult;
     }
 
-    // Standard skills can only have isActive toggled, not other properties
-    const isActiveUpdate = findFlatEntityPropertyUpdate({
-      flatEntityUpdates,
-      property: 'isActive',
-    });
+    const isActiveUpdate = flatEntityUpdate.isActive;
 
-    const hasNonIsActiveUpdates = flatEntityUpdates.some(
-      (update) => update.property !== 'isActive',
+    const hasNonIsActiveUpdates = Object.keys(flatEntityUpdate).some(
+      (key) => key !== 'isActive',
     );
 
-    // TODO refactor once skill has been migrated to universal pattern
-    const isTwentyStandardSkill =
-      isDefined(fromFlatSkill.__universal) &&
-      belongsToTwentyStandardApp({
-        universalIdentifier: fromFlatSkill.universalIdentifier,
-        applicationUniversalIdentifier:
-          fromFlatSkill.__universal.applicationUniversalIdentifier,
-      });
+    const isTwentyStandardSkill = belongsToTwentyStandardApp({
+      universalIdentifier: fromFlatSkill.universalIdentifier,
+      applicationUniversalIdentifier:
+        fromFlatSkill.applicationUniversalIdentifier,
+    });
 
     if (
-      !buildOptions.isSystemBuild &&
+      !isCallerTwentyStandardApp(buildOptions) &&
       isTwentyStandardSkill &&
       hasNonIsActiveUpdates
     ) {
@@ -187,17 +174,12 @@ export class FlatSkillValidatorService {
       return validationResult;
     }
 
-    const optimisticFlatSkill: FlatSkill = {
+    const optimisticFlatSkill: UniversalFlatSkill = {
       ...fromFlatSkill,
-      ...fromFlatEntityPropertiesUpdatesToPartialFlatEntity({
-        updates: flatEntityUpdates,
-      }),
+      ...flatEntityUpdate,
     };
 
-    const labelUpdate = findFlatEntityPropertyUpdate({
-      flatEntityUpdates,
-      property: 'label',
-    });
+    const labelUpdate = flatEntityUpdate.label;
 
     if (isDefined(labelUpdate)) {
       validationResult.errors.push(
@@ -205,10 +187,7 @@ export class FlatSkillValidatorService {
       );
     }
 
-    const contentUpdate = findFlatEntityPropertyUpdate({
-      flatEntityUpdates,
-      property: 'content',
-    });
+    const contentUpdate = flatEntityUpdate.content;
 
     if (isDefined(contentUpdate)) {
       validationResult.errors.push(
@@ -216,19 +195,18 @@ export class FlatSkillValidatorService {
       );
     }
 
-    const nameUpdate = findFlatEntityPropertyUpdate({
-      flatEntityUpdates,
-      property: 'name',
-    });
+    const nameUpdate = flatEntityUpdate.name;
 
     if (isDefined(nameUpdate)) {
-      const existingSkills = Object.values(optimisticFlatSkillMaps.byId)
+      const existingSkills = Object.values(
+        optimisticFlatSkillMaps.byUniversalIdentifier,
+      )
         .filter(isDefined)
-        .filter((skill) => skill.id !== flatEntityId);
+        .filter((skill) => skill.universalIdentifier !== universalIdentifier);
 
       validationResult.errors.push(
         ...validateSkillNameUniqueness({
-          name: nameUpdate.to,
+          name: nameUpdate,
           existingFlatSkills: existingSkills,
         }),
       );

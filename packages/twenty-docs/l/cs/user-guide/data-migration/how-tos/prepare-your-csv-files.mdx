@@ -103,8 +103,6 @@ Adresa je **vnořené pole** s více sloupci (některé mohou zůstat prázdné)
 Používejte jednotný formát v celém souboru:
 
 * `YYYY-MM-DD` (doporučeno): `2024-03-15`
-* `MM/DD/YYYY`: `03/15/2024`
-* `DD/MM/YYYY`: `15/03/2024`
 * ISO 8601: `2024-03-15T10:30:00Z`
 
 ### Číselná pole
@@ -210,15 +208,14 @@ Jane,Doe,jane@widgets.co,https://widgets.co
 * U členů pracovního prostoru použijte jejich **e-mail** (ne jméno)
 
 <Warning>
-  **Pořadí importu je důležité!**
+**Pořadí importu je důležité!**
 
-  Importujte stranu "one" před stranou "many":
+Importujte stranu "one" před stranou "many":
+1. **Společnosti** jako první
+2. **Lidé** jako druzí (s odkazem na společnost)
+3. **Příležitosti** jako třetí
 
-  1. **Společnosti** jako první
-  2. **Lidé** jako druzí (s odkazem na společnost)
-  3. **Příležitosti** jako třetí
-
-  Nadřazený záznam musí existovat dříve, než na něj můžete odkazovat.
+Nadřazený záznam musí existovat dříve, než na něj můžete odkazovat.
 </Warning>
 
 Podrobné pokyny najdete v [Jak importovat relace](/l/cs/user-guide/data-migration/how-tos/import-relations-between-objects-via-csv).

@@ -7,7 +7,7 @@ export const GET_TOOL_INDEX = gql`
       description
       category
       objectName
-      inputSchema
+      icon
     }
   }
 `;

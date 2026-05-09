@@ -69,7 +69,7 @@ describe('Microsoft get messages service', () => {
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       handle: 'John.l@outlook.fr',
-      handleAliases: '',
+      handleAliases: [] as string[],
     };
     const messages = service.formatBatchResponsesAsMessages(
       batchResponses,
@@ -109,6 +109,9 @@ describe('Microsoft get messages service', () => {
         },
       ],
       attachments: [],
+      messageFolderExternalIds: responseExample1.body.parentFolderId
+        ? [responseExample1.body.parentFolderId]
+        : [],
     });
 
     const responseExample2 =
@@ -152,6 +155,9 @@ describe('Microsoft get messages service', () => {
         },
       ],
       attachments: [],
+      messageFolderExternalIds: responseExample2.body.parentFolderId
+        ? [responseExample2.body.parentFolderId]
+        : [],
     });
   });
 
@@ -164,7 +170,7 @@ describe('Microsoft get messages service', () => {
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       handle: 'John.l@outlook.fr',
-      handleAliases: '',
+      handleAliases: [] as string[],
     };
     const messages = service.formatBatchResponsesAsMessages(
       batchResponses,
@@ -191,6 +197,9 @@ describe('Microsoft get messages service', () => {
         },
       ],
       attachments: [],
+      messageFolderExternalIds: responseExample.body.parentFolderId
+        ? [responseExample.body.parentFolderId]
+        : [],
     });
   });
 });

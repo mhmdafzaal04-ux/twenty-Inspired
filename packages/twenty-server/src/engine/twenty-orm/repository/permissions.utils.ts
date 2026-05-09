@@ -1,5 +1,6 @@
 import { isNonEmptyString } from '@sniptt/guards';
 import isEmpty from 'lodash.isempty';
+import { STANDARD_OBJECTS } from 'twenty-shared/metadata';
 import {
   type ObjectsPermissions,
   type RestrictedFieldsPermissions,
@@ -10,6 +11,7 @@ import { type QueryExpressionMap } from 'typeorm/query-builder/QueryExpressionMa
 import { ProcessAggregateHelper } from 'src/engine/api/graphql/graphql-query-runner/helpers/process-aggregate.helper';
 import { InternalServerError } from 'src/engine/core-modules/graphql/utils/graphql-errors.util';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
+import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import {
@@ -18,6 +20,9 @@ import {
   PermissionsExceptionMessage,
 } from 'src/engine/metadata-modules/permissions/permissions.exception';
 import { getColumnNameToFieldMetadataIdMap } from 'src/engine/twenty-orm/utils/get-column-name-to-field-metadata-id.util';
+
+const WORKSPACE_MEMBER_OBJECT_UNIVERSAL_IDENTIFIER =
+  STANDARD_OBJECTS.workspaceMember.universalIdentifier;
 
 const getTargetEntityAndOperationType = (
   expressionMap: QueryExpressionMap,
@@ -96,7 +101,10 @@ export const validateOperationIsPermittedOrThrow = ({
     );
   }
 
-  const objectMetadata = flatObjectMetadataMaps.byId[objectMetadataIdForEntity];
+  const objectMetadata = findFlatEntityByIdInFlatEntityMaps({
+    flatEntityId: objectMetadataIdForEntity,
+    flatEntityMaps: flatObjectMetadataMaps,
+  });
 
   if (!isDefined(objectMetadata)) {
     throw new PermissionsException(
@@ -106,8 +114,11 @@ export const validateOperationIsPermittedOrThrow = ({
   }
 
   const objectMetadataIsSystem = objectMetadata.isSystem === true;
+  const isWorkspaceMemberObject =
+    objectMetadata.universalIdentifier ===
+    WORKSPACE_MEMBER_OBJECT_UNIVERSAL_IDENTIFIER;
 
-  if (objectMetadataIsSystem) {
+  if (objectMetadataIsSystem && !isWorkspaceMemberObject) {
     return;
   }
 
@@ -135,6 +146,40 @@ export const validateOperationIsPermittedOrThrow = ({
       });
       break;
     case 'insert':
+      if (!permissionsForEntity?.canUpdateObjectRecords) {
+        throw new PermissionsException(
+          PermissionsExceptionMessage.PERMISSION_DENIED,
+          PermissionsExceptionCode.PERMISSION_DENIED,
+        );
+      }
+
+      validateReadFieldPermissionOrThrow({
+        restrictedFields: permissionsForEntity.restrictedFields,
+        selectedColumns,
+        columnNameToFieldMetadataIdMap,
+      });
+
+      if (updatedColumns.length > 0) {
+        const rlsFieldMetadataIds = new Set(
+          permissionsForEntity.rowLevelPermissionPredicates.map(
+            (predicate) => predicate.fieldMetadataId,
+          ),
+        );
+
+        const updatedColumnsWithoutRlsFields = updatedColumns.filter(
+          (column) =>
+            !rlsFieldMetadataIds.has(columnNameToFieldMetadataIdMap[column]),
+        );
+
+        if (updatedColumnsWithoutRlsFields.length > 0) {
+          validateUpdateFieldPermissionOrThrow({
+            restrictedFields: permissionsForEntity.restrictedFields,
+            updatedColumns: updatedColumnsWithoutRlsFields,
+            columnNameToFieldMetadataIdMap,
+          });
+        }
+      }
+      break;
     case 'update':
       if (!permissionsForEntity?.canUpdateObjectRecords) {
         throw new PermissionsException(

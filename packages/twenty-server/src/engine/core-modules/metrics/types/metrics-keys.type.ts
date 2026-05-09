@@ -22,8 +22,9 @@ export enum MetricsKeys {
   WorkflowRunStopped = 'workflow-run/stopped',
   WorkflowRunThrottled = 'workflow-run/throttled',
   WorkflowRunFailedToEnqueue = 'workflow-run/failed/to-enqueue',
-  AIToolExecutionFailed = 'ai-tool-execution/failed',
-  AIToolExecutionSucceeded = 'ai-tool-execution/succeeded',
+  WorkflowRunSystemError = 'workflow-run/system-error',
+  AiToolExecutionFailed = 'ai-tool-execution/failed',
+  AiToolExecutionSucceeded = 'ai-tool-execution/succeeded',
   SchemaVersionMismatch = 'schema-version/mismatch',
   AppVersionMismatch = 'app-version/mismatch',
   CronJobDeletedWorkspace = 'cron-job/deleted-workspace',
@@ -32,4 +33,5 @@ export enum MetricsKeys {
   CommonApiQueryRateLimited = 'common-api-query/rate-limited',
   JobCompleted = 'job/completed',
   JobFailed = 'job/failed',
+  JobWaiting = 'job/waiting',
 }

@@ -1,21 +1,37 @@
 import { verifyEmailRedirectPathState } from '@/app/states/verifyEmailRedirectPathState';
-import { useIsLogged } from '@/auth/hooks/useIsLogged';
+import { ONBOARDING_PATHS } from '@/auth/constants/OnboardingPaths';
+import { ONGOING_USER_CREATION_PATHS } from '@/auth/constants/OngoingUserCreationPaths';
+import { useHasAccessTokenPair } from '@/auth/hooks/useHasAccessTokenPair';
+import { returnToPathState } from '@/auth/states/returnToPathState';
 import { calendarBookingPageIdState } from '@/client-config/states/calendarBookingPageIdState';
 import { useIsCurrentLocationOnAWorkspace } from '@/domain-manager/hooks/useIsCurrentLocationOnAWorkspace';
 import { useDefaultHomePagePath } from '@/navigation/hooks/useDefaultHomePagePath';
-import { objectMetadataItemsState } from '@/object-metadata/states/objectMetadataItemsState';
+import { objectMetadataItemsSelector } from '@/object-metadata/states/objectMetadataItemsSelector';
 import { useOnboardingStatus } from '@/onboarding/hooks/useOnboardingStatus';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useIsWorkspaceActivationStatusEqualsTo } from '@/workspace/hooks/useIsWorkspaceActivationStatusEqualsTo';
+import { isValidReturnToPath } from '@/auth/utils/isValidReturnToPath';
+import { useQuery } from '@apollo/client/react';
+import { isNonEmptyString } from '@sniptt/guards';
 import { useLocation, useParams } from 'react-router-dom';
-import { useRecoilValue } from 'recoil';
 import { AppPath, SettingsPath } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
-import { OnboardingStatus } from '~/generated/graphql';
+import {
+  FindOnePageLayoutTypeDocument,
+  OnboardingStatus,
+  PageLayoutType,
+} from '~/generated-metadata/graphql';
 import { isMatchingLocation } from '~/utils/isMatchingLocation';
 
+const readReturnToPathFromUrlSearchParams = (): string | null => {
+  const value = new URLSearchParams(window.location.search).get('returnToPath');
+
+  return value && isValidReturnToPath(value) ? value : null;
+};
+
 export const usePageChangeEffectNavigateLocation = () => {
-  const isLoggedIn = useIsLogged();
+  const hasAccessTokenPair = useHasAccessTokenPair();
   const { isOnAWorkspace } = useIsCurrentLocationOnAWorkspace();
   const onboardingStatus = useOnboardingStatus();
   const isWorkspaceSuspended = useIsWorkspaceActivationStatusEqualsTo(
@@ -23,38 +39,45 @@ export const usePageChangeEffectNavigateLocation = () => {
   );
   const { defaultHomePagePath } = useDefaultHomePagePath();
   const location = useLocation();
-  const calendarBookingPageId = useRecoilValue(calendarBookingPageIdState);
+  const calendarBookingPageId = useAtomStateValue(calendarBookingPageIdState);
 
   const someMatchingLocationOf = (appPaths: AppPath[]): boolean =>
     appPaths.some((appPath) => isMatchingLocation(location, appPath));
-  const onGoingUserCreationPaths = [
-    AppPath.Invite,
-    AppPath.SignInUp,
-    AppPath.VerifyEmail,
-    AppPath.Verify,
-  ];
-  const onboardingPaths = [
-    AppPath.CreateWorkspace,
-    AppPath.CreateProfile,
-    AppPath.SyncEmails,
-    AppPath.InviteTeam,
-    AppPath.PlanRequired,
-    AppPath.PlanRequiredSuccess,
-    AppPath.BookCallDecision,
-    AppPath.BookCall,
-  ];
 
-  const objectNamePlural = useParams().objectNamePlural ?? '';
-  const objectMetadataItems = useRecoilValue(objectMetadataItemsState);
+  const params = useParams();
+
+  const objectNamePlural = params.objectNamePlural ?? '';
+  const objectMetadataItems = useAtomStateValue(objectMetadataItemsSelector);
   const objectMetadataItem = objectMetadataItems?.find(
     (objectMetadataItem) => objectMetadataItem.namePlural === objectNamePlural,
   );
-  const verifyEmailRedirectPath = useRecoilValue(verifyEmailRedirectPathState);
+
+  const pageLayoutId = params.pageLayoutId;
+  const isOnPageLayoutPage = isMatchingLocation(
+    location,
+    AppPath.PageLayoutPage,
+  );
+
+  const { data: pageLayoutData, loading: isPageLayoutLoading } = useQuery(
+    FindOnePageLayoutTypeDocument,
+    {
+      variables: { id: pageLayoutId ?? '' },
+      skip: !isOnPageLayoutPage || !isDefined(pageLayoutId),
+    },
+  );
+  const verifyEmailRedirectPath = useAtomStateValue(
+    verifyEmailRedirectPathState,
+  );
+
+  const returnToPath = useAtomStateValue(returnToPathState);
+  const resolvedReturnToPath = isNonEmptyString(returnToPath)
+    ? returnToPath
+    : readReturnToPathFromUrlSearchParams();
 
   if (
-    (!isLoggedIn || (isLoggedIn && !isOnAWorkspace)) &&
+    (!hasAccessTokenPair || (hasAccessTokenPair && !isOnAWorkspace)) &&
     !someMatchingLocationOf([
-      ...onGoingUserCreationPaths,
+      ...ONGOING_USER_CREATION_PATHS,
       AppPath.ResetPassword,
     ])
   ) {
@@ -133,20 +156,34 @@ export const usePageChangeEffectNavigateLocation = () => {
 
   if (
     onboardingStatus === OnboardingStatus.COMPLETED &&
-    someMatchingLocationOf([...onboardingPaths, ...onGoingUserCreationPaths]) &&
+    someMatchingLocationOf([
+      ...ONBOARDING_PATHS,
+      ...ONGOING_USER_CREATION_PATHS,
+    ]) &&
     !isMatchingLocation(location, AppPath.ResetPassword) &&
-    isLoggedIn
+    hasAccessTokenPair &&
+    isOnAWorkspace
   ) {
-    return defaultHomePagePath;
+    return resolvedReturnToPath ?? defaultHomePagePath;
   }
 
-  if (isMatchingLocation(location, AppPath.Index) && isLoggedIn) {
-    return defaultHomePagePath;
+  if (isMatchingLocation(location, AppPath.Index) && hasAccessTokenPair) {
+    return resolvedReturnToPath ?? defaultHomePagePath;
   }
 
   if (
     isMatchingLocation(location, AppPath.RecordIndexPage) &&
     !isDefined(objectMetadataItem)
+  ) {
+    return AppPath.NotFound;
+  }
+
+  if (
+    isOnPageLayoutPage &&
+    isDefined(pageLayoutId) &&
+    !isPageLayoutLoading &&
+    (!isDefined(pageLayoutData?.getPageLayout) ||
+      pageLayoutData.getPageLayout.type !== PageLayoutType.STANDALONE_PAGE)
   ) {
     return AppPath.NotFound;
   }

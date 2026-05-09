@@ -1,22 +1,22 @@
-import styled from '@emotion/styled';
+import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
 import { useEffect, useState } from 'react';
-import { useRecoilState, useRecoilValue } from 'recoil';
 import { useDebouncedCallback } from 'use-debounce';
 
 import { currentUserState } from '@/auth/states/currentUserState';
 import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
-import { CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
-import { useUpdateOneRecord } from '@/object-record/hooks/useUpdateOneRecord';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useCanEditProfileField } from '@/settings/profile/hooks/useCanEditProfileField';
+import { useUpdateWorkspaceMemberSettings } from '@/settings/profile/hooks/useUpdateWorkspaceMemberSettings';
 import { SettingsTextInput } from '@/ui/input/components/SettingsTextInput';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { logError } from '~/utils/logError';
 
 const StyledComboInputContainer = styled.div`
   display: flex;
   flex-direction: row;
   > * + * {
-    margin-left: ${({ theme }) => theme.spacing(4)};
+    margin-left: ${themeCssVariables.spacing[4]};
   }
 `;
 
@@ -26,10 +26,8 @@ type NameFieldsProps = {
 
 export const NameFields = ({ autoSave = true }: NameFieldsProps) => {
   const { t } = useLingui();
-  const currentUser = useRecoilValue(currentUserState);
-  const [currentWorkspaceMember, setCurrentWorkspaceMember] = useRecoilState(
-    currentWorkspaceMemberState,
-  );
+  const currentUser = useAtomStateValue(currentUserState);
+  const currentWorkspaceMember = useAtomStateValue(currentWorkspaceMemberState);
   const { canEdit: canEditFirstName } = useCanEditProfileField('firstName');
   const { canEdit: canEditLastName } = useCanEditProfileField('lastName');
 
@@ -40,7 +38,7 @@ export const NameFields = ({ autoSave = true }: NameFieldsProps) => {
     currentWorkspaceMember?.name?.lastName ?? '',
   );
 
-  const { updateOneRecord } = useUpdateOneRecord();
+  const { updateWorkspaceMemberSettings } = useUpdateWorkspaceMemberSettings();
 
   // TODO: Enhance this with react-web-hook-form (https://www.react-hook-form.com)
   const debouncedUpdate = useDebouncedCallback(async () => {
@@ -50,22 +48,13 @@ export const NameFields = ({ autoSave = true }: NameFieldsProps) => {
       }
 
       if (autoSave) {
-        await updateOneRecord({
-          objectNameSingular: CoreObjectNameSingular.WorkspaceMember,
-          idToUpdate: currentWorkspaceMember?.id,
-          updateOneRecordInput: {
+        await updateWorkspaceMemberSettings({
+          workspaceMemberId: currentWorkspaceMember.id,
+          update: {
             name: {
               firstName: firstName,
               lastName: lastName,
             },
-          },
-        });
-
-        setCurrentWorkspaceMember({
-          ...currentWorkspaceMember,
-          name: {
-            firstName,
-            lastName,
           },
         });
       }

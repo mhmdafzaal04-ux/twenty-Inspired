@@ -4,8 +4,14 @@ import { isDefined } from 'twenty-shared/utils';
 
 import { WorkspaceMigrationRunnerActionHandler } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/interfaces/workspace-migration-runner-action-handler-service.interface';
 
+import {
+  FlatEntityMapsException,
+  FlatEntityMapsExceptionCode,
+} from 'src/engine/metadata-modules/flat-entity/exceptions/flat-entity-maps.exception';
+import { FlatEntityUpdate } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-update.type';
 import { findFlatEntityByIdInFlatEntityMapsOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps-or-throw.util';
 import { findFlatEntityByUniversalIdentifierOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier-or-throw.util';
+import { findFlatEntityByUniversalIdentifier } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-universal-identifier.util';
 import { findManyFlatEntityByIdInFlatEntityMapsOrThrow } from 'src/engine/metadata-modules/flat-entity/utils/find-many-flat-entity-by-id-in-flat-entity-maps-or-throw.util';
 import { isCompositeFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-composite-flat-field-metadata.util';
 import { isEnumFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-enum-flat-field-metadata.util';
@@ -13,7 +19,6 @@ import { FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-meta
 import { ObjectMetadataEntity } from 'src/engine/metadata-modules/object-metadata/object-metadata.entity';
 import { WorkspaceSchemaManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/workspace-schema-manager.service';
 import { computeObjectTargetTable } from 'src/engine/utils/compute-object-target-table.util';
-import { findFlatEntityPropertyUpdate } from 'src/engine/workspace-manager/workspace-migration/utils/find-flat-entity-property-update.util';
 import {
   type FlatUpdateObjectAction,
   type UniversalUpdateObjectAction,
@@ -22,7 +27,6 @@ import {
   type WorkspaceMigrationActionRunnerArgs,
   type WorkspaceMigrationActionRunnerContext,
 } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/types/workspace-migration-action-runner-args.type';
-import { fromFlatEntityPropertiesUpdatesToPartialFlatEntity } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/from-flat-entity-properties-updates-to-partial-flat-entity';
 import { getWorkspaceSchemaContextForMigration } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/get-workspace-schema-context-for-migration.util';
 import {
   collectEnumOperationsForObject,
@@ -51,14 +55,54 @@ export class UpdateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       universalIdentifier: action.universalIdentifier,
     });
 
-    // TODO: transpile updates universal identifiers when builder has been migrated
-    // For now, updates only contain flat entity diff properties (already IDs, not universal identifiers)
+    // TODO remove once https://github.com/twentyhq/core-team-issues/issues/2172 has been resolved
+    const {
+      labelIdentifierFieldMetadataUniversalIdentifier,
+      imageIdentifierFieldMetadataUniversalIdentifier,
+      ...restUpdate
+    } = action.update;
+
+    const transpiledUpdate: FlatEntityUpdate<'objectMetadata'> = {
+      ...restUpdate,
+    };
+
+    if (isDefined(labelIdentifierFieldMetadataUniversalIdentifier)) {
+      const flatFieldMetadata = findFlatEntityByUniversalIdentifier({
+        flatEntityMaps: allFlatEntityMaps.flatFieldMetadataMaps,
+        universalIdentifier: labelIdentifierFieldMetadataUniversalIdentifier,
+      });
+
+      if (!isDefined(flatFieldMetadata)) {
+        throw new FlatEntityMapsException(
+          `Could not resolve labelIdentifierFieldMetadataUniversalIdentifier to labelIdentifierFieldMetadataId: no fieldMetadata found for universal identifier ${labelIdentifierFieldMetadataUniversalIdentifier}`,
+          FlatEntityMapsExceptionCode.ENTITY_NOT_FOUND,
+        );
+      }
+
+      transpiledUpdate.labelIdentifierFieldMetadataId = flatFieldMetadata.id;
+    }
+
+    if (isDefined(imageIdentifierFieldMetadataUniversalIdentifier)) {
+      const flatFieldMetadata = findFlatEntityByUniversalIdentifier({
+        flatEntityMaps: allFlatEntityMaps.flatFieldMetadataMaps,
+        universalIdentifier: imageIdentifierFieldMetadataUniversalIdentifier,
+      });
+
+      if (!isDefined(flatFieldMetadata)) {
+        throw new FlatEntityMapsException(
+          `Could not resolve imageIdentifierFieldMetadataUniversalIdentifier to imageIdentifierFieldMetadataId: no fieldMetadata found for universal identifier ${imageIdentifierFieldMetadataUniversalIdentifier}`,
+          FlatEntityMapsExceptionCode.ENTITY_NOT_FOUND,
+        );
+      }
+
+      transpiledUpdate.imageIdentifierFieldMetadataId = flatFieldMetadata.id;
+    }
 
     return {
       type: 'update',
       metadataName: 'objectMetadata',
       entityId: flatObjectMetadata.id,
-      updates: action.updates,
+      update: transpiledUpdate,
     };
   }
 
@@ -74,7 +118,7 @@ export class UpdateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
 
     await objectMetadataRepository.update(
       flatAction.entityId,
-      fromFlatEntityPropertiesUpdatesToPartialFlatEntity(flatAction),
+      flatAction.update,
     );
   }
 
@@ -87,7 +131,7 @@ export class UpdateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
       allFlatEntityMaps: { flatObjectMetadataMaps, flatFieldMetadataMaps },
       workspaceId,
     } = context;
-    const { entityId, updates } = flatAction;
+    const { entityId, update } = flatAction;
 
     const flatObjectMetadata = findFlatEntityByIdInFlatEntityMapsOrThrow({
       flatEntityMaps: flatObjectMetadataMaps,
@@ -100,15 +144,10 @@ export class UpdateObjectActionHandlerService extends WorkspaceMigrationRunnerAc
         objectMetadata: flatObjectMetadata,
       });
 
-    const nameSingularUpdate = findFlatEntityPropertyUpdate({
-      flatEntityUpdates: updates,
-      property: 'nameSingular',
-    });
-
-    if (isDefined(nameSingularUpdate)) {
+    if (isDefined(update.nameSingular)) {
       const updatedFlatObjectMetadata: FlatObjectMetadata = {
         ...flatObjectMetadata,
-        nameSingular: nameSingularUpdate.to,
+        nameSingular: update.nameSingular,
       };
 
       const newTableName = computeObjectTargetTable(updatedFlatObjectMetadata);

@@ -5,6 +5,7 @@ import { type FlatPageLayoutTab } from 'src/engine/metadata-modules/flat-page-la
 import { type FlatPageLayoutWidgetMaps } from 'src/engine/metadata-modules/flat-page-layout-widget/types/flat-page-layout-widget-maps.type';
 import { type FlatPageLayoutWidget } from 'src/engine/metadata-modules/flat-page-layout-widget/types/flat-page-layout-widget.type';
 import { type FlatPageLayout } from 'src/engine/metadata-modules/flat-page-layout/types/flat-page-layout.type';
+import { resolveOverridableEntityProperty } from 'src/engine/metadata-modules/utils/resolve-overridable-entity-property.util';
 
 export type FlatPageLayoutTabWithWidgets = FlatPageLayoutTab & {
   widgets: FlatPageLayoutWidget[];
@@ -13,6 +14,9 @@ export type FlatPageLayoutTabWithWidgets = FlatPageLayoutTab & {
 export type FlatPageLayoutWithTabsAndWidgets = FlatPageLayout & {
   tabs: FlatPageLayoutTabWithWidgets[];
 };
+
+const getResolvedPageLayoutTabId = (widget: FlatPageLayoutWidget): string =>
+  resolveOverridableEntityProperty(widget, 'pageLayoutTabId');
 
 export const reconstructFlatPageLayoutWithTabsAndWidgets = ({
   layout,
@@ -23,7 +27,7 @@ export const reconstructFlatPageLayoutWithTabsAndWidgets = ({
   flatPageLayoutTabMaps: FlatPageLayoutTabMaps;
   flatPageLayoutWidgetMaps: FlatPageLayoutWidgetMaps;
 }): FlatPageLayoutWithTabsAndWidgets => {
-  const tabs = Object.values(flatPageLayoutTabMaps.byId)
+  const tabs = Object.values(flatPageLayoutTabMaps.byUniversalIdentifier)
     .filter(isDefined)
     .filter(
       (tab) => tab.pageLayoutId === layout.id && !isDefined(tab.deletedAt),
@@ -31,11 +35,14 @@ export const reconstructFlatPageLayoutWithTabsAndWidgets = ({
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 
   const tabsWithWidgets: FlatPageLayoutTabWithWidgets[] = tabs.map((tab) => {
-    const widgets = Object.values(flatPageLayoutWidgetMaps.byId)
+    const widgets = Object.values(
+      flatPageLayoutWidgetMaps.byUniversalIdentifier,
+    )
       .filter(isDefined)
       .filter(
         (widget) =>
-          widget.pageLayoutTabId === tab.id && !isDefined(widget.deletedAt),
+          getResolvedPageLayoutTabId(widget) === tab.id &&
+          !isDefined(widget.deletedAt),
       );
 
     return {

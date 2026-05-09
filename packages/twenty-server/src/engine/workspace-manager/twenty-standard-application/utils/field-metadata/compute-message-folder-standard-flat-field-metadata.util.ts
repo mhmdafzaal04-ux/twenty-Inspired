@@ -1,9 +1,6 @@
-import {
-  DateDisplayFormat,
-  FieldMetadataType,
-  RelationOnDeleteAction,
-  RelationType,
-} from 'twenty-shared/types';
+import { msg } from '@lingui/core/macro';
+import { i18nLabel } from 'src/engine/workspace-manager/twenty-standard-application/utils/i18n-label.util';
+import { DateDisplayFormat, FieldMetadataType } from 'twenty-shared/types';
 
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { type AllStandardObjectFieldName } from 'src/engine/workspace-manager/twenty-standard-application/types/all-standard-object-field-name.type';
@@ -11,7 +8,8 @@ import {
   type CreateStandardFieldArgs,
   createStandardFieldFlatMetadata,
 } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-field-flat-metadata.util';
-import { createStandardRelationFieldFlatMetadata } from 'src/engine/workspace-manager/twenty-standard-application/utils/field-metadata/create-standard-relation-field-flat-metadata.util';
+import { getTsVectorColumnExpressionFromFields } from 'src/engine/workspace-manager/utils/get-ts-vector-column-expression.util';
+import { SEARCH_FIELDS_FOR_MESSAGE_FOLDER } from 'src/modules/messaging/common/standard-objects/message-folder.workspace-entity';
 
 export const buildMessageFolderStandardFlatFieldMetadatas = ({
   now,
@@ -30,8 +28,8 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'id',
       type: FieldMetadataType.UUID,
-      label: 'Id',
-      description: 'Id',
+      label: i18nLabel(msg`Id`),
+      description: i18nLabel(msg`Id`),
       icon: 'Icon123',
       isSystem: true,
       isNullable: false,
@@ -49,9 +47,10 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'createdAt',
       type: FieldMetadataType.DATE_TIME,
-      label: 'Creation date',
-      description: 'Creation date',
+      label: i18nLabel(msg`Creation date`),
+      description: i18nLabel(msg`Creation date`),
       icon: 'IconCalendar',
+      isSystem: true,
       isNullable: false,
       isUIReadOnly: true,
       defaultValue: 'now',
@@ -68,9 +67,10 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'updatedAt',
       type: FieldMetadataType.DATE_TIME,
-      label: 'Last update',
-      description: 'Last time the record was changed',
+      label: i18nLabel(msg`Last update`),
+      description: i18nLabel(msg`Last time the record was changed`),
       icon: 'IconCalendarClock',
+      isSystem: true,
       isNullable: false,
       isUIReadOnly: true,
       defaultValue: 'now',
@@ -87,12 +87,102 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'deletedAt',
       type: FieldMetadataType.DATE_TIME,
-      label: 'Deleted at',
-      description: 'Date when the record was deleted',
+      label: i18nLabel(msg`Deleted at`),
+      description: i18nLabel(msg`Date when the record was deleted`),
       icon: 'IconCalendarMinus',
+      isSystem: true,
       isNullable: true,
       isUIReadOnly: true,
       settings: { displayFormat: DateDisplayFormat.RELATIVE },
+    },
+    standardObjectMetadataRelatedEntityIds,
+    dependencyFlatEntityMaps,
+    twentyStandardApplicationId,
+    now,
+  }),
+  createdBy: createStandardFieldFlatMetadata({
+    objectName,
+    workspaceId,
+    context: {
+      fieldName: 'createdBy',
+      type: FieldMetadataType.ACTOR,
+      label: i18nLabel(msg`Created by`),
+      description: i18nLabel(msg`The creator of the record`),
+      icon: 'IconCreativeCommonsSa',
+      isSystem: true,
+      isUIReadOnly: true,
+      isNullable: false,
+      defaultValue: {
+        source: "'MANUAL'",
+        name: "'System'",
+        workspaceMemberId: null,
+      },
+    },
+    standardObjectMetadataRelatedEntityIds,
+    dependencyFlatEntityMaps,
+    twentyStandardApplicationId,
+    now,
+  }),
+  updatedBy: createStandardFieldFlatMetadata({
+    objectName,
+    workspaceId,
+    context: {
+      fieldName: 'updatedBy',
+      type: FieldMetadataType.ACTOR,
+      label: i18nLabel(msg`Updated by`),
+      description: i18nLabel(
+        msg`The workspace member who last updated the record`,
+      ),
+      icon: 'IconUserCircle',
+      isSystem: true,
+      isUIReadOnly: true,
+      isNullable: false,
+      defaultValue: {
+        source: "'MANUAL'",
+        name: "'System'",
+        workspaceMemberId: null,
+      },
+    },
+    standardObjectMetadataRelatedEntityIds,
+    dependencyFlatEntityMaps,
+    twentyStandardApplicationId,
+    now,
+  }),
+  position: createStandardFieldFlatMetadata({
+    objectName,
+    workspaceId,
+    context: {
+      fieldName: 'position',
+      type: FieldMetadataType.POSITION,
+      label: i18nLabel(msg`Position`),
+      description: i18nLabel(msg`Message Folder record position`),
+      icon: 'IconHierarchy2',
+      isSystem: true,
+      isNullable: false,
+      defaultValue: 0,
+    },
+    standardObjectMetadataRelatedEntityIds,
+    dependencyFlatEntityMaps,
+    twentyStandardApplicationId,
+    now,
+  }),
+  searchVector: createStandardFieldFlatMetadata({
+    objectName,
+    workspaceId,
+    context: {
+      fieldName: 'searchVector',
+      type: FieldMetadataType.TS_VECTOR,
+      label: i18nLabel(msg`Search vector`),
+      description: i18nLabel(msg`Field used for full-text search`),
+      icon: 'IconUser',
+      isSystem: true,
+      isNullable: true,
+      settings: {
+        generatedType: 'STORED',
+        asExpression: getTsVectorColumnExpressionFromFields(
+          SEARCH_FIELDS_FOR_MESSAGE_FOLDER,
+        ),
+      },
     },
     standardObjectMetadataRelatedEntityIds,
     dependencyFlatEntityMaps,
@@ -105,8 +195,8 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'name',
       type: FieldMetadataType.TEXT,
-      label: 'Name',
-      description: 'Folder name',
+      label: i18nLabel(msg`Name`),
+      description: i18nLabel(msg`Folder name`),
       icon: 'IconFolder',
       isNullable: true,
       isUIReadOnly: true,
@@ -122,8 +212,8 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'syncCursor',
       type: FieldMetadataType.TEXT,
-      label: 'Sync Cursor',
-      description: 'Sync Cursor',
+      label: i18nLabel(msg`Sync Cursor`),
+      description: i18nLabel(msg`Sync Cursor`),
       icon: 'IconHash',
       isNullable: true,
       isUIReadOnly: true,
@@ -139,8 +229,8 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'isSentFolder',
       type: FieldMetadataType.BOOLEAN,
-      label: 'Is Sent Folder',
-      description: 'Is Sent Folder',
+      label: i18nLabel(msg`Is Sent Folder`),
+      description: i18nLabel(msg`Is Sent Folder`),
       icon: 'IconCheck',
       isNullable: false,
       isUIReadOnly: true,
@@ -157,8 +247,8 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'isSynced',
       type: FieldMetadataType.BOOLEAN,
-      label: 'Is Synced',
-      description: 'Is Synced',
+      label: i18nLabel(msg`Is Synced`),
+      description: i18nLabel(msg`Is Synced`),
       icon: 'IconCheck',
       isNullable: false,
       isUIReadOnly: true,
@@ -175,8 +265,8 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'parentFolderId',
       type: FieldMetadataType.TEXT,
-      label: 'Parent Folder ID',
-      description: 'Parent Folder ID',
+      label: i18nLabel(msg`Parent Folder ID`),
+      description: i18nLabel(msg`Parent Folder ID`),
       icon: 'IconFolder',
       isNullable: true,
       isUIReadOnly: true,
@@ -192,8 +282,8 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'externalId',
       type: FieldMetadataType.TEXT,
-      label: 'External ID',
-      description: 'External ID',
+      label: i18nLabel(msg`External ID`),
+      description: i18nLabel(msg`External ID`),
       icon: 'IconHash',
       isNullable: true,
       isUIReadOnly: true,
@@ -209,20 +299,27 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     context: {
       fieldName: 'pendingSyncAction',
       type: FieldMetadataType.SELECT,
-      label: 'Pending Sync Action',
-      description: 'Pending action for folder sync',
+      label: i18nLabel(msg`Pending Sync Action`),
+      description: i18nLabel(msg`Pending action for folder sync`),
       icon: 'IconReload',
       isNullable: false,
       isUIReadOnly: true,
       defaultValue: "'NONE'",
       options: [
         {
+          id: '20202020-dc59-4dd3-92fe-f41c6491a588',
           value: 'FOLDER_DELETION',
-          label: 'Folder deletion',
+          label: i18nLabel(msg`Folder deletion`),
           position: 0,
           color: 'red',
         },
-        { value: 'NONE', label: 'None', position: 1, color: 'blue' },
+        {
+          id: '20202020-aa29-41d3-872b-142174fe6595',
+          value: 'NONE',
+          label: i18nLabel(msg`None`),
+          position: 1,
+          color: 'blue',
+        },
       ],
     },
     standardObjectMetadataRelatedEntityIds,
@@ -230,25 +327,17 @@ export const buildMessageFolderStandardFlatFieldMetadatas = ({
     twentyStandardApplicationId,
     now,
   }),
-  messageChannel: createStandardRelationFieldFlatMetadata({
+  messageChannelId: createStandardFieldFlatMetadata({
     objectName,
     workspaceId,
     context: {
-      type: FieldMetadataType.RELATION,
-      morphId: null,
-      fieldName: 'messageChannel',
-      label: 'Message Channel',
-      description: 'Message Channel',
+      fieldName: 'messageChannelId',
+      type: FieldMetadataType.UUID,
+      label: i18nLabel(msg`Message Channel`),
+      description: i18nLabel(msg`Message Channel`),
       icon: 'IconMessage',
       isNullable: false,
       isUIReadOnly: true,
-      targetObjectName: 'messageChannel',
-      targetFieldName: 'messageFolders',
-      settings: {
-        relationType: RelationType.MANY_TO_ONE,
-        onDelete: RelationOnDeleteAction.CASCADE,
-        joinColumnName: 'messageChannelId',
-      },
     },
     standardObjectMetadataRelatedEntityIds,
     dependencyFlatEntityMaps,

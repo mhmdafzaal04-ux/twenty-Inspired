@@ -12,14 +12,17 @@ export { AnimatedContainer } from './animation/components/AnimatedContainer';
 export { AnimatedEaseIn } from './animation/components/AnimatedEaseIn';
 export { AnimatedEaseInOut } from './animation/components/AnimatedEaseInOut';
 export { AnimatedFadeOut } from './animation/components/AnimatedFadeOut';
+export { AnimatedIconCrossfade } from './animation/components/AnimatedIconCrossfade';
 export { AnimatedRotate } from './animation/components/AnimatedRotate';
 export { AnimatedTextWord } from './animation/components/AnimatedTextWord';
 export { AnimatedTranslation } from './animation/components/AnimatedTranslation';
 export { getMainColorNameFromPaletteColorName } from './color/utils/getMainColorNameFromPaletteColorName';
+export { parseThemeColor } from './color/utils/parseThemeColor';
 export {
   stringToThemeColor,
   stringToThemeColorP3String,
 } from './color/utils/stringToThemeColorP3String';
+export { themeColorSchema } from './color/utils/themeColorSchema';
 export { REACT_APP_SERVER_BASE_URL } from './config';
 export { getOsControlSymbol } from './device/getOsControlSymbol';
 export { getOsShortcutSeparator } from './device/getOsShortcutSeparator';
@@ -35,3 +38,5 @@ export { createState } from './state/utils/createState';
 export type { ClickOutsideAttributes } from './types/ClickOutsideAttributes';
 export type { Nullable } from './types/Nullable';
 export { getDisplayValueByUrlType } from './utils/getDisplayValueByUrlType';
+export type { LinkifyMatch } from './utils/linkifyText';
+export { linkifyText } from './utils/linkifyText';

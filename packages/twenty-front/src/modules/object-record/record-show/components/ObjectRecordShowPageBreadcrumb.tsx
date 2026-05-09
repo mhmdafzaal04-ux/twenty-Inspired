@@ -1,16 +1,16 @@
+import { ObjectMetadataIcon } from '@/object-metadata/components/ObjectMetadataIcon';
 import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
 import { type FieldMetadataItem } from '@/object-metadata/types/FieldMetadataItem';
 import { useFindOneRecord } from '@/object-record/hooks/useFindOneRecord';
 import { useIsRecordFieldReadOnly } from '@/object-record/read-only/hooks/useIsRecordFieldReadOnly';
 import { FieldContext } from '@/object-record/record-field/ui/contexts/FieldContext';
 import { useRecordShowContainerActions } from '@/object-record/record-show/hooks/useRecordShowContainerActions';
-import { useRecordShowPage } from '@/object-record/record-show/hooks/useRecordShowPage';
 import { useRecordShowPagePagination } from '@/object-record/record-show/hooks/useRecordShowPagePagination';
 import { RecordTitleCell } from '@/object-record/record-title-cell/components/RecordTitleCell';
 import { RecordTitleCellContainerType } from '@/object-record/record-title-cell/types/RecordTitleCellContainerType';
-import { useTheme } from '@emotion/react';
-import styled from '@emotion/styled';
+import { styled } from '@linaria/react';
 import { FieldMetadataType } from 'twenty-shared/types';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledEditableTitleContainer = styled.div`
   align-items: center;
@@ -22,11 +22,17 @@ const StyledEditableTitleContainer = styled.div`
 
 const StyledEditableTitlePrefix = styled.div`
   align-items: center;
-  color: ${({ theme }) => theme.font.color.tertiary};
+  color: ${themeCssVariables.font.color.tertiary};
   cursor: pointer;
   display: flex;
   flex-direction: row;
-  gap: ${({ theme }) => theme.spacing(1)};
+  gap: ${themeCssVariables.spacing[1]};
+`;
+
+const StyledBreadcrumbPrefixObjectIcon = styled.div`
+  display: flex;
+  flex-shrink: 0;
+  opacity: 0.64;
 `;
 
 const StyledTitle = styled.div`
@@ -36,7 +42,7 @@ const StyledTitle = styled.div`
 `;
 
 const StyledPaginationInformation = styled.span`
-  color: ${({ theme }) => theme.font.color.tertiary};
+  color: ${themeCssVariables.font.color.tertiary};
 `;
 
 export const ObjectRecordShowPageBreadcrumb = ({
@@ -64,7 +70,6 @@ export const ObjectRecordShowPageBreadcrumb = ({
 
   const { useUpdateOneObjectRecordMutation } = useRecordShowContainerActions({
     objectNameSingular,
-    objectRecordId,
   });
 
   const isLabelIdentifierReadOnly = useIsRecordFieldReadOnly({
@@ -75,13 +80,6 @@ export const ObjectRecordShowPageBreadcrumb = ({
 
   const { navigateToIndexView, rankInView, totalCount } =
     useRecordShowPagePagination(objectNameSingular, objectRecordId);
-
-  const { headerIcon: HeaderIcon } = useRecordShowPage(
-    objectNameSingular,
-    objectRecordId,
-  );
-
-  const theme = useTheme();
 
   if (loading) {
     return null;
@@ -94,7 +92,9 @@ export const ObjectRecordShowPageBreadcrumb = ({
           navigateToIndexView();
         }}
       >
-        {HeaderIcon && <HeaderIcon size={theme.icon.size.md} />}
+        <StyledBreadcrumbPrefixObjectIcon>
+          <ObjectMetadataIcon objectMetadataItem={objectMetadataItem} />
+        </StyledBreadcrumbPrefixObjectIcon>
         {objectLabel}
         <span>{' / '}</span>
       </StyledEditableTitlePrefix>

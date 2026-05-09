@@ -1,9 +1,8 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 
-import { FieldMetadataType } from 'twenty-shared/types';
+import { AggregateOperations, FieldMetadataType } from 'twenty-shared/types';
 
-import { AggregateOperations } from 'src/engine/api/graphql/graphql-query-runner/constants/aggregate-operations.constant';
-import { type AuthContext } from 'src/engine/core-modules/auth/types/auth-context.type';
+import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { WidgetConfigurationType } from 'src/engine/metadata-modules/page-layout-widget/enums/widget-configuration-type.type';
 import { PIE_CHART_MAXIMUM_NUMBER_OF_SLICES } from 'src/modules/dashboard/chart-data/constants/pie-chart-maximum-number-of-slices.constant';
@@ -16,9 +15,10 @@ describe('PieChartDataService', () => {
   let mockGetOrRecomputeManyOrAllFlatEntityMaps: jest.Mock;
 
   const workspaceId = 'test-workspace-id';
-  const mockAuthContext: AuthContext = {
+  const mockAuthContext = {
+    type: 'system',
     workspace: { id: workspaceId } as any,
-  };
+  } as unknown as WorkspaceAuthContext;
   const objectMetadataId = 'test-object-id';
 
   const mockGroupByField = {
@@ -56,14 +56,38 @@ describe('PieChartDataService', () => {
     mockExecuteGroupByQuery = jest.fn();
     mockGetOrRecomputeManyOrAllFlatEntityMaps = jest.fn().mockResolvedValue({
       flatObjectMetadataMaps: {
-        byId: { [objectMetadataId]: mockObjectMetadata },
+        byUniversalIdentifier: {
+          'test-object-universal-id': {
+            ...mockObjectMetadata,
+            universalIdentifier: 'test-object-universal-id',
+          },
+        },
+        universalIdentifierById: {
+          [objectMetadataId]: 'test-object-universal-id',
+        },
+        universalIdentifiersByApplicationId: {},
       },
       flatFieldMetadataMaps: {
-        byId: {
-          [mockGroupByField.id]: mockGroupByField,
-          [mockSelectField.id]: mockSelectField,
-          [mockAggregateField.id]: mockAggregateField,
+        byUniversalIdentifier: {
+          'group-by-field-universal-id': {
+            ...mockGroupByField,
+            universalIdentifier: 'group-by-field-universal-id',
+          },
+          'select-field-universal-id': {
+            ...mockSelectField,
+            universalIdentifier: 'select-field-universal-id',
+          },
+          'aggregate-field-universal-id': {
+            ...mockAggregateField,
+            universalIdentifier: 'aggregate-field-universal-id',
+          },
         },
+        universalIdentifierById: {
+          [mockGroupByField.id]: 'group-by-field-universal-id',
+          [mockSelectField.id]: 'select-field-universal-id',
+          [mockAggregateField.id]: 'aggregate-field-universal-id',
+        },
+        universalIdentifiersByApplicationId: {},
       },
     });
 
@@ -244,13 +268,33 @@ describe('PieChartDataService', () => {
     it('should format select field values using option labels', async () => {
       mockGetOrRecomputeManyOrAllFlatEntityMaps.mockResolvedValue({
         flatObjectMetadataMaps: {
-          byId: { [objectMetadataId]: mockObjectMetadata },
+          byUniversalIdentifier: {
+            'test-object-universal-id': {
+              ...mockObjectMetadata,
+              universalIdentifier: 'test-object-universal-id',
+            },
+          },
+          universalIdentifierById: {
+            [objectMetadataId]: 'test-object-universal-id',
+          },
+          universalIdentifiersByApplicationId: {},
         },
         flatFieldMetadataMaps: {
-          byId: {
-            [mockSelectField.id]: mockSelectField,
-            [mockAggregateField.id]: mockAggregateField,
+          byUniversalIdentifier: {
+            'select-field-universal-id': {
+              ...mockSelectField,
+              universalIdentifier: 'select-field-universal-id',
+            },
+            'aggregate-field-universal-id': {
+              ...mockAggregateField,
+              universalIdentifier: 'aggregate-field-universal-id',
+            },
           },
+          universalIdentifierById: {
+            [mockSelectField.id]: 'select-field-universal-id',
+            [mockAggregateField.id]: 'aggregate-field-universal-id',
+          },
+          universalIdentifiersByApplicationId: {},
         },
       });
 
@@ -293,8 +337,16 @@ describe('PieChartDataService', () => {
 
     it('should throw when object metadata is not found', async () => {
       mockGetOrRecomputeManyOrAllFlatEntityMaps.mockResolvedValue({
-        flatObjectMetadataMaps: { byId: {} },
-        flatFieldMetadataMaps: { byId: {} },
+        flatObjectMetadataMaps: {
+          byUniversalIdentifier: {},
+          universalIdentifierById: {},
+          universalIdentifiersByApplicationId: {},
+        },
+        flatFieldMetadataMaps: {
+          byUniversalIdentifier: {},
+          universalIdentifierById: {},
+          universalIdentifiersByApplicationId: {},
+        },
       });
 
       await expect(
@@ -315,9 +367,22 @@ describe('PieChartDataService', () => {
     it('should throw when field metadata is not found', async () => {
       mockGetOrRecomputeManyOrAllFlatEntityMaps.mockResolvedValue({
         flatObjectMetadataMaps: {
-          byId: { [objectMetadataId]: mockObjectMetadata },
+          byUniversalIdentifier: {
+            'test-object-universal-id': {
+              ...mockObjectMetadata,
+              universalIdentifier: 'test-object-universal-id',
+            },
+          },
+          universalIdentifierById: {
+            [objectMetadataId]: 'test-object-universal-id',
+          },
+          universalIdentifiersByApplicationId: {},
         },
-        flatFieldMetadataMaps: { byId: {} },
+        flatFieldMetadataMaps: {
+          byUniversalIdentifier: {},
+          universalIdentifierById: {},
+          universalIdentifiersByApplicationId: {},
+        },
       });
 
       await expect(
@@ -347,13 +412,33 @@ describe('PieChartDataService', () => {
     beforeEach(() => {
       mockGetOrRecomputeManyOrAllFlatEntityMaps.mockResolvedValue({
         flatObjectMetadataMaps: {
-          byId: { [objectMetadataId]: mockObjectMetadata },
+          byUniversalIdentifier: {
+            'test-object-universal-id': {
+              ...mockObjectMetadata,
+              universalIdentifier: 'test-object-universal-id',
+            },
+          },
+          universalIdentifierById: {
+            [objectMetadataId]: 'test-object-universal-id',
+          },
+          universalIdentifiersByApplicationId: {},
         },
         flatFieldMetadataMaps: {
-          byId: {
-            [booleanField.id]: booleanField,
-            [mockAggregateField.id]: mockAggregateField,
+          byUniversalIdentifier: {
+            'boolean-field-universal-id': {
+              ...booleanField,
+              universalIdentifier: 'boolean-field-universal-id',
+            },
+            'aggregate-field-universal-id': {
+              ...mockAggregateField,
+              universalIdentifier: 'aggregate-field-universal-id',
+            },
           },
+          universalIdentifierById: {
+            [booleanField.id]: 'boolean-field-universal-id',
+            [mockAggregateField.id]: 'aggregate-field-universal-id',
+          },
+          universalIdentifiersByApplicationId: {},
         },
       });
     });

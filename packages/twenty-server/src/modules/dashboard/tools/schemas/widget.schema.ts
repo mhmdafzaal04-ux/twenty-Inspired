@@ -1,8 +1,10 @@
 import { isNumber } from '@sniptt/guards';
-import { ObjectRecordGroupByDateGranularity } from 'twenty-shared/types';
+import {
+  AggregateOperations,
+  ObjectRecordGroupByDateGranularity,
+} from 'twenty-shared/types';
 import { z } from 'zod';
 
-import { AggregateOperations } from 'src/engine/api/graphql/graphql-query-runner/constants/aggregate-operations.constant';
 import { AxisNameDisplay } from 'src/engine/metadata-modules/page-layout-widget/enums/axis-name-display.enum';
 import { BarChartGroupMode } from 'src/engine/metadata-modules/page-layout-widget/enums/bar-chart-group-mode.enum';
 import { BarChartLayout } from 'src/engine/metadata-modules/page-layout-widget/enums/bar-chart-layout.enum';
@@ -189,6 +191,7 @@ export const widgetTypeSchema = z.enum([
   WidgetType.GRAPH,
   WidgetType.IFRAME,
   WidgetType.STANDALONE_RICH_TEXT,
+  WidgetType.RECORD_TABLE,
 ]);
 
 // Graph configuration schema for AGGREGATE type (KPI numbers)
@@ -224,9 +227,19 @@ const barChartConfigSchemaCore = z.object({
   primaryAxisGroupByFieldMetadataId: z
     .uuid()
     .describe('Field UUID to group by on primary axis'),
-  primaryAxisGroupBySubFieldName: z.string().optional(),
+  primaryAxisGroupBySubFieldName: z
+    .string()
+    .optional()
+    .describe(
+      'REQUIRED for relation fields (e.g. "name", "address.addressCity") and composite fields (e.g. "addressCity"). Without this, relation fields group by raw UUID which is not useful.',
+    ),
   secondaryAxisGroupByFieldMetadataId: z.uuid().optional(),
-  secondaryAxisGroupBySubFieldName: z.string().optional(),
+  secondaryAxisGroupBySubFieldName: z
+    .string()
+    .optional()
+    .describe(
+      'REQUIRED for relation fields (e.g. "name", "stage") and composite fields (e.g. "addressCity"). Without this, relation fields group by raw UUID which is not useful.',
+    ),
   primaryAxisOrderBy: z.enum(GRAPH_ORDER_BY_OPTIONS).optional(),
   primaryAxisManualSortOrder: z.array(z.string()).optional(),
   secondaryAxisOrderBy: z.enum(GRAPH_ORDER_BY_OPTIONS).optional(),
@@ -278,9 +291,19 @@ const lineChartConfigSchemaCore = z.object({
   aggregateFieldMetadataId: z.uuid(),
   aggregateOperation: z.enum(AGGREGATE_OPERATION_OPTIONS),
   primaryAxisGroupByFieldMetadataId: z.uuid(),
-  primaryAxisGroupBySubFieldName: z.string().optional(),
+  primaryAxisGroupBySubFieldName: z
+    .string()
+    .optional()
+    .describe(
+      'REQUIRED for relation fields (e.g. "name", "address.addressCity") and composite fields (e.g. "addressCity"). Without this, relation fields group by raw UUID which is not useful.',
+    ),
   secondaryAxisGroupByFieldMetadataId: z.uuid().optional(),
-  secondaryAxisGroupBySubFieldName: z.string().optional(),
+  secondaryAxisGroupBySubFieldName: z
+    .string()
+    .optional()
+    .describe(
+      'REQUIRED for relation fields (e.g. "name", "stage") and composite fields (e.g. "addressCity"). Without this, relation fields group by raw UUID which is not useful.',
+    ),
   primaryAxisOrderBy: z.enum(GRAPH_ORDER_BY_OPTIONS).optional(),
   primaryAxisManualSortOrder: z.array(z.string()).optional(),
   secondaryAxisOrderBy: z.enum(GRAPH_ORDER_BY_OPTIONS).optional(),
@@ -326,7 +349,12 @@ const pieChartConfigSchemaCore = z.object({
   aggregateFieldMetadataId: z.uuid(),
   aggregateOperation: z.enum(AGGREGATE_OPERATION_OPTIONS),
   groupByFieldMetadataId: z.uuid().describe('Field UUID to slice by'),
-  groupBySubFieldName: z.string().optional(),
+  groupBySubFieldName: z
+    .string()
+    .optional()
+    .describe(
+      'REQUIRED for relation fields (e.g. "name", "stage") and composite fields (e.g. "addressCity"). Without this, relation fields group by raw UUID which is not useful.',
+    ),
   orderBy: z.enum(GRAPH_ORDER_BY_OPTIONS).optional(),
   manualSortOrder: z.array(z.string()).optional(),
   dateGranularity: z
@@ -353,6 +381,16 @@ const pieChartConfigSchema = withManualSortRefinement(
   }),
 );
 
+// Record table configuration
+const recordTableConfigSchema = z.object({
+  configurationType: z.literal(WidgetConfigurationType.RECORD_TABLE),
+  viewId: z
+    .uuid()
+    .describe(
+      'UUID of the dedicated view created for this widget. Must be created with create_view before creating the widget. Never reuse a record index view.',
+    ),
+});
+
 // Iframe configuration
 const iframeConfigSchema = z.object({
   configurationType: z.literal(WidgetConfigurationType.IFRAME),
@@ -364,10 +402,24 @@ const richTextConfigSchema = z.object({
   configurationType: z.literal(WidgetConfigurationType.STANDALONE_RICH_TEXT),
   body: z
     .object({
-      blocknote: z.string().nullable().optional(),
-      markdown: z.string().nullable().optional(),
+      blocknote: z
+        .string()
+        .nullable()
+        .optional()
+        .describe(
+          'BlockNote JSON string (advanced). Stringified array of BlockNote blocks.',
+        ),
+      markdown: z
+        .string()
+        .nullable()
+        .optional()
+        .describe(
+          'Markdown content string (preferred for AI). Supports headings, bold, lists, links, etc.',
+        ),
     })
-    .describe('Rich text content (RichTextV2Body)'),
+    .describe(
+      'Rich text content. Use { "markdown": "your content here" } for text. Supports full markdown syntax.',
+    ),
 });
 
 export const graphConfigurationSchema = z.discriminatedUnion(
@@ -398,6 +450,7 @@ export const widgetConfigurationSchema = z
     pieChartConfigSchema,
     iframeConfigSchema,
     richTextConfigSchema,
+    recordTableConfigSchema,
   ])
   .optional()
   .describe('Widget configuration - structure depends on widget type');
@@ -410,6 +463,7 @@ export const widgetConfigurationSchemaWithoutDefaults = z
     pieChartConfigSchemaWithoutDefaults,
     iframeConfigSchema,
     richTextConfigSchema,
+    recordTableConfigSchema,
   ])
   .optional()
   .describe('Widget configuration - structure depends on widget type');

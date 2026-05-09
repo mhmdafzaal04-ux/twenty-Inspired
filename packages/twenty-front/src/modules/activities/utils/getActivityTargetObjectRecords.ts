@@ -3,15 +3,21 @@ import { type Note } from '@/activities/types/Note';
 import { type NoteTarget } from '@/activities/types/NoteTarget';
 import { type Task } from '@/activities/types/Task';
 import { type TaskTarget } from '@/activities/types/TaskTarget';
-import { CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
-import { type ObjectMetadataItem } from '@/object-metadata/types/ObjectMetadataItem';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { type ObjectRecord } from '@/object-record/types/ObjectRecord';
-import { type Nullable } from 'twenty-shared/types';
-import { isDefined } from 'twenty-shared/utils';
+import {
+  CoreObjectNameSingular,
+  FieldMetadataType,
+  type Nullable,
+} from 'twenty-shared/types';
+import {
+  computeMorphRelationGqlFieldName,
+  isDefined,
+} from 'twenty-shared/utils';
 
 type GetActivityTargetObjectRecordsProps = {
   activityRecord: Note | Task;
-  objectMetadataItems: ObjectMetadataItem[];
+  objectMetadataItems: EnrichedObjectMetadataItem[];
   activityTargets?: Nullable<NoteTarget[] | TaskTarget[]>;
 };
 
@@ -28,13 +34,9 @@ export const getActivityTargetObjectRecords = ({
 
   const targets = activityTargets
     ? activityTargets
-    : activityRecord &&
-        'noteTargets' in activityRecord &&
-        activityRecord.noteTargets
+    : 'noteTargets' in activityRecord && isDefined(activityRecord.noteTargets)
       ? activityRecord.noteTargets
-      : activityRecord &&
-          'taskTargets' in activityRecord &&
-          activityRecord.taskTargets
+      : 'taskTargets' in activityRecord && isDefined(activityRecord.taskTargets)
         ? activityRecord.taskTargets
         : [];
 
@@ -47,41 +49,102 @@ export const getActivityTargetObjectRecords = ({
   );
 
   const activityTargetRelationFields =
-    activityTargetObjectMetadata?.fields.filter(
-      (field) =>
-        isDefined(field.relation?.targetObjectMetadata.id) &&
-        ![CoreObjectNameSingular.Note, CoreObjectNameSingular.Task].includes(
-          field.relation?.targetObjectMetadata
-            .nameSingular as CoreObjectNameSingular,
-        ),
-    ) ?? [];
+    activityTargetObjectMetadata?.fields.filter((field) => {
+      if (
+        field.type === FieldMetadataType.MORPH_RELATION &&
+        isDefined(field.morphRelations) &&
+        field.morphRelations.length > 0
+      ) {
+        return true;
+      }
+
+      const targetObjectNameSingular =
+        field.relation?.targetObjectMetadata.nameSingular;
+
+      if (!isDefined(field.relation?.targetObjectMetadata.id)) {
+        return false;
+      }
+
+      if (!isDefined(targetObjectNameSingular)) {
+        return false;
+      }
+
+      return (
+        targetObjectNameSingular !== CoreObjectNameSingular.Note &&
+        targetObjectNameSingular !== CoreObjectNameSingular.Task
+      );
+    }) ?? [];
 
   const activityTargetObjectRecords = targets
     .map<ActivityTargetWithTargetRecord | undefined>((activityTarget) => {
       if (!isDefined(activityTarget)) {
         throw new Error('Cannot find activity target');
       }
-      const matchingField = activityTargetRelationFields.find((field) =>
-        isDefined(activityTarget[field.name]),
-      );
 
-      if (!matchingField || !matchingField.relation) {
+      if (isDefined(activityTarget.deletedAt)) {
         return undefined;
       }
 
-      const correspondingObjectMetadataItem = objectMetadataItems.find(
-        (objectMetadataItem) =>
-          objectMetadataItem.id ===
-          matchingField.relation?.targetObjectMetadata.id,
-      );
-
-      if (!correspondingObjectMetadataItem) {
-        return undefined;
-      }
-
-      const targetObjectRecord = activityTarget[matchingField.name] as
-        | ObjectRecord
+      let matchingFieldName: string | undefined;
+      let correspondingObjectMetadataItem:
+        | EnrichedObjectMetadataItem
         | undefined;
+
+      for (const field of activityTargetRelationFields) {
+        if (
+          field.type === FieldMetadataType.MORPH_RELATION &&
+          isDefined(field.morphRelations)
+        ) {
+          const matchingMorphRelation = field.morphRelations.find(
+            (morphRelation) => {
+              const morphFieldName = computeMorphRelationGqlFieldName({
+                fieldName: field.name,
+                relationType: morphRelation.type,
+                targetObjectMetadataNameSingular:
+                  morphRelation.targetObjectMetadata.nameSingular,
+                targetObjectMetadataNamePlural:
+                  morphRelation.targetObjectMetadata.namePlural,
+              });
+
+              return isDefined(activityTarget[morphFieldName]);
+            },
+          );
+
+          if (isDefined(matchingMorphRelation)) {
+            matchingFieldName = computeMorphRelationGqlFieldName({
+              fieldName: field.name,
+              relationType: matchingMorphRelation.type,
+              targetObjectMetadataNameSingular:
+                matchingMorphRelation.targetObjectMetadata.nameSingular,
+              targetObjectMetadataNamePlural:
+                matchingMorphRelation.targetObjectMetadata.namePlural,
+            });
+            correspondingObjectMetadataItem = objectMetadataItems.find(
+              (objectMetadataItem) =>
+                objectMetadataItem.id ===
+                matchingMorphRelation.targetObjectMetadata.id,
+            );
+            break;
+          }
+        } else if (isDefined(activityTarget[field.name])) {
+          matchingFieldName = field.name;
+          correspondingObjectMetadataItem = objectMetadataItems.find(
+            (objectMetadataItem) =>
+              objectMetadataItem.id === field.relation?.targetObjectMetadata.id,
+          );
+          break;
+        }
+      }
+
+      if (
+        !isDefined(matchingFieldName) ||
+        !isDefined(correspondingObjectMetadataItem)
+      ) {
+        return undefined;
+      }
+
+      const targetObjectRecord: ObjectRecord | undefined =
+        activityTarget[matchingFieldName];
 
       if (!isDefined(targetObjectRecord)) {
         throw new Error(

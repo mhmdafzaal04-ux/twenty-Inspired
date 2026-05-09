@@ -1,11 +1,11 @@
-import { type ObjectMetadataItem } from '@/object-metadata/types/ObjectMetadataItem';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import {
   computeStepOutputSchema,
   shouldComputeOutputSchemaOnFrontend,
 } from '@/workflow/workflow-variables/utils/generate/computeStepOutputSchema';
 import { FieldMetadataType } from 'twenty-shared/types';
 
-const mockCompanyObjectMetadataItem: ObjectMetadataItem = {
+const mockCompanyObjectMetadataItem: EnrichedObjectMetadataItem = {
   id: 'company-metadata-id',
   nameSingular: 'company',
   namePlural: 'companies',
@@ -22,7 +22,7 @@ const mockCompanyObjectMetadataItem: ObjectMetadataItem = {
       isSystem: false,
     },
   ],
-} as ObjectMetadataItem;
+} as EnrichedObjectMetadataItem;
 
 describe('computeStepOutputSchema', () => {
   describe('PERSISTED_OUTPUT_SCHEMA_TYPES', () => {
@@ -44,15 +44,6 @@ describe('computeStepOutputSchema', () => {
       expect(result).toBeUndefined();
     });
 
-    it('should return undefined for AI_AGENT step type', () => {
-      const result = computeStepOutputSchema({
-        step: { type: 'AI_AGENT', settings: {} } as any,
-        objectMetadataItems: [],
-      });
-
-      expect(result).toBeUndefined();
-    });
-
     it('should return undefined for WEBHOOK step type', () => {
       const result = computeStepOutputSchema({
         step: { type: 'WEBHOOK', settings: {} } as any,
@@ -65,6 +56,15 @@ describe('computeStepOutputSchema', () => {
     it('should return undefined for ITERATOR step type', () => {
       const result = computeStepOutputSchema({
         step: { type: 'ITERATOR', settings: {} } as any,
+        objectMetadataItems: [],
+      });
+
+      expect(result).toBeUndefined();
+    });
+
+    it('should return undefined for LOGIC_FUNCTION step type', () => {
+      const result = computeStepOutputSchema({
+        step: { type: 'LOGIC_FUNCTION', settings: {} } as any,
         objectMetadataItems: [],
       });
 
@@ -417,6 +417,17 @@ describe('computeStepOutputSchema', () => {
     });
   });
 
+  describe('AI_AGENT step', () => {
+    it('should return undefined for AI_AGENT step type', () => {
+      const result = computeStepOutputSchema({
+        step: { type: 'AI_AGENT', settings: {} } as any,
+        objectMetadataItems: [],
+      });
+
+      expect(result).toBeUndefined();
+    });
+  });
+
   describe('Empty output schema steps', () => {
     it.each(['FILTER', 'DELAY', 'EMPTY'])(
       'should return empty object for %s step type',
@@ -462,6 +473,10 @@ describe('shouldComputeOutputSchemaOnFrontend', () => {
 
   it('should return false for ITERATOR', () => {
     expect(shouldComputeOutputSchemaOnFrontend('ITERATOR')).toBe(false);
+  });
+
+  it('should return false for LOGIC_FUNCTION', () => {
+    expect(shouldComputeOutputSchemaOnFrontend('LOGIC_FUNCTION')).toBe(false);
   });
 
   it('should return true for DATABASE_EVENT', () => {

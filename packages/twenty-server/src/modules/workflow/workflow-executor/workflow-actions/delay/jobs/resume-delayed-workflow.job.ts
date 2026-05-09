@@ -62,14 +62,14 @@ export class ResumeDelayedWorkflowJob {
         if (!step || !isWorkflowDelayAction(step)) {
           throw new WorkflowRunException(
             'Step not found or is not a delay action',
-            WorkflowRunExceptionCode.INVALID_INPUT,
+            WorkflowRunExceptionCode.INVALID_OPERATION,
           );
         }
 
         if (stepInfo?.status !== StepStatus.PENDING) {
           throw new WorkflowRunException(
             'Step is not pending',
-            WorkflowRunExceptionCode.INVALID_INPUT,
+            WorkflowRunExceptionCode.INVALID_OPERATION,
           );
         }
 
@@ -101,8 +101,11 @@ export class ResumeDelayedWorkflowJob {
           error:
             error instanceof Error
               ? error.message
-              : 'Unknown error during delay resume',
+              : `Error during delay resume: ${String(error)}`,
+          isSystemError: true,
         });
+
+        throw error;
       }
     }, authContext);
   }

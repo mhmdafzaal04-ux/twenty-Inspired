@@ -1,7 +1,7 @@
 <div align="center">
   <a href="https://twenty.com">
     <picture>
-      <img alt="Twenty logo" src="https://raw.githubusercontent.com/twentyhq/twenty/2f25922f4cd5bd61e1427c57c4f8ea224e1d552c/packages/twenty-website/public/images/core/logo.svg" height="128">
+      <img alt="Twenty logo" src="https://raw.githubusercontent.com/twentyhq/twenty/main/packages/twenty-website-new/public/images/core/logo.svg" height="128">
     </picture>
   </a>
   <h1>Create Twenty App</h1>
@@ -12,94 +12,55 @@
 
 </div>
 
-Create Twenty App is the official scaffolding CLI for building apps on top of [Twenty CRM](https://twenty.com). It sets up a ready‑to‑run project that works seamlessly with the [twenty-sdk](https://www.npmjs.com/package/twenty-sdk).
-
-- Zero‑config project bootstrap
-- Preconfigured scripts for auth, dev mode (watch & sync), generate, uninstall, and function management
-- Strong TypeScript support and typed client generation
-
-## Documentation
-See Twenty application documentation https://docs.twenty.com/developers/extend/capabilities/apps
-
-## Prerequisites
-- Node.js 24+ (recommended) and Yarn 4
-- A Twenty workspace and an API key (create one at https://app.twenty.com/settings/api-webhooks)
+The official scaffolding CLI for building apps on top of [Twenty CRM](https://twenty.com). Sets up a ready-to-run project with [twenty-sdk](https://www.npmjs.com/package/twenty-sdk).
 
 ## Quick start
 
 ```bash
 npx create-twenty-app@latest my-twenty-app
 cd my-twenty-app
-
-# If you don't use yarn@4
-corepack enable
-yarn install
-
-# Get help
-yarn run help
-
-# Authenticate using your API key (you'll be prompted)
-yarn auth:login
-
-# Add a new entity to your application (guided)
-yarn entity:add
-
-# Generate a typed Twenty client and workspace entity types
-yarn app:generate
-
-# Start dev mode: watches, builds, and syncs local changes to your workspace
-yarn app:dev
-
-# Watch your application's function logs
-yarn function:logs
-
-# Execute a function with a JSON payload
-yarn function:execute -n my-function -p '{"key": "value"}'
-
-# Uninstall the application from the current workspace
-yarn app:uninstall
+yarn twenty dev
 ```
 
-## What gets scaffolded
-- A minimal app structure ready for Twenty
-- TypeScript configuration
-- Prewired scripts that wrap the `twenty` CLI from twenty-sdk
-- Example placeholders to help you add entities, actions, and sync logic
+The scaffolder will:
 
-## Next steps
-- Explore the generated project and add your first entity with `yarn entity:add` (functions, front components, objects, roles).
-- Keep your types up‑to‑date using `yarn app:generate`.
-- Use `yarn app:dev` while you iterate — it watches, builds, and syncs changes to your workspace in real time.
+1. Create a new project with TypeScript, linting, tests, and a preconfigured `twenty` CLI
+2. Optionally start a local Twenty server (Docker)
+3. Open the browser for OAuth authentication
 
+## Options
 
-## Publish your application
-Applications are currently stored in `twenty/packages/twenty-apps`.
+| Flag                           | Description                             |
+| ------------------------------ | --------------------------------------- |
+| `--example <name>`             | Initialize from an example              |
+| `--name <name>`                | Set the app name (skips the prompt)     |
+| `--display-name <displayName>` | Set the display name (skips the prompt) |
+| `--description <description>`  | Set the description (skips the prompt)  |
+| `--skip-local-instance`        | Skip the local server setup prompt      |
 
-You can share your application with all Twenty users:
+By default (no flags), a minimal app is generated with core files and an integration test. Use `--example` to start from a richer example:
 
 ```bash
-# pull the Twenty project
-git clone https://github.com/twentyhq/twenty.git
-cd twenty
-
-# create a new branch
-git checkout -b feature/my-awesome-app
+npx create-twenty-app@latest my-twenty-app --example hello-world
 ```
 
-- Copy your app folder into `twenty/packages/twenty-apps`.
-- Commit your changes and open a pull request on https://github.com/twentyhq/twenty
+Examples are sourced from [twentyhq/twenty/packages/twenty-apps/examples](https://github.com/twentyhq/twenty/tree/main/packages/twenty-apps/examples).
 
-```bash
-git commit -m "Add new application"
-git push
-```
+## Documentation
 
-Our team reviews contributions for quality, security, and reusability before merging.
+Full documentation is available at **[docs.twenty.com/developers/extend/apps](https://docs.twenty.com/developers/extend/apps/getting-started/quick-start)**:
+
+- [Quick Start](https://docs.twenty.com/developers/extend/apps/getting-started/quick-start) — scaffold, run a local server, sync your code
+- [Concepts](https://docs.twenty.com/developers/extend/apps/getting-started/concepts) — how apps work: entity model, sandboxing, lifecycle
+- [Operations](https://docs.twenty.com/developers/extend/apps/operations/overview) — CLI, testing, CI, deploy and publish
 
 ## Troubleshooting
-- Auth prompts not appearing: run `yarn auth:login` again and verify the API key permissions.
-- Types not generated: ensure `yarn app:generate` runs without errors, then re‑start `yarn app:dev`.
+
+- Server not starting: check Docker is running (`docker info`), then try `yarn twenty server logs`.
+- Auth not working: make sure you are logged in to Twenty in the browser, then run `yarn twenty remote add`.
+- Types not generated: ensure `yarn twenty dev` is running — it auto-generates the typed client.
 
 ## Contributing
+
 - See our [GitHub](https://github.com/twentyhq/twenty)
 - Join our [Discord](https://discord.gg/cx5n4Jzs57)

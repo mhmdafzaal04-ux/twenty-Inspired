@@ -1,4 +1,5 @@
 import { useFieldMetadataItemById } from '@/object-metadata/hooks/useFieldMetadataItemById';
+import { useObjectMetadataSelectHelpers } from '@/object-metadata/hooks/useObjectMetadataSelectHelpers';
 import { SelectControl } from '@/ui/input/components/SelectControl';
 import { Dropdown } from '@/ui/layout/dropdown/components/Dropdown';
 import { useCloseDropdown } from '@/ui/layout/dropdown/hooks/useCloseDropdown';
@@ -9,7 +10,6 @@ import { useAvailableVariablesInWorkflowStep } from '@/workflow/workflow-variabl
 import { useSearchVariable } from '@/workflow/workflow-variables/hooks/useSearchVariable';
 import { type StepOutputSchemaV2 } from '@/workflow/workflow-variables/types/StepOutputSchemaV2';
 
-import { useTheme } from '@emotion/react';
 import { useLingui } from '@lingui/react/macro';
 import { useContext, useState } from 'react';
 import { type StepFilter } from 'twenty-shared/types';
@@ -23,7 +23,7 @@ type WorkflowStepFilterFieldSelectProps = {
 };
 
 const NON_SELECTABLE_FIELD_TYPES = [
-  FieldMetadataType.RICH_TEXT_V2,
+  FieldMetadataType.RICH_TEXT,
   FieldMetadataType.RATING,
 ];
 
@@ -32,9 +32,10 @@ export const WorkflowStepFilterFieldSelect = ({
 }: WorkflowStepFilterFieldSelectProps) => {
   const { readonly } = useContext(WorkflowStepFilterContext);
   const { t } = useLingui();
-  const theme = useTheme();
   const { closeDropdown } = useCloseDropdown();
   const { getIcon } = useIcons();
+  const { getSelectIconPropsFromObjectMetadataItem } =
+    useObjectMetadataSelectHelpers();
 
   const availableVariablesInWorkflowStep = useAvailableVariablesInWorkflowStep({
     shouldDisplayRecordFields: true,
@@ -90,11 +91,19 @@ export const WorkflowStepFilterFieldSelect = ({
     ? t`Select a field from a previous step`
     : variableLabel;
 
+  const fullRecordIconProps = stepFilter.isFullRecord
+    ? isDefined(filterObjectMetadataItem)
+      ? getSelectIconPropsFromObjectMetadataItem(filterObjectMetadataItem)
+      : undefined
+    : undefined;
+
   const icon = stepFilter.isFullRecord
-    ? getIcon(filterObjectMetadataItem?.icon)
+    ? fullRecordIconProps?.Icon
     : filterFieldMetadataItem?.icon
       ? getIcon(filterFieldMetadataItem.icon)
       : undefined;
+
+  const iconThemeColor = fullRecordIconProps?.iconThemeColor;
 
   if (readonly || noAvailableVariables) {
     const disabledLabel = noAvailableVariables
@@ -111,6 +120,7 @@ export const WorkflowStepFilterFieldSelect = ({
               label: disabledLabel,
               fullLabel: variablePathLabel,
               Icon: icon,
+              iconThemeColor,
             }}
             isDisabled={true}
           />
@@ -130,6 +140,7 @@ export const WorkflowStepFilterFieldSelect = ({
             fullLabel: variablePathLabel,
             value: stepFilter.stepOutputKey,
             Icon: icon,
+            iconThemeColor,
           }}
           textAccent={isSelectedFieldNotFound ? 'placeholder' : 'default'}
           isDisabled={readonly}
@@ -153,8 +164,8 @@ export const WorkflowStepFilterFieldSelect = ({
       }
       dropdownPlacement="bottom-end"
       dropdownOffset={{
-        x: parseInt(theme.spacing(0.5), 10),
-        y: parseInt(theme.spacing(1), 10),
+        x: 2,
+        y: 4,
       }}
     />
   );

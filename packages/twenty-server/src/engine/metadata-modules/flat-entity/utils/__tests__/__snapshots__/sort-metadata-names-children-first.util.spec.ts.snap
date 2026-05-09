@@ -1,28 +1,35 @@
-// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+// Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`sortMetadataNamesChildrenFirst should return metadata names sorted with children first (most manyToOne relations first) 1`] = `
 [
   "rowLevelPermissionPredicate",
   "navigationMenuItem",
-  "viewFilter",
   "commandMenuItem",
-  "pageLayoutWidget",
+  "fieldPermission",
   "viewField",
+  "viewFilter",
+  "objectPermission",
+  "pageLayoutWidget",
+  "viewSort",
   "index",
   "pageLayout",
+  "permissionFlag",
   "roleTarget",
   "rowLevelPermissionPredicateGroup",
   "viewGroup",
   "agent",
+  "applicationVariable",
+  "connectionProvider",
   "frontComponent",
   "logicFunction",
   "pageLayoutTab",
   "skill",
-  "view",
+  "viewFieldGroup",
   "viewFilterGroup",
   "webhook",
+  "view",
   "fieldMetadata",
-  "role",
   "objectMetadata",
+  "role",
 ]
 `;

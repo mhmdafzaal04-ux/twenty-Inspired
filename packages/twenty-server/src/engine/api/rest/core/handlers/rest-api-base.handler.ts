@@ -7,9 +7,9 @@ import {
   isDefined,
 } from 'twenty-shared/utils';
 
+import { CommonSelectFieldsHelper } from 'src/engine/api/common/common-select-fields/common-select-fields-helper';
 import { CommonGroupByOutputItem } from 'src/engine/api/common/types/common-group-by-output-item.type';
 import { CommonSelectedFields } from 'src/engine/api/common/types/common-selected-fields-result.type';
-import { RestToCommonSelectedFieldsHandler } from 'src/engine/api/rest/core/rest-to-common-args-handlers/selected-fields-handler';
 import { parseCorePath } from 'src/engine/api/rest/input-request-parsers/path-parser-utils/parse-core-path.utils';
 import { Depth } from 'src/engine/api/rest/input-request-parsers/types/depth.type';
 import { AuthenticatedRequest } from 'src/engine/api/rest/types/authenticated-request';
@@ -25,6 +25,7 @@ import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/service
 import { WorkspaceNotFoundDefaultError } from 'src/engine/core-modules/workspace/workspace.exception';
 import { WorkspaceManyOrAllFlatEntityMapsCacheService } from 'src/engine/metadata-modules/flat-entity/services/workspace-many-or-all-flat-entity-maps-cache.service';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
+import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
 import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
 import { type FlatIndexMetadata } from 'src/engine/metadata-modules/flat-index-metadata/types/flat-index-metadata.type';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
@@ -37,6 +38,7 @@ import {
 import { UserRoleService } from 'src/engine/metadata-modules/user-role/user-role.service';
 import { WorkspaceCacheStorageService } from 'src/engine/workspace-cache-storage/workspace-cache-storage.service';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
+import { isApplicationAuthContext } from 'src/engine/core-modules/auth/guards/is-application-auth-context.guard';
 
 export interface PageInfo {
   hasNextPage?: boolean;
@@ -65,7 +67,7 @@ export abstract class RestApiBaseHandler {
   @Inject()
   protected readonly apiKeyRoleService: ApiKeyRoleService;
   @Inject()
-  protected readonly restToCommonSelectedFieldsHandler: RestToCommonSelectedFieldsHandler;
+  protected readonly commonSelectFieldsHelper: CommonSelectFieldsHelper;
   @Inject()
   protected readonly userRoleService: UserRoleService;
   @Inject()
@@ -104,6 +106,11 @@ export abstract class RestApiBaseHandler {
       }
 
       roleId = userWorkspaceRoleId;
+    } else if (
+      isApplicationAuthContext(authContext) &&
+      isDefined(authContext.application.defaultRoleId)
+    ) {
+      roleId = authContext.application.defaultRoleId;
     } else {
       throw new PermissionsException(
         'Authentication context is invalid',
@@ -136,7 +143,7 @@ export abstract class RestApiBaseHandler {
     const { objectsPermissions } =
       await this.getObjectsPermissions(authContext);
 
-    return this.restToCommonSelectedFieldsHandler.computeFromDepth({
+    return this.commonSelectFieldsHelper.computeFromDepth({
       objectsPermissions,
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
@@ -226,13 +233,19 @@ export abstract class RestApiBaseHandler {
 
     let objectId = idByNamePlural[parsedObject];
     let flatObjectMetadataItem = objectId
-      ? flatObjectMetadataMaps.byId[objectId]
+      ? findFlatEntityByIdInFlatEntityMaps({
+          flatEntityId: objectId,
+          flatEntityMaps: flatObjectMetadataMaps,
+        })
       : undefined;
 
     if (!flatObjectMetadataItem) {
       const wrongObjectId = idByNameSingular[parsedObject];
       const wrongFlatObjectMetadataItem = wrongObjectId
-        ? flatObjectMetadataMaps.byId[wrongObjectId]
+        ? findFlatEntityByIdInFlatEntityMaps({
+            flatEntityId: wrongObjectId,
+            flatEntityMaps: flatObjectMetadataMaps,
+          })
         : undefined;
 
       let hint = 'eg: companies';

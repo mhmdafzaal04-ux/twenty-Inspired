@@ -1,37 +1,32 @@
-import { useTheme } from '@emotion/react';
-import styled from '@emotion/styled';
+import { styled } from '@linaria/react';
 import { Trans } from '@lingui/react/macro';
+import { useContext } from 'react';
 import { IconLock } from 'twenty-ui/display';
-import { Card, CardContent } from 'twenty-ui/layout';
+import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
-const StyledVisibilityCard = styled(Card)`
-  border-color: ${({ theme }) => theme.border.color.light};
-  color: ${({ theme }) => theme.font.color.light};
-  flex: 1;
-  transition: color ${({ theme }) => theme.animation.duration.normal} ease;
+const StyledContainer = styled.div`
+  align-items: center;
+  background: ${themeCssVariables.background.transparent.lighter};
+  border: 1px solid ${themeCssVariables.border.color.light};
+  border-radius: ${themeCssVariables.border.radius.sm};
+  box-sizing: border-box;
+  color: ${themeCssVariables.font.color.light};
+  display: flex;
+  font-size: ${themeCssVariables.font.size.sm};
+  font-weight: ${themeCssVariables.font.weight.medium};
+  gap: ${themeCssVariables.spacing[1]};
+  height: ${themeCssVariables.spacing[6]};
+  padding: ${themeCssVariables.spacing[0]} ${themeCssVariables.spacing[1]};
   width: 100%;
 `;
 
-const StyledVisibilityCardContent = styled(CardContent)`
-  align-items: center;
-  font-size: ${({ theme }) => theme.font.size.sm};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  display: flex;
-  gap: ${({ theme }) => theme.spacing(1)};
-  padding: ${({ theme }) => theme.spacing(0, 1)};
-  height: ${({ theme }) => theme.spacing(6)};
-  background-color: ${({ theme }) => theme.background.transparent.lighter};
-`;
-
 export const CalendarEventNotSharedContent = () => {
-  const theme = useTheme();
+  const { theme } = useContext(ThemeContext);
 
   return (
-    <StyledVisibilityCard>
-      <StyledVisibilityCardContent>
-        <IconLock size={theme.icon.size.sm} />
-        <Trans>Not shared</Trans>
-      </StyledVisibilityCardContent>
-    </StyledVisibilityCard>
+    <StyledContainer>
+      <IconLock size={theme.icon.size.sm} />
+      <Trans>Not shared</Trans>
+    </StyledContainer>
   );
 };

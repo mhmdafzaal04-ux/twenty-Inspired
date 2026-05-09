@@ -3,7 +3,7 @@ import { type Meta, type StoryObj } from '@storybook/react-vite';
 import {
   AVATAR_URL_MOCK,
   ComponentDecorator,
-  RecoilRootDecorator,
+  JotaiRootDecorator,
 } from '@ui/testing';
 
 import { Avatar } from '../Avatar';
@@ -11,7 +11,7 @@ import { Avatar } from '../Avatar';
 const meta: Meta<typeof Avatar> = {
   title: 'Modules/Users/Avatar',
   component: Avatar,
-  decorators: [ComponentDecorator, RecoilRootDecorator],
+  decorators: [ComponentDecorator, JotaiRootDecorator],
   args: {
     avatarUrl: AVATAR_URL_MOCK,
     size: 'md',
@@ -37,5 +37,14 @@ export const NoAvatarPictureSquared: Story = {
   args: {
     ...NoAvatarPictureRounded.args,
     ...Squared.args,
+  },
+};
+
+export const App: Story = {
+  args: {
+    type: 'app',
+    avatarUrl: '',
+    placeholder: 'Acme',
+    placeholderColorSeed: 'acme-app',
   },
 };

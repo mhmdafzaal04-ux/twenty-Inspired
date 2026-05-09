@@ -1,136 +1,99 @@
-import { FormTextFieldInput } from '@/object-record/record-field/ui/form-types/components/FormTextFieldInput';
-import { SettingsDatabaseEventsForm } from '@/settings/components/SettingsDatabaseEventsForm';
-import { Table } from '@/ui/layout/table/components/Table';
-import { TableHeader } from '@/ui/layout/table/components/TableHeader';
-import { TableRow } from '@/ui/layout/table/components/TableRow';
-import styled from '@emotion/styled';
+import { type LogicFunctionFormValues } from '@/logic-functions/hooks/useLogicFunctionUpdateFormState';
+import { SettingsLogicFunctionCronTriggerSection } from '@/settings/logic-functions/components/triggers/SettingsLogicFunctionCronTriggerSection';
+import { SettingsLogicFunctionDatabaseEventTriggerSection } from '@/settings/logic-functions/components/triggers/SettingsLogicFunctionDatabaseEventTriggerSection';
+import { SettingsLogicFunctionHttpTriggerSection } from '@/settings/logic-functions/components/triggers/SettingsLogicFunctionHttpTriggerSection';
+import { SettingsLogicFunctionToolTriggerSection } from '@/settings/logic-functions/components/triggers/SettingsLogicFunctionToolTriggerSection';
+import { SettingsLogicFunctionWorkflowActionTriggerSection } from '@/settings/logic-functions/components/triggers/SettingsLogicFunctionWorkflowActionTriggerSection';
+import { styled } from '@linaria/react';
 import { useLingui } from '@lingui/react/macro';
-import { H2Title } from 'twenty-ui/display';
-import { Section } from 'twenty-ui/layout';
-import { type LogicFunction } from '~/generated/graphql';
-
-export const StyledRouteTriggerTableRow = styled(TableRow)`
-  grid-template-columns: 1fr 120px 120px;
-`;
-
-// TODO: @Charles put back with new sources
-// const StyledTableCell = styled(TableCell)`
-//   color: ${({ theme }) => theme.font.color.tertiary};
-//   gap: ${({ theme }) => theme.spacing(2)};
-//   min-width: 0;
-//   overflow: hidden;
-// `;
-
-const StyledRouteTriggerTableHeaderRow = styled(StyledRouteTriggerTableRow)`
-  margin-bottom: ${({ theme }) => theme.spacing(2)};
-`;
+import { isDefined } from 'twenty-shared/utils';
+import { Callout, IconInfoCircle } from 'twenty-ui/display';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 const StyledEmptyState = styled.div`
-  align-items: center;
-  color: ${({ theme }) => theme.font.color.tertiary};
-  display: flex;
-  font-size: ${({ theme }) => theme.font.size.md};
-  height: 160px;
-  justify-content: center;
+  background-color: ${themeCssVariables.background.secondary};
+  border: 1px dashed ${themeCssVariables.border.color.medium};
+  border-radius: ${themeCssVariables.border.radius.sm};
+  color: ${themeCssVariables.font.color.secondary};
+  font-size: ${themeCssVariables.font.size.md};
+  padding: ${themeCssVariables.spacing[4]};
   text-align: center;
 `;
 
+const StyledCalloutWrapper = styled.div`
+  margin-bottom: ${themeCssVariables.spacing[6]};
+`;
+
 export const SettingsLogicFunctionTriggersTab = ({
-  logicFunction: _logicFunction,
+  formValues,
+  onChange,
+  readonly = false,
+  applicationName,
 }: {
-  logicFunction: LogicFunction;
+  formValues: LogicFunctionFormValues;
+  onChange: <TKey extends keyof LogicFunctionFormValues>(
+    key: TKey,
+  ) => (value: LogicFunctionFormValues[TKey]) => void;
+  readonly?: boolean;
+  applicationName?: string;
 }) => {
   const { t } = useLingui();
 
-  const cronTriggers: [] = [];
+  const hasAnyTrigger =
+    isDefined(formValues.httpRouteTriggerSettings) ||
+    isDefined(formValues.cronTriggerSettings) ||
+    isDefined(formValues.databaseEventTriggerSettings) ||
+    isDefined(formValues.toolTriggerSettings) ||
+    isDefined(formValues.workflowActionTriggerSettings);
 
-  const routeTriggers: [] = [];
-
-  const databaseEvents: [] = [];
-
-  const hasNoTriggers =
-    databaseEvents.length === 0 &&
-    cronTriggers.length === 0 &&
-    routeTriggers.length === 0;
-
-  if (hasNoTriggers) {
-    return (
-      <Section>
-        <H2Title
-          title={t`Triggers`}
-          description={t`Configure when this function should be executed`}
+  if (readonly && !hasAnyTrigger) {
+    return isDefined(applicationName) ? (
+      <StyledCalloutWrapper>
+        <Callout
+          variant="info"
+          Icon={IconInfoCircle}
+          title={t`Bundled with ${applicationName}`}
+          description={t`This function has no trigger configured, so it can only be invoked from the Test tab or by other functions.`}
         />
-        <StyledEmptyState>
-          {t`No triggers configured for this function.`}
-        </StyledEmptyState>
-      </Section>
+      </StyledCalloutWrapper>
+    ) : (
+      <StyledEmptyState>
+        {t`No trigger is configured for this function.`}
+      </StyledEmptyState>
     );
   }
 
   return (
     <>
-      {databaseEvents.length > 0 && (
-        <Section>
-          <H2Title
-            title={t`Database event`}
-            description={t`Select the events that should trigger the function`}
-          />
-          <SettingsDatabaseEventsForm events={databaseEvents} disabled />
-        </Section>
-      )}
-
-      {cronTriggers.length > 0 && (
-        <Section>
-          <H2Title
-            title={t`Cron`}
-            description={t`Triggers the function at regular intervals`}
-          />
-          {cronTriggers.map((cronTrigger, index) => (
-            <FormTextFieldInput
-              key={index}
-              label={t`Expression`}
-              placeholder="0 */1 * * *"
-              hint={t`Format: [Minute] [Hour] [Day of Month] [Month] [Day of Week]`}
-              onChange={() => {}}
-              readonly
-              defaultValue={cronTrigger}
-            />
-          ))}
-        </Section>
-      )}
-
-      {routeTriggers.length > 0 && (
-        <Section>
-          <H2Title
-            title={t`Http`}
-            description={t`Triggers the function with Http request`}
-          />
-          <Table>
-            <StyledRouteTriggerTableHeaderRow>
-              <TableHeader>{t`Path`}</TableHeader>
-              <TableHeader>{t`Method`}</TableHeader>
-              <TableHeader>{t`Auth Required`}</TableHeader>
-            </StyledRouteTriggerTableHeaderRow>
-            {routeTriggers.map((_, _index) => (
-              <></>
-              // <StyledRouteTriggerTableRow key={index}>
-              //   <StyledTableCell>
-              //     <OverflowingTextWithTooltip
-              //       text={`${REACT_APP_SERVER_BASE_URL}/s${routeTrigger.path}`}
-              //     />
-              //   </StyledTableCell>
-              //   <StyledTableCell>{routeTrigger.httpMethod}</StyledTableCell>
-              //   <StyledTableCell>
-              //     <Tag
-              //       text={routeTrigger.isAuthRequired ? t`True` : t`False`}
-              //       color={routeTrigger.isAuthRequired ? 'green' : 'orange'}
-              //       weight="medium"
-              //     />
-              //   </StyledTableCell>
-              // </StyledRouteTriggerTableRow>
-            ))}
-          </Table>
-        </Section>
+      <SettingsLogicFunctionHttpTriggerSection
+        value={formValues.httpRouteTriggerSettings}
+        onChange={onChange('httpRouteTriggerSettings')}
+        readonly={readonly}
+      />
+      <SettingsLogicFunctionCronTriggerSection
+        value={formValues.cronTriggerSettings}
+        onChange={onChange('cronTriggerSettings')}
+        readonly={readonly}
+      />
+      <SettingsLogicFunctionDatabaseEventTriggerSection
+        value={formValues.databaseEventTriggerSettings}
+        onChange={onChange('databaseEventTriggerSettings')}
+        readonly={readonly}
+      />
+      <SettingsLogicFunctionToolTriggerSection
+        value={formValues.toolTriggerSettings}
+        onChange={onChange('toolTriggerSettings')}
+        readonly={readonly}
+      />
+      <SettingsLogicFunctionWorkflowActionTriggerSection
+        value={formValues.workflowActionTriggerSettings}
+        onChange={onChange('workflowActionTriggerSettings')}
+        readonly={readonly}
+      />
+      {!readonly && !hasAnyTrigger && (
+        <StyledEmptyState>
+          {t`No trigger is enabled. Toggle one of the options above to choose how this function gets invoked.`}
+        </StyledEmptyState>
       )}
     </>
   );

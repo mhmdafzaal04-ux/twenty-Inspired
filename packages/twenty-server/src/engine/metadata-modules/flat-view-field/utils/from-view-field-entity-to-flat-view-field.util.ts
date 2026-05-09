@@ -6,6 +6,7 @@ import {
 } from 'src/engine/metadata-modules/flat-entity/exceptions/flat-entity-maps.exception';
 import { getMetadataEntityRelationProperties } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-entity-relation-properties.util';
 import { type FlatViewField } from 'src/engine/metadata-modules/flat-view-field/types/flat-view-field.type';
+import { fromViewFieldOverridesToUniversalOverrides } from 'src/engine/metadata-modules/flat-view-field/utils/from-view-field-overrides-to-universal-overrides.util';
 import { type FromEntityToFlatEntityArgs } from 'src/engine/workspace-cache/types/from-entity-to-flat-entity-args.type';
 
 export const fromViewFieldEntityToFlatViewField = ({
@@ -13,6 +14,7 @@ export const fromViewFieldEntityToFlatViewField = ({
   applicationIdToUniversalIdentifierMap,
   fieldMetadataIdToUniversalIdentifierMap,
   viewIdToUniversalIdentifierMap,
+  viewFieldGroupIdToUniversalIdentifierMap,
 }: FromEntityToFlatEntityArgs<'viewField'>): FlatViewField => {
   const viewFieldEntityWithoutRelations = removePropertiesFromRecord(
     viewFieldEntity,
@@ -52,17 +54,44 @@ export const fromViewFieldEntityToFlatViewField = ({
     );
   }
 
+  let viewFieldGroupUniversalIdentifier: string | null = null;
+
+  if (isDefined(viewFieldEntity.viewFieldGroupId)) {
+    viewFieldGroupUniversalIdentifier =
+      viewFieldGroupIdToUniversalIdentifierMap.get(
+        viewFieldEntity.viewFieldGroupId,
+      ) ?? null;
+
+    if (!isDefined(viewFieldGroupUniversalIdentifier)) {
+      throw new FlatEntityMapsException(
+        `ViewFieldGroup with id ${viewFieldEntity.viewFieldGroupId} not found for viewField ${viewFieldEntity.id}`,
+        FlatEntityMapsExceptionCode.ENTITY_NOT_FOUND,
+      );
+    }
+  }
+
+  const viewFieldGroupUniversalIdentifierById = Object.fromEntries(
+    viewFieldGroupIdToUniversalIdentifierMap.entries(),
+  );
+
+  const universalOverrides = isDefined(viewFieldEntity.overrides)
+    ? fromViewFieldOverridesToUniversalOverrides({
+        overrides: viewFieldEntity.overrides,
+        viewFieldGroupUniversalIdentifierById,
+        shouldThrowOnMissingIdentifier: false,
+      })
+    : null;
+
   return {
     ...viewFieldEntityWithoutRelations,
     createdAt: viewFieldEntity.createdAt.toISOString(),
     updatedAt: viewFieldEntity.updatedAt.toISOString(),
     deletedAt: viewFieldEntity.deletedAt?.toISOString() ?? null,
     universalIdentifier: viewFieldEntityWithoutRelations.universalIdentifier,
-    __universal: {
-      universalIdentifier: viewFieldEntity.universalIdentifier,
-      applicationUniversalIdentifier,
-      fieldMetadataUniversalIdentifier,
-      viewUniversalIdentifier,
-    },
+    applicationUniversalIdentifier,
+    fieldMetadataUniversalIdentifier,
+    viewUniversalIdentifier,
+    viewFieldGroupUniversalIdentifier,
+    universalOverrides,
   };
 };

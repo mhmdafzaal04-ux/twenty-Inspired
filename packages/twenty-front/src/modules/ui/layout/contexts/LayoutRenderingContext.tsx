@@ -1,4 +1,4 @@
-import { type PageLayoutType } from '~/generated/graphql';
+import { type PageLayoutType } from '~/generated-metadata/graphql';
 import { createRequiredContext } from '~/utils/createRequiredContext';
 import { type TargetRecordIdentifier } from './TargetRecordIdentifier';
 
@@ -10,10 +10,7 @@ export type LayoutRenderingContextType = {
 
   layoutType: PageLayoutType;
 
-  isInRightDrawer: boolean;
-
-  /** TODO: Remove once the traditional record show page is removed. */
-  isLegacyRecordShowPage?: boolean;
+  isInSidePanel: boolean;
 };
 
 export const [LayoutRenderingProvider, useLayoutRenderingContext] =

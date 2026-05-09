@@ -1,14 +1,8 @@
 import { useAuth } from '@/auth/hooks/useAuth';
-import { billingState } from '@/client-config/states/billingState';
-import { isDeveloperDefaultSignInPrefilledState } from '@/client-config/states/isDeveloperDefaultSignInPrefilledState';
-import { supportChatState } from '@/client-config/states/supportChatState';
 
-import { workspaceAuthProvidersState } from '@/workspace/states/workspaceAuthProvidersState';
-import { useApolloClient } from '@apollo/client';
-import { MockedProvider } from '@apollo/client/testing';
+import { MockedProvider } from '@apollo/client/testing/react';
 import { type ReactNode, act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { RecoilRoot, useRecoilValue } from 'recoil';
 
 import {
   email,
@@ -17,23 +11,14 @@ import {
   results,
   token,
 } from '@/auth/hooks/__mocks__/useAuth';
-import { isMultiWorkspaceEnabledState } from '@/client-config/states/isMultiWorkspaceEnabledState';
 import { SnackBarComponentInstanceContext } from '@/ui/feedback/snack-bar-manager/contexts/SnackBarComponentInstanceContext';
 import { renderHook } from '@testing-library/react';
-import { iconsState } from 'twenty-ui/display';
-import { SupportDriver } from '~/generated/graphql';
 
 const redirectSpy = jest.fn();
 
 jest.mock('@/domain-manager/hooks/useRedirect', () => ({
   useRedirect: jest.fn().mockImplementation(() => ({
     redirect: redirectSpy,
-  })),
-}));
-
-jest.mock('@/object-metadata/hooks/useRefreshObjectMetadataItems', () => ({
-  useRefreshObjectMetadataItems: jest.fn().mockImplementation(() => ({
-    refreshObjectMetadataItems: jest.fn(),
   })),
 }));
 
@@ -74,16 +59,14 @@ jest.mock('@/domain-manager/hooks/useLastAuthenticatedWorkspaceDomain', () => ({
 }));
 
 const Wrapper = ({ children }: { children: ReactNode }) => (
-  <MockedProvider mocks={Object.values(mocks)} addTypename={false}>
-    <RecoilRoot>
-      <MemoryRouter>
-        <SnackBarComponentInstanceContext.Provider
-          value={{ instanceId: 'test-instance-id' }}
-        >
-          {children}
-        </SnackBarComponentInstanceContext.Provider>
-      </MemoryRouter>
-    </RecoilRoot>
+  <MockedProvider mocks={Object.values(mocks)}>
+    <MemoryRouter>
+      <SnackBarComponentInstanceContext.Provider
+        value={{ instanceId: 'test-instance-id' }}
+      >
+        {children}
+      </SnackBarComponentInstanceContext.Provider>
+    </MemoryRouter>
   </MockedProvider>
 );
 
@@ -156,58 +139,15 @@ describe('useAuth', () => {
   });
 
   it('should handle sign-out', async () => {
-    const { result } = renderHook(
-      () => {
-        const client = useApolloClient();
-        const icons = useRecoilValue(iconsState);
-        const workspaceAuthProviders = useRecoilValue(
-          workspaceAuthProvidersState,
-        );
-        const billing = useRecoilValue(billingState);
-        const isDeveloperDefaultSignInPrefilled = useRecoilValue(
-          isDeveloperDefaultSignInPrefilledState,
-        );
-        const supportChat = useRecoilValue(supportChatState);
-        const isMultiWorkspaceEnabled = useRecoilValue(
-          isMultiWorkspaceEnabledState,
-        );
-        return {
-          ...useAuth(),
-          client,
-          state: {
-            icons,
-            workspaceAuthProviders,
-            billing,
-            isDeveloperDefaultSignInPrefilled,
-            supportChat,
-            isMultiWorkspaceEnabled,
-          },
-        };
-      },
-      {
-        wrapper: Wrapper,
-      },
-    );
+    sessionStorage.setItem('lingering-key', 'should-be-cleared');
 
-    const { signOut, client } = result.current;
+    const { result } = renderHooks();
 
     await act(async () => {
-      await signOut();
+      result.current.signOut();
     });
 
     expect(sessionStorage.length).toBe(0);
-    expect(client.cache.extract()).toEqual({});
-
-    const { state } = result.current;
-
-    expect(state.icons).toEqual({});
-    expect(state.workspaceAuthProviders).toEqual(null);
-    expect(state.billing).toBeNull();
-    expect(state.isDeveloperDefaultSignInPrefilled).toBe(false);
-    expect(state.supportChat).toEqual({
-      supportDriver: SupportDriver.NONE,
-      supportFrontChatId: null,
-    });
   });
 
   it('should handle credential sign-up', async () => {

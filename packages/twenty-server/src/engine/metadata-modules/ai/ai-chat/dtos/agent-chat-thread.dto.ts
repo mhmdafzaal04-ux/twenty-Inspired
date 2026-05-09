@@ -1,10 +1,8 @@
-import { Field, Int, ObjectType } from '@nestjs/graphql';
-
-import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
+import { Field, Float, HideField, ID, Int, ObjectType } from '@nestjs/graphql';
 
 @ObjectType('AgentChatThread')
 export class AgentChatThreadDTO {
-  @Field(() => UUIDScalarType)
+  @Field(() => ID)
   id: string;
 
   @Field({ nullable: true })
@@ -20,9 +18,14 @@ export class AgentChatThreadDTO {
   contextWindowTokens: number | null;
 
   @Field(() => Int)
+  conversationSize: number;
+
+  // Credits are converted from internal precision to display precision
+  // (internal / 1000) at the resolver level
+  @Field(() => Float)
   totalInputCredits: number;
 
-  @Field(() => Int)
+  @Field(() => Float)
   totalOutputCredits: number;
 
   @Field()
@@ -30,4 +33,13 @@ export class AgentChatThreadDTO {
 
   @Field()
   updatedAt: Date;
+
+  @Field(() => Date, { nullable: true })
+  deletedAt: Date | null;
+
+  @Field(() => Date, { nullable: true })
+  lastMessageAt: Date | null;
+
+  @HideField()
+  userWorkspaceId: string;
 }

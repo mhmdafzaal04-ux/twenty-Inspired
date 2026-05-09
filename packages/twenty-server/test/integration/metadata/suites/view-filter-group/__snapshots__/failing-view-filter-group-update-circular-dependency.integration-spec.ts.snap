@@ -15,7 +15,6 @@ exports[`View Filter Group update should fail with circular dependency when pare
             },
           ],
           "flatEntityMinimalInformation": {
-            "id": Any<String>,
             "universalIdentifier": Any<String>,
           },
           "metadataName": "viewFilterGroup",
@@ -29,7 +28,7 @@ exports[`View Filter Group update should fail with circular dependency when pare
       "totalErrors": 1,
       "viewFilterGroup": 1,
     },
-    "userFriendlyMessage": "Metadata validation failed",
+    "userFriendlyMessage": "View filter group cannot be its own parent",
   },
   "message": "Multiple validation errors occurred while updating view filter group",
   "name": "GraphQLError",
@@ -51,7 +50,6 @@ exports[`View Filter Group update should fail with circular dependency when upda
             },
           ],
           "flatEntityMinimalInformation": {
-            "id": Any<String>,
             "universalIdentifier": Any<String>,
           },
           "metadataName": "viewFilterGroup",
@@ -65,7 +63,7 @@ exports[`View Filter Group update should fail with circular dependency when upda
       "totalErrors": 1,
       "viewFilterGroup": 1,
     },
-    "userFriendlyMessage": "Metadata validation failed",
+    "userFriendlyMessage": "Circular dependency detected in view filter group hierarchy",
   },
   "message": "Multiple validation errors occurred while updating view filter group",
   "name": "GraphQLError",

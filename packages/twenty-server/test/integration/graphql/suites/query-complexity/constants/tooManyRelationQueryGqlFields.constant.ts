@@ -15,42 +15,26 @@ export const TOO_MANY_RELATION_QUERY_GQL_FIELDS = `
         }
       }
     }
-    favorites {
-      edges {
-        node {
-          id
-          company {
-            id
-          }
-          person {
-            id
-            company {
-              id
-            }
-          }
-        }
-      }
-    }
     noteTargets {
       edges {
         node {
           id
-          company {
+          targetCompany {
             id
           }
           note {
             id
           }
-          person {
+          targetPerson {
             id
             company {
               id
             }
           }
-          company {
+          targetCompany {
             id
           }
-          opportunity {
+          targetOpportunity {
             id
           }
         }
@@ -60,19 +44,19 @@ export const TOO_MANY_RELATION_QUERY_GQL_FIELDS = `
       edges {
         node {
           id
-          company {
+          targetCompany {
             id
           }
-          person {
+          targetPerson {
             id
             company {
               id
             }
           }
-          company {
+          targetCompany {
             id
           }
-          opportunity {
+          targetOpportunity {
             id
           }
         }
@@ -83,6 +67,19 @@ export const TOO_MANY_RELATION_QUERY_GQL_FIELDS = `
       people {
         edges {
           node {
+            id
+            company {
+              id
+            }
+          }
+        }
+      }
+    }
+    attachments {
+      edges {
+        node {
+          id
+          person {
             id
             company {
               id

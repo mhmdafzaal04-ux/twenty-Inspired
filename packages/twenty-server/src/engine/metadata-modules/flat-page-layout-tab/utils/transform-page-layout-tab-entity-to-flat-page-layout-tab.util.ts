@@ -41,6 +41,7 @@ export const transformPageLayoutTabEntityToFlatPageLayoutTab = ({
     id: pageLayoutTabEntity.id,
     title: pageLayoutTabEntity.title,
     position: pageLayoutTabEntity.position,
+    isActive: pageLayoutTabEntity.isActive,
     pageLayoutId: pageLayoutTabEntity.pageLayoutId,
     workspaceId: pageLayoutTabEntity.workspaceId,
     universalIdentifier: pageLayoutTabEntity.universalIdentifier,
@@ -48,13 +49,11 @@ export const transformPageLayoutTabEntityToFlatPageLayoutTab = ({
     widgetIds: pageLayoutTabEntity.widgets.map((widget) => widget.id),
     icon: pageLayoutTabEntity.icon,
     layoutMode: pageLayoutTabEntity.layoutMode,
-    __universal: {
-      universalIdentifier: pageLayoutTabEntity.universalIdentifier,
-      applicationUniversalIdentifier,
-      pageLayoutUniversalIdentifier,
-      widgetUniversalIdentifiers: pageLayoutTabEntity.widgets.map(
-        (widget) => widget.universalIdentifier,
-      ),
-    },
+    applicationUniversalIdentifier,
+    pageLayoutUniversalIdentifier,
+    widgetUniversalIdentifiers: pageLayoutTabEntity.widgets.map(
+      (widget) => widget.universalIdentifier,
+    ),
+    overrides: pageLayoutTabEntity.overrides ?? null,
   };
 };

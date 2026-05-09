@@ -1,11 +1,11 @@
 import {
   FieldMetadataType,
-  FILE_CATEGORIES,
   NumberDataType,
   type FieldMetadataSettings,
 } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 
+import { computeMorphOrRelationFieldJoinColumnName } from 'src/engine/metadata-modules/field-metadata/utils/compute-morph-or-relation-field-join-column-name.util';
 import { RelationType } from 'src/engine/metadata-modules/field-metadata/interfaces/relation-type.interface';
 
 import { type FieldMetadataEntity } from 'src/engine/metadata-modules/field-metadata/field-metadata.entity';
@@ -49,8 +49,7 @@ const getFieldProperties = (field: FieldMetadataEntity): SchemaObject => {
     case FieldMetadataType.UUID: {
       return { type: 'string', format: 'uuid' };
     }
-    case FieldMetadataType.TEXT:
-    case FieldMetadataType.RICH_TEXT: {
+    case FieldMetadataType.TEXT: {
       return { type: 'string' };
     }
     case FieldMetadataType.DATE_TIME: {
@@ -103,13 +102,19 @@ export const convertObjectMetadataToSchemaProperties = ({
       return node;
     }
 
-    if (
-      isFieldMetadataEntityOfType(field, FieldMetadataType.RELATION) &&
-      field.settings?.relationType === RelationType.MANY_TO_ONE
-    ) {
+    const isRelationManyToOne =
+      (isFieldMetadataEntityOfType(field, FieldMetadataType.RELATION) ||
+        isFieldMetadataEntityOfType(field, FieldMetadataType.MORPH_RELATION)) &&
+      field.settings?.relationType === RelationType.MANY_TO_ONE;
+
+    if (isRelationManyToOne) {
+      const key = computeMorphOrRelationFieldJoinColumnName({
+        name: field.name,
+      });
+
       return {
         ...node,
-        [`${field.name}Id`]: {
+        [key]: {
           type: 'string',
           format: 'uuid',
         },
@@ -117,7 +122,8 @@ export const convertObjectMetadataToSchemaProperties = ({
     }
 
     if (
-      isFieldMetadataEntityOfType(field, FieldMetadataType.RELATION) &&
+      (isFieldMetadataEntityOfType(field, FieldMetadataType.RELATION) ||
+        isFieldMetadataEntityOfType(field, FieldMetadataType.MORPH_RELATION)) &&
       field.settings?.relationType === RelationType.ONE_TO_MANY
     ) {
       return node;
@@ -318,7 +324,7 @@ export const convertObjectMetadataToSchemaProperties = ({
           type: 'object',
         };
         break;
-      case FieldMetadataType.RICH_TEXT_V2:
+      case FieldMetadataType.RICH_TEXT:
         itemProperty = {
           type: 'object',
           properties: {
@@ -346,9 +352,11 @@ export const convertObjectMetadataToSchemaProperties = ({
               },
               ...(forResponse
                 ? {
-                    fileCategory: {
+                    extension: {
                       type: 'string',
-                      enum: Object.values(FILE_CATEGORIES),
+                    },
+                    url: {
+                      type: 'string',
                     },
                   }
                 : {}),

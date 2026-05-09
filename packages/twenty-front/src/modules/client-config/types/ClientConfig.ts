@@ -4,6 +4,7 @@ import {
   type Billing,
   type Captcha,
   type ClientAiModelConfig,
+  type ClientConfigMaintenanceMode,
   type PublicFeatureFlag,
   type Sentry,
   type Support,
@@ -19,7 +20,6 @@ export type ClientConfig = {
   calendarBookingPageId?: string;
   canManageFeatureFlags: boolean;
   captcha: Captcha;
-  chromeExtensionId?: string;
   defaultSubdomain?: string;
   frontDomain: string;
   isAttachmentPreviewEnabled: boolean;
@@ -31,12 +31,16 @@ export type ClientConfig = {
   isMicrosoftMessagingEnabled: boolean;
   isMultiWorkspaceEnabled: boolean;
   isImapSmtpCaldavEnabled: boolean;
+  isEmailGroupEnabled: boolean;
   isEmailingDomainsEnabled: boolean;
   isCloudflareIntegrationEnabled: boolean;
+  isClickHouseConfigured: boolean;
+  isWorkspaceSchemaDDLLocked: boolean;
   publicFeatureFlags: Array<PublicFeatureFlag>;
   sentry: Sentry;
   signInPrefilled: boolean;
   support: Support;
   isTwoFactorAuthenticationEnabled: boolean;
   allowRequestsToTwentyIcons: boolean;
+  maintenance?: ClientConfigMaintenanceMode;
 };

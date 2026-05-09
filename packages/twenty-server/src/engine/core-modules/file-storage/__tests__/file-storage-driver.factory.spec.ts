@@ -3,14 +3,19 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { StorageDriverType } from 'src/engine/core-modules/file-storage/interfaces/file-storage.interface';
 
 import { FileStorageDriverFactory } from 'src/engine/core-modules/file-storage/file-storage-driver.factory';
+import { ConfigGroupHashService } from 'src/engine/core-modules/twenty-config/services/config-group-hash.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
 describe('FileStorageDriverFactory', () => {
   let factory: FileStorageDriverFactory;
   let twentyConfigService: TwentyConfigService;
+  let configGroupHashService: ConfigGroupHashService;
 
   const mockTwentyConfigService = {
     get: jest.fn(),
+  };
+  const mockConfigGroupHashService = {
+    computeHash: jest.fn().mockReturnValue(''),
   };
 
   beforeEach(async () => {
@@ -21,11 +26,18 @@ describe('FileStorageDriverFactory', () => {
           provide: TwentyConfigService,
           useValue: mockTwentyConfigService,
         },
+        {
+          provide: ConfigGroupHashService,
+          useValue: mockConfigGroupHashService,
+        },
       ],
     }).compile();
 
     factory = module.get<FileStorageDriverFactory>(FileStorageDriverFactory);
     twentyConfigService = module.get<TwentyConfigService>(TwentyConfigService);
+    configGroupHashService = module.get<ConfigGroupHashService>(
+      ConfigGroupHashService,
+    );
 
     jest.clearAllMocks();
   });
@@ -57,7 +69,7 @@ describe('FileStorageDriverFactory', () => {
         .spyOn(twentyConfigService, 'get')
         .mockReturnValue(StorageDriverType.S_3);
       jest
-        .spyOn(factory as any, 'getConfigGroupHash')
+        .spyOn(configGroupHashService, 'computeHash')
         .mockReturnValue('s3-hash-123');
 
       const result = factory['buildConfigKey']();
@@ -78,7 +90,7 @@ describe('FileStorageDriverFactory', () => {
   });
 
   describe('createDriver', () => {
-    it('should create LocalDriver for local storage', () => {
+    it('should create ValidatedStorageDriver wrapping LocalDriver for local storage', () => {
       const storagePath = '/tmp/storage';
 
       jest
@@ -93,10 +105,10 @@ describe('FileStorageDriverFactory', () => {
       const driver = factory['createDriver']();
 
       expect(driver).toBeDefined();
-      expect(driver.constructor.name).toBe('LocalDriver');
+      expect(driver.constructor.name).toBe('ValidatedStorageDriver');
     });
 
-    it('should create S3Driver for S3 storage with access keys', () => {
+    it('should create ValidatedStorageDriver wrapping S3Driver for S3 storage with access keys', () => {
       jest
         .spyOn(twentyConfigService, 'get')
         .mockImplementation((key: string) => {
@@ -121,10 +133,10 @@ describe('FileStorageDriverFactory', () => {
       const driver = factory['createDriver']();
 
       expect(driver).toBeDefined();
-      expect(driver.constructor.name).toBe('S3Driver');
+      expect(driver.constructor.name).toBe('ValidatedStorageDriver');
     });
 
-    it('should create S3Driver for S3 storage without access keys (using provider chain)', () => {
+    it('should create ValidatedStorageDriver wrapping S3Driver for S3 storage without access keys (using provider chain)', () => {
       jest
         .spyOn(twentyConfigService, 'get')
         .mockImplementation((key: string) => {
@@ -149,7 +161,7 @@ describe('FileStorageDriverFactory', () => {
       const driver = factory['createDriver']();
 
       expect(driver).toBeDefined();
-      expect(driver.constructor.name).toBe('S3Driver');
+      expect(driver.constructor.name).toBe('ValidatedStorageDriver');
     });
 
     it('should throw error for invalid storage driver type', () => {
@@ -177,7 +189,7 @@ describe('FileStorageDriverFactory', () => {
       const driver = factory.getCurrentDriver();
 
       expect(driver).toBeDefined();
-      expect(driver.constructor.name).toBe('LocalDriver');
+      expect(driver.constructor.name).toBe('ValidatedStorageDriver');
     });
 
     it('should reuse driver when config key unchanged', () => {
@@ -224,8 +236,8 @@ describe('FileStorageDriverFactory', () => {
       const driver2 = factory.getCurrentDriver();
 
       expect(driver1).not.toBe(driver2);
-      expect(driver1.constructor.name).toBe('LocalDriver');
-      expect(driver2.constructor.name).toBe('LocalDriver');
+      expect(driver1.constructor.name).toBe('ValidatedStorageDriver');
+      expect(driver2.constructor.name).toBe('ValidatedStorageDriver');
     });
 
     it('should create new driver when switching from local to S3', () => {
@@ -259,14 +271,14 @@ describe('FileStorageDriverFactory', () => {
           }
         });
       jest
-        .spyOn(factory as any, 'getConfigGroupHash')
+        .spyOn(configGroupHashService, 'computeHash')
         .mockReturnValue('s3-hash-123');
 
       const driver2 = factory.getCurrentDriver();
 
       expect(driver1).not.toBe(driver2);
-      expect(driver1.constructor.name).toBe('LocalDriver');
-      expect(driver2.constructor.name).toBe('S3Driver');
+      expect(driver1.constructor.name).toBe('ValidatedStorageDriver');
+      expect(driver2.constructor.name).toBe('ValidatedStorageDriver');
     });
 
     it('should throw error for unsupported storage type', () => {

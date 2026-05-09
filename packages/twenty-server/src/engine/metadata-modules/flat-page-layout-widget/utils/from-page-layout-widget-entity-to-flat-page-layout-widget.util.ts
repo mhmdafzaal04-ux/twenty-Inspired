@@ -7,11 +7,15 @@ import {
 import { getMetadataEntityRelationProperties } from 'src/engine/metadata-modules/flat-entity/utils/get-metadata-entity-relation-properties.util';
 import { type FlatPageLayoutWidget } from 'src/engine/metadata-modules/flat-page-layout-widget/types/flat-page-layout-widget.type';
 import { fromPageLayoutWidgetConfigurationToUniversalConfiguration } from 'src/engine/metadata-modules/flat-page-layout-widget/utils/from-page-layout-widget-configuration-to-universal-configuration.util';
+import { fromPageLayoutWidgetOverridesToUniversalOverrides } from 'src/engine/metadata-modules/flat-page-layout-widget/utils/from-page-layout-widget-overrides-to-universal-overrides.util';
 import { type FromEntityToFlatEntityArgs } from 'src/engine/workspace-cache/types/from-entity-to-flat-entity-args.type';
 
 type FromPageLayoutWidgetEntityToFlatPageLayoutWidgetArgs =
   FromEntityToFlatEntityArgs<'pageLayoutWidget'> & {
-    fieldMetadataIdToUniversalIdentifierMap: Map<string, string>;
+    fieldMetadataUniversalIdentifierById: Partial<Record<string, string>>;
+    frontComponentUniversalIdentifierById?: Partial<Record<string, string>>;
+    viewFieldGroupUniversalIdentifierById?: Partial<Record<string, string>>;
+    viewUniversalIdentifierById?: Partial<Record<string, string>>;
   };
 
 export const fromPageLayoutWidgetEntityToFlatPageLayoutWidget = ({
@@ -19,7 +23,10 @@ export const fromPageLayoutWidgetEntityToFlatPageLayoutWidget = ({
   applicationIdToUniversalIdentifierMap,
   pageLayoutTabIdToUniversalIdentifierMap,
   objectMetadataIdToUniversalIdentifierMap,
-  fieldMetadataIdToUniversalIdentifierMap,
+  fieldMetadataUniversalIdentifierById,
+  frontComponentUniversalIdentifierById,
+  viewFieldGroupUniversalIdentifierById,
+  viewUniversalIdentifierById,
 }: FromPageLayoutWidgetEntityToFlatPageLayoutWidgetArgs): FlatPageLayoutWidget => {
   const pageLayoutWidgetEntityWithoutRelations = removePropertiesFromRecord(
     pageLayoutWidgetEntity,
@@ -69,8 +76,23 @@ export const fromPageLayoutWidgetEntityToFlatPageLayoutWidget = ({
   const configurationWithUniversalIdentifiers =
     fromPageLayoutWidgetConfigurationToUniversalConfiguration({
       configuration: pageLayoutWidgetEntityWithoutRelations.configuration,
-      fieldMetadataIdToUniversalIdentifierMap,
+      fieldMetadataUniversalIdentifierById,
+      frontComponentUniversalIdentifierById,
+      viewFieldGroupUniversalIdentifierById,
+      viewUniversalIdentifierById,
     });
+
+  const pageLayoutTabUniversalIdentifierById = Object.fromEntries(
+    pageLayoutTabIdToUniversalIdentifierMap.entries(),
+  );
+
+  const universalOverrides = isDefined(pageLayoutWidgetEntity.overrides)
+    ? fromPageLayoutWidgetOverridesToUniversalOverrides({
+        overrides: pageLayoutWidgetEntity.overrides,
+        pageLayoutTabUniversalIdentifierById,
+        shouldThrowOnMissingIdentifier: false,
+      })
+    : null;
 
   return {
     ...pageLayoutWidgetEntityWithoutRelations,
@@ -80,12 +102,10 @@ export const fromPageLayoutWidgetEntityToFlatPageLayoutWidget = ({
     universalIdentifier:
       pageLayoutWidgetEntityWithoutRelations.universalIdentifier,
     applicationId: pageLayoutWidgetEntityWithoutRelations.applicationId,
-    __universal: {
-      universalIdentifier: pageLayoutWidgetEntity.universalIdentifier,
-      applicationUniversalIdentifier,
-      pageLayoutTabUniversalIdentifier,
-      objectMetadataUniversalIdentifier,
-      universalConfiguration: configurationWithUniversalIdentifiers,
-    },
+    applicationUniversalIdentifier,
+    pageLayoutTabUniversalIdentifier,
+    objectMetadataUniversalIdentifier,
+    universalConfiguration: configurationWithUniversalIdentifiers,
+    universalOverrides,
   };
 };

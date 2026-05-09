@@ -1,14 +1,17 @@
-import { useRecoilValue } from 'recoil';
+import {
+  type CoreObjectNameSingular,
+  type RecordGqlOperationOrderBy,
+} from 'twenty-shared/types';
 
 import { findActivityTargetsOperationSignatureFactory } from '@/activities/graphql/operation-signatures/factories/findActivityTargetsOperationSignatureFactory';
 import { type ActivityTargetableObject } from '@/activities/types/ActivityTargetableEntity';
 import { type NoteTarget } from '@/activities/types/NoteTarget';
 import { type TaskTarget } from '@/activities/types/TaskTarget';
 import { getActivityTargetsFilter } from '@/activities/utils/getActivityTargetsFilter';
-import { objectMetadataItemsState } from '@/object-metadata/states/objectMetadataItemsState';
-import { type CoreObjectNameSingular } from '@/object-metadata/types/CoreObjectNameSingular';
-import { type RecordGqlOperationOrderBy } from 'twenty-shared/types';
+import { objectMetadataItemsSelector } from '@/object-metadata/states/objectMetadataItemsSelector';
+import { type EnrichedObjectMetadataItem } from '@/object-metadata/types/EnrichedObjectMetadataItem';
 import { useFindManyRecords } from '@/object-record/hooks/useFindManyRecords';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 
 export const useActivityTargetsForTargetableObjects = ({
   objectNameSingular,
@@ -28,12 +31,11 @@ export const useActivityTargetsForTargetableObjects = ({
   activityTargetsOrderByVariables: RecordGqlOperationOrderBy;
   limit: number;
 }) => {
-  const objectMetadataItems = useRecoilValue(objectMetadataItemsState);
-
+  const objectMetadataItems = useAtomStateValue<EnrichedObjectMetadataItem[]>(
+    objectMetadataItemsSelector,
+  );
   const activityTargetsFilter = getActivityTargetsFilter({
-    targetableObjects: targetableObjects,
-    activityObjectNameSingular: objectNameSingular,
-    objectMetadataItems,
+    targetableObjects,
   });
 
   const FIND_ACTIVITY_TARGETS_OPERATION_SIGNATURE =

@@ -11,6 +11,7 @@ import {
   type FieldDateTimeMetadata,
   type FieldEmailMetadata,
   type FieldEmailsMetadata,
+  type FieldFilesMetadata,
   type FieldFullNameMetadata,
   type FieldLinkMetadata,
   type FieldLinksMetadata,
@@ -24,7 +25,6 @@ import {
   type FieldRawJsonMetadata,
   type FieldRelationMetadata,
   type FieldRichTextMetadata,
-  type FieldRichTextV2Metadata,
   type FieldSelectMetadata,
   type FieldTextMetadata,
   type FieldUuidMetadata,
@@ -46,34 +46,34 @@ type AssertFieldMetadataFunction = <
               ? FieldEmailMetadata
               : E extends 'EMAILS'
                 ? FieldEmailsMetadata
-                : E extends 'SELECT'
-                  ? FieldSelectMetadata
-                  : E extends 'MULTI_SELECT'
-                    ? FieldMultiSelectMetadata
-                    : E extends 'RATING'
-                      ? FieldRatingMetadata
-                      : E extends 'LINK'
-                        ? FieldLinkMetadata
-                        : E extends 'LINKS'
-                          ? FieldLinksMetadata
-                          : E extends 'NUMBER'
-                            ? FieldNumberMetadata
-                            : E extends 'PHONE'
-                              ? FieldPhoneMetadata
-                              : E extends 'RELATION'
-                                ? FieldRelationMetadata
-                                : E extends 'MORPH_RELATION'
-                                  ? FieldMorphRelationMetadata
-                                  : E extends 'TEXT'
-                                    ? FieldTextMetadata
-                                    : E extends 'UUID'
-                                      ? FieldUuidMetadata
-                                      : E extends 'ADDRESS'
-                                        ? FieldAddressMetadata
-                                        : E extends 'RAW_JSON'
-                                          ? FieldRawJsonMetadata
-                                          : E extends 'RICH_TEXT_V2'
-                                            ? FieldRichTextV2Metadata
+                : E extends 'FILES'
+                  ? FieldFilesMetadata
+                  : E extends 'SELECT'
+                    ? FieldSelectMetadata
+                    : E extends 'MULTI_SELECT'
+                      ? FieldMultiSelectMetadata
+                      : E extends 'RATING'
+                        ? FieldRatingMetadata
+                        : E extends 'LINK'
+                          ? FieldLinkMetadata
+                          : E extends 'LINKS'
+                            ? FieldLinksMetadata
+                            : E extends 'NUMBER'
+                              ? FieldNumberMetadata
+                              : E extends 'PHONE'
+                                ? FieldPhoneMetadata
+                                : E extends 'RELATION'
+                                  ? FieldRelationMetadata
+                                  : E extends 'MORPH_RELATION'
+                                    ? FieldMorphRelationMetadata
+                                    : E extends 'TEXT'
+                                      ? FieldTextMetadata
+                                      : E extends 'UUID'
+                                        ? FieldUuidMetadata
+                                        : E extends 'ADDRESS'
+                                          ? FieldAddressMetadata
+                                          : E extends 'RAW_JSON'
+                                            ? FieldRawJsonMetadata
                                             : E extends 'RICH_TEXT'
                                               ? FieldRichTextMetadata
                                               : E extends 'ACTOR'

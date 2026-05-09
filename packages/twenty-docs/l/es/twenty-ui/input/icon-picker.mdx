@@ -1,6 +1,5 @@
 ---
 title: Selector de Íconos
-image: /images/user-guide/github/github-header.png
 ---
 
 <Frame>
@@ -12,7 +11,6 @@ Un selector de íconos basado en un menú desplegable que permite a los usuarios
 <Tabs>
   <Tab title="Uso">
     ```jsx
-    import { RecoilRoot } from "recoil";
     import React, { useState } from "react";
     import { IconPicker } from "@/ui/input/components/IconPicker";
 
@@ -25,14 +23,12 @@ Un selector de íconos basado en un menú desplegable que permite a los usuarios
        };
 
       return (
-        <RecoilRoot>
           <IconPicker
             disabled={false}
             onChange={handleIconChange}
             selectedIconKey={selectedIcon}
             variant="primary"
           />
-        </RecoilRoot>
       );
     };
     ```

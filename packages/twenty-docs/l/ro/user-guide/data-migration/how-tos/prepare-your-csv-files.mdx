@@ -103,8 +103,6 @@ Adresa este un **câmp îmbricat** cu mai multe coloane (unele pot fi lăsate ne
 Folosiți un format consecvent în tot fișierul:
 
 * `YYYY-MM-DD` (recomandat): `2024-03-15`
-* `MM/DD/YYYY`: `03/15/2024`
-* `DD/MM/YYYY`: `15/03/2024`
 * ISO 8601: `2024-03-15T10:30:00Z`
 
 ### Câmpuri numerice
@@ -210,15 +208,14 @@ Jane,Doe,jane@widgets.co,https://widgets.co
 * Pentru membrii spațiului de lucru, folosiți **emailul** (nu numele)
 
 <Warning>
-  **Ordinea de import contează!**
+**Ordinea de import contează!**
 
-  Importați partea "unu" înaintea părții "mulți":
+Importați partea "unu" înaintea părții "mulți":
+1. **Companii** mai întâi
+2. **Persoane** în al doilea rând (cu referință la companie)
+3. **Oportunități** în al treilea rând
 
-  1. **Companii** mai întâi
-  2. **Persoane** în al doilea rând (cu referință la companie)
-  3. **Oportunități** în al treilea rând
-
-  Înregistrarea părinte trebuie să existe înainte de a o putea referi.
+Înregistrarea părinte trebuie să existe înainte de a o putea referi.
 </Warning>
 
 Consultați [Cum să importați relații](/l/ro/user-guide/data-migration/how-tos/import-relations-between-objects-via-csv) pentru instrucțiuni detaliate.

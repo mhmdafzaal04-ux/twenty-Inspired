@@ -1,23 +1,31 @@
-import { useSetRecoilState } from 'recoil';
+import { useMutation } from '@apollo/client/react';
 import {
   type SendInvitationsMutationVariables,
-  useSendInvitationsMutation,
+  SendInvitationsDocument,
 } from '~/generated-metadata/graphql';
 import { workspaceInvitationsState } from '@/workspace-invitation/states/workspaceInvitationsStates';
+import { useSetAtomState } from '@/ui/utilities/state/jotai/hooks/useSetAtomState';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 
 export const useCreateWorkspaceInvitation = () => {
-  const [sendInvitationsMutation] = useSendInvitationsMutation();
+  const [sendInvitationsMutation] = useMutation(SendInvitationsDocument);
 
-  const setWorkspaceInvitations = useSetRecoilState(workspaceInvitationsState);
+  const setWorkspaceInvitations = useSetAtomState(workspaceInvitationsState);
+  const { enqueueErrorSnackBar } = useSnackBar();
 
-  const sendInvitation = async (emails: SendInvitationsMutationVariables) => {
+  const sendInvitation = async (
+    variables: SendInvitationsMutationVariables,
+  ) => {
     return await sendInvitationsMutation({
-      variables: emails,
+      variables,
       onCompleted: (data) => {
         setWorkspaceInvitations((workspaceInvitations) => [
           ...workspaceInvitations,
           ...data.sendInvitations.result,
         ]);
+      },
+      onError: (error) => {
+        enqueueErrorSnackBar({ apolloError: error });
       },
     });
   };

@@ -4,11 +4,22 @@ import {
   RECORD_REFERENCE_REGEX,
   RecordLink,
 } from '@/ai/components/RecordLink';
-import { useTheme } from '@emotion/react';
-import styled from '@emotion/styled';
-import { lazy, Suspense } from 'react';
+import {
+  StyledMarkdownContainer,
+  StyledParagraph,
+  StyledSkeletonContainer,
+  StyledTableScrollContainer,
+} from '@/ai/components/LazyMarkdownRendererStyledComponents';
+import {
+  cloneElement,
+  isValidElement,
+  lazy,
+  Suspense,
+  useContext,
+} from 'react';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
-import { isDefined } from 'twenty-shared/utils';
+import { getSafeUrl, isDefined } from 'twenty-shared/utils';
+import { ThemeContext } from 'twenty-ui/theme-constants';
 
 const TextWithRecordLinks = ({ text }: { text: string }) => {
   const parts: React.ReactNode[] = [];
@@ -59,6 +70,16 @@ const processChildrenForRecordLinks = (
     ));
   }
 
+  if (isValidElement<{ children?: React.ReactNode }>(children)) {
+    const childProps = children.props;
+
+    if (isDefined(childProps.children)) {
+      return cloneElement(children, {
+        children: processChildrenForRecordLinks(childProps.children),
+      });
+    }
+  }
+
   return children;
 };
 
@@ -72,11 +93,11 @@ const MarkdownRenderer = lazy(async () => {
     default: ({
       children,
       TableScrollContainer,
-      StyledParagraph,
+      ParagraphComponent,
     }: {
       children: string;
       TableScrollContainer: React.ComponentType<{ children: React.ReactNode }>;
-      StyledParagraph: React.ComponentType<{ children: React.ReactNode }>;
+      ParagraphComponent: React.ComponentType<{ children: React.ReactNode }>;
     }) => (
       <Markdown
         remarkPlugins={[remarkGfm]}
@@ -87,12 +108,59 @@ const MarkdownRenderer = lazy(async () => {
             </TableScrollContainer>
           ),
           p: ({ children }) => (
-            <StyledParagraph>
+            <ParagraphComponent>
               {processChildrenForRecordLinks(children)}
-            </StyledParagraph>
+            </ParagraphComponent>
+          ),
+          td: ({ children }) => (
+            <td>{processChildrenForRecordLinks(children)}</td>
+          ),
+          th: ({ children }) => (
+            <th>{processChildrenForRecordLinks(children)}</th>
           ),
           li: ({ children }) => (
             <li>{processChildrenForRecordLinks(children)}</li>
+          ),
+          h1: ({ children }) => (
+            <h1>{processChildrenForRecordLinks(children)}</h1>
+          ),
+          h2: ({ children }) => (
+            <h2>{processChildrenForRecordLinks(children)}</h2>
+          ),
+          h3: ({ children }) => (
+            <h3>{processChildrenForRecordLinks(children)}</h3>
+          ),
+          h4: ({ children }) => (
+            <h4>{processChildrenForRecordLinks(children)}</h4>
+          ),
+          h5: ({ children }) => (
+            <h5>{processChildrenForRecordLinks(children)}</h5>
+          ),
+          h6: ({ children }) => (
+            <h6>{processChildrenForRecordLinks(children)}</h6>
+          ),
+          a: ({ children, href, title, node: _node }) => (
+            <a
+              className="markdown-link"
+              href={getSafeUrl(href)}
+              title={title}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {processChildrenForRecordLinks(children)}
+            </a>
+          ),
+          code: ({
+            className,
+            children,
+          }: {
+            className?: string;
+            children?: React.ReactNode;
+          }) => <code className={className}>{children}</code>,
+          pre: ({ children }) => (
+            <div className="markdown-code-outer-container">
+              <pre className="markdown-block-code">{children}</pre>
+            </div>
           ),
         }}
       >
@@ -102,49 +170,8 @@ const MarkdownRenderer = lazy(async () => {
   };
 });
 
-const StyledTableScrollContainer = styled.div`
-  overflow-x: auto;
-
-  table {
-    border-collapse: collapse;
-    margin-block: ${({ theme }) => theme.spacing(2)};
-  }
-
-  th,
-  td {
-    border: ${({ theme }) => `1px solid ${theme.border.color.light}`};
-    padding: ${({ theme }) => theme.spacing(2)};
-  }
-
-  th {
-    background-color: ${({ theme }) => theme.background.secondary};
-    font-weight: ${({ theme }) => theme.font.weight.medium};
-  }
-`;
-
-// Using div instead of p to allow RecordLink (which contains div elements) as children
-const StyledParagraph = styled.div`
-  margin-block: 1em;
-
-  &:first-child {
-    margin-block-start: 0;
-  }
-
-  &:last-child {
-    margin-block-end: 0;
-  }
-`;
-
-const StyledSkeletonContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing(2)};
-  width: 100%;
-`;
-
 const LoadingSkeleton = () => {
-  const theme = useTheme();
-
+  const { theme } = useContext(ThemeContext);
   return (
     <SkeletonTheme
       baseColor={theme.background.tertiary}
@@ -179,13 +206,15 @@ const LoadingSkeleton = () => {
 
 export const LazyMarkdownRenderer = ({ text }: { text: string }) => {
   return (
-    <Suspense fallback={<LoadingSkeleton />}>
-      <MarkdownRenderer
-        TableScrollContainer={StyledTableScrollContainer}
-        StyledParagraph={StyledParagraph}
-      >
-        {text}
-      </MarkdownRenderer>
-    </Suspense>
+    <StyledMarkdownContainer className="markdown-section">
+      <Suspense fallback={<LoadingSkeleton />}>
+        <MarkdownRenderer
+          TableScrollContainer={StyledTableScrollContainer}
+          ParagraphComponent={StyledParagraph}
+        >
+          {text}
+        </MarkdownRenderer>
+      </Suspense>
+    </StyledMarkdownContainer>
   );
 };

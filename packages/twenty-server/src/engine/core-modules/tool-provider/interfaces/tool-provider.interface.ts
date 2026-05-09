@@ -1,40 +1,30 @@
-import { type ToolSet } from 'ai';
-import { type CodeExecutionData } from 'twenty-shared/ai';
-import { type ActorMetadata } from 'twenty-shared/types';
+import { type ToolCategory } from 'twenty-shared/ai';
 
-import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
-import { type ToolCategory } from 'src/engine/core-modules/tool-provider/enums/tool-category.enum';
-import { type ToolType } from 'src/engine/core-modules/tool/enums/tool-type.enum';
-import { type FlatAgentWithRoleId } from 'src/engine/metadata-modules/flat-agent/types/flat-agent.type';
-import { type RolePermissionConfig } from 'src/engine/twenty-orm/types/role-permission-config';
-
-export type CodeExecutionStreamEmitter = (data: CodeExecutionData) => void;
-
-// Unified context for tool generation - used by all consumers
-export type ToolProviderContext = {
-  workspaceId: string;
-  roleId: string;
-  rolePermissionConfig: RolePermissionConfig;
-  // Optional fields for different use cases
-  authContext?: WorkspaceAuthContext;
-  actorContext?: ActorMetadata;
-  userId?: string;
-  userWorkspaceId?: string;
-  agent?: FlatAgentWithRoleId | null;
-  onCodeExecutionUpdate?: CodeExecutionStreamEmitter;
-};
-
-// Options for tool retrieval
-export type ToolRetrievalOptions = {
-  categories?: ToolCategory[];
-  excludeTools?: ToolType[];
-  wrapWithErrorContext?: boolean;
-};
+import { type GenerateDescriptorOptions } from 'src/engine/core-modules/tool-provider/interfaces/generate-descriptor-options.type';
+import { type ToolProviderContext } from 'src/engine/core-modules/tool-provider/interfaces/tool-provider-context.type';
+import { type ToolDescriptor } from 'src/engine/core-modules/tool-provider/types/tool-descriptor.type';
+import { type ToolIndexEntry } from 'src/engine/core-modules/tool-provider/types/tool-index-entry.type';
+import { type ToolOutput } from 'src/engine/core-modules/tool/types/tool-output.type';
 
 export interface ToolProvider {
   readonly category: ToolCategory;
 
   isAvailable(context: ToolProviderContext): Promise<boolean>;
 
-  generateTools(context: ToolProviderContext): Promise<ToolSet>;
+  generateDescriptors(
+    context: ToolProviderContext,
+    options?: GenerateDescriptorOptions,
+  ): Promise<(ToolIndexEntry | ToolDescriptor)[]>;
+
+  // Execute a tool whose descriptor has `executionRef.kind === 'static'` and
+  // `descriptor.category === this.category`. Providers own the execution of
+  // the tools they emit.
+  //
+  // Providers that never emit 'static' descriptors (database CRUD, logic
+  // functions) should throw — the call is unreachable by construction.
+  executeStaticTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    context: ToolProviderContext,
+  ): Promise<ToolOutput>;
 }

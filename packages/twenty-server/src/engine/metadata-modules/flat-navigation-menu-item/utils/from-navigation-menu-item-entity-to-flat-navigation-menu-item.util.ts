@@ -13,6 +13,7 @@ export const fromNavigationMenuItemEntityToFlatNavigationMenuItem = ({
   objectMetadataIdToUniversalIdentifierMap,
   navigationMenuItemIdToUniversalIdentifierMap,
   viewIdToUniversalIdentifierMap,
+  pageLayoutIdToUniversalIdentifierMap,
 }: FromEntityToFlatEntityArgs<'navigationMenuItem'>): FlatNavigationMenuItem => {
   const applicationUniversalIdentifier =
     applicationIdToUniversalIdentifierMap.get(
@@ -73,26 +74,45 @@ export const fromNavigationMenuItemEntityToFlatNavigationMenuItem = ({
     }
   }
 
+  let pageLayoutUniversalIdentifier: string | null = null;
+
+  if (isDefined(navigationMenuItemEntity.pageLayoutId)) {
+    pageLayoutUniversalIdentifier =
+      pageLayoutIdToUniversalIdentifierMap.get(
+        navigationMenuItemEntity.pageLayoutId,
+      ) ?? null;
+
+    if (!isDefined(pageLayoutUniversalIdentifier)) {
+      throw new FlatEntityMapsException(
+        `PageLayout with id ${navigationMenuItemEntity.pageLayoutId} not found for navigationMenuItem ${navigationMenuItemEntity.id}`,
+        FlatEntityMapsExceptionCode.ENTITY_NOT_FOUND,
+      );
+    }
+  }
+
   return {
     id: navigationMenuItemEntity.id,
+    type: navigationMenuItemEntity.type,
     userWorkspaceId: navigationMenuItemEntity.userWorkspaceId,
     targetRecordId: navigationMenuItemEntity.targetRecordId,
     targetObjectMetadataId: navigationMenuItemEntity.targetObjectMetadataId,
     viewId: navigationMenuItemEntity.viewId,
     folderId: navigationMenuItemEntity.folderId,
     name: navigationMenuItemEntity.name,
+    link: navigationMenuItemEntity.link,
+    icon: navigationMenuItemEntity.icon,
+    color: navigationMenuItemEntity.color,
+    pageLayoutId: navigationMenuItemEntity.pageLayoutId,
     position: navigationMenuItemEntity.position,
     workspaceId: navigationMenuItemEntity.workspaceId,
     universalIdentifier: navigationMenuItemEntity.universalIdentifier,
     applicationId: navigationMenuItemEntity.applicationId,
     createdAt: navigationMenuItemEntity.createdAt.toISOString(),
     updatedAt: navigationMenuItemEntity.updatedAt.toISOString(),
-    __universal: {
-      universalIdentifier: navigationMenuItemEntity.universalIdentifier,
-      applicationUniversalIdentifier,
-      targetObjectMetadataUniversalIdentifier,
-      folderUniversalIdentifier,
-      viewUniversalIdentifier,
-    },
+    applicationUniversalIdentifier,
+    targetObjectMetadataUniversalIdentifier,
+    folderUniversalIdentifier,
+    viewUniversalIdentifier,
+    pageLayoutUniversalIdentifier,
   };
 };

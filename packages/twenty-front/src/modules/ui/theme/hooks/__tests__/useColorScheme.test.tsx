@@ -1,23 +1,21 @@
 import { act, renderHook } from '@testing-library/react';
-import { RecoilRoot, useSetRecoilState } from 'recoil';
-
-import { currentWorkspaceMemberState } from '@/auth/states/currentWorkspaceMemberState';
+import { Provider as JotaiProvider } from 'jotai';
+import {
+  currentWorkspaceMemberState,
+  type CurrentWorkspaceMember,
+} from '@/auth/states/currentWorkspaceMemberState';
 import { useColorScheme } from '@/ui/theme/hooks/useColorScheme';
-import { type WorkspaceMember } from '@/workspace-member/types/WorkspaceMember';
+import { resetJotaiStore } from '@/ui/utilities/state/jotai/jotaiStore';
 
-const updateOneRecordMock = jest.fn();
+const mockUpdateWorkspaceMemberSettings = jest.fn();
 
-jest.mock('@/object-record/hooks/useUpdateOneRecord', () => ({
-  useUpdateOneRecord: () => ({
-    updateOneRecord: updateOneRecordMock,
+jest.mock('@/settings/profile/hooks/useUpdateWorkspaceMemberSettings', () => ({
+  useUpdateWorkspaceMemberSettings: () => ({
+    updateWorkspaceMemberSettings: mockUpdateWorkspaceMemberSettings,
   }),
 }));
 
-const workspaceMember: Omit<
-  WorkspaceMember,
-  'createdAt' | 'updatedAt' | 'userId'
-> = {
-  __typename: 'WorkspaceMember',
+const workspaceMember: CurrentWorkspaceMember = {
   id: 'id',
   name: {
     firstName: 'firstName',
@@ -30,20 +28,20 @@ const workspaceMember: Omit<
 
 describe('useColorScheme', () => {
   it('should update color scheme', async () => {
+    const store = resetJotaiStore();
+    store.set(currentWorkspaceMemberState.atom, workspaceMember);
+
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <JotaiProvider store={store}>{children}</JotaiProvider>
+    );
+
     const { result } = renderHook(
       () => {
         const colorScheme = useColorScheme();
-
-        const setCurrentWorkspaceMember = useSetRecoilState(
-          currentWorkspaceMemberState,
-        );
-
-        setCurrentWorkspaceMember(workspaceMember);
-
         return colorScheme;
       },
       {
-        wrapper: RecoilRoot,
+        wrapper: Wrapper,
       },
     );
 
@@ -53,7 +51,6 @@ describe('useColorScheme', () => {
       await result.current.setColorScheme('Dark');
     });
 
-    // FIXME: For some reason, the color gets unset
-    // expect(result.current.colorScheme).toEqual('Dark');
+    expect(result.current.colorScheme).toEqual('Dark');
   });
 });

@@ -11,6 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { GraphQLJSON } from 'graphql-type-json';
+import { PageLayoutWidgetPosition } from 'twenty-shared/types';
 
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
 import { GridPositionInput } from 'src/engine/metadata-modules/page-layout-widget/dtos/inputs/grid-position.input';
@@ -38,10 +39,19 @@ export class CreatePageLayoutWidgetInput {
   @IsOptional()
   objectMetadataId?: string | null;
 
-  @Field(() => GridPositionInput, { nullable: false })
+  @Field(() => GridPositionInput, {
+    nullable: false,
+    deprecationReason:
+      'Use `position` instead. Will be removed in a future release.',
+  })
   @ValidateNested()
   @Type(() => GridPositionInput)
   gridPosition: GridPositionInput;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  @IsObject()
+  @IsOptional()
+  position?: PageLayoutWidgetPosition;
 
   @Field(() => GraphQLJSON, { nullable: false })
   @IsObject()

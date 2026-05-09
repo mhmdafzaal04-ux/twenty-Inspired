@@ -1,13 +1,17 @@
 import { sanitizeMessageToRenderInSnackbar } from '@/ui/feedback/snack-bar-manager/utils/sanitizeMessageToRenderInSnackbar';
-import { useTheme } from '@emotion/react';
-import styled from '@emotion/styled';
+import { styled } from '@linaria/react';
 import { msg } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react/macro';
 import { isUndefined } from '@sniptt/guards';
-import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import {
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+  useContext,
+  useMemo,
+} from 'react';
 import { isDefined } from 'twenty-shared/utils';
 import {
+  HorizontalSeparator,
   IconAlertTriangle,
   IconInfoCircle,
   IconSquareRoundedCheck,
@@ -15,7 +19,12 @@ import {
 } from 'twenty-ui/display';
 import { ProgressBar, useProgressAnimation } from 'twenty-ui/feedback';
 import { LightButton, LightIconButton } from 'twenty-ui/input';
-import { MOBILE_VIEWPORT } from 'twenty-ui/theme';
+import { UndecoratedLink } from 'twenty-ui/navigation';
+import {
+  MOBILE_VIEWPORT,
+  ThemeContext,
+  themeCssVariables,
+} from 'twenty-ui/theme-constants';
 
 export enum SnackBarVariant {
   Default = 'default',
@@ -31,9 +40,9 @@ export type SnackBarProps = Pick<ComponentPropsWithoutRef<'div'>, 'id'> & {
   duration?: number;
   icon?: ReactNode;
   message: string;
-  actionText?: string;
-  actionOnClick?: () => void;
-  actionTo?: string;
+  buttonLabel?: string;
+  buttonOnClick?: () => void;
+  buttonTo?: string;
   detailedMessage?: string;
   onCancel?: () => void;
   onClose?: () => void;
@@ -43,16 +52,16 @@ export type SnackBarProps = Pick<ComponentPropsWithoutRef<'div'>, 'id'> & {
 };
 
 const StyledContainer = styled.div`
-  backdrop-filter: ${({ theme }) => theme.blur.medium};
-  background-color: ${({ theme }) => theme.background.transparent.primary};
-  border-radius: ${({ theme }) => theme.border.radius.md};
-  box-shadow: ${({ theme }) => theme.boxShadow.strong};
+  backdrop-filter: ${themeCssVariables.blur.medium};
+  background-color: ${themeCssVariables.background.transparent.primary};
+  border-radius: ${themeCssVariables.border.radius.md};
+  box-shadow: ${themeCssVariables.boxShadow.strong};
   box-sizing: border-box;
-  cursor: pointer;
-  padding: ${({ theme }) => theme.spacing(2)};
+  margin-top: ${themeCssVariables.spacing[2]};
+  padding: ${themeCssVariables.spacing[2]} ${themeCssVariables.spacing[2]}
+    ${themeCssVariables.spacing[1]};
   position: relative;
   width: 296px;
-  margin-top: ${({ theme }) => theme.spacing(2)};
 
   @media (max-width: ${MOBILE_VIEWPORT}px) {
     border-radius: 0;
@@ -60,28 +69,31 @@ const StyledContainer = styled.div`
   }
 `;
 
-const StyledProgressBar = styled(ProgressBar)`
+const StyledProgressBarContainer = styled.div`
   bottom: 0;
-  height: auto;
   left: 0;
+  pointer-events: none;
   position: absolute;
   right: 0;
   top: 0;
-  pointer-events: none;
+
+  & > [role='progressbar'] {
+    height: 100%;
+  }
 `;
 
 const StyledHeader = styled.div`
   align-items: center;
-  color: ${({ theme }) => theme.font.color.primary};
+  color: ${themeCssVariables.font.color.primary};
   display: flex;
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  gap: ${({ theme }) => theme.spacing(2)};
-  margin-bottom: ${({ theme }) => theme.spacing(1)};
+  font-weight: ${themeCssVariables.font.weight.medium};
+  gap: ${themeCssVariables.spacing[2]};
+  margin-bottom: ${themeCssVariables.spacing[1]};
 `;
 
 const StyledMessage = styled.div`
-  color: ${({ theme }) => theme.font.color.secondary};
-  font-size: ${({ theme }) => theme.font.size.sm};
+  color: ${themeCssVariables.font.color.secondary};
+  font-size: ${themeCssVariables.font.size.sm};
 `;
 
 const StyledIcon = styled.div`
@@ -96,30 +108,23 @@ const StyledActions = styled.div`
 `;
 
 const StyledDescription = styled.div`
-  color: ${({ theme }) => theme.font.color.tertiary};
-  font-size: ${({ theme }) => theme.font.size.sm};
-  padding-left: ${({ theme }) => theme.spacing(6)};
+  color: ${themeCssVariables.font.color.tertiary};
+  font-size: ${themeCssVariables.font.size.sm};
   overflow: hidden;
+  padding-left: ${themeCssVariables.spacing[6]};
   text-overflow: ellipsis;
   width: 200px;
 `;
 
-const StyledLink = styled(Link)`
-  display: block;
-  color: ${({ theme }) => theme.font.color.tertiary};
-  font-size: ${({ theme }) => theme.font.size.sm};
-  padding-left: ${({ theme }) => theme.spacing(6)};
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  max-width: 200px;
-  &:hover {
-    color: ${({ theme }) => theme.font.color.secondary};
-  }
+const StyledBottomActionContainer = styled.div`
+  margin-top: ${themeCssVariables.spacing[2]};
 `;
 
-const StyledActionButton = styled.div`
-  padding-left: ${({ theme }) => theme.spacing(6)};
+const StyledBottomAction = styled.div`
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: ${themeCssVariables.spacing[1]};
 `;
 
 const defaultAriaLabelByVariant: Record<
@@ -141,16 +146,16 @@ export const SnackBar = ({
   id,
   message,
   detailedMessage,
-  actionText,
-  actionOnClick,
-  actionTo,
+  buttonLabel,
+  buttonOnClick,
+  buttonTo,
   onCancel,
   onClose,
   role = 'status',
   variant = SnackBarVariant.Default,
 }: SnackBarProps) => {
-  const theme = useTheme();
   const { i18n, t } = useLingui();
+  const { theme } = useContext(ThemeContext);
   const { animation: progressAnimation, value: progressValue } =
     useProgressAnimation({
       autoPlay: isUndefined(overrideProgressValue),
@@ -192,18 +197,14 @@ export const SnackBar = ({
           <IconAlertTriangle {...{ 'aria-label': ariaLabel, color, size }} />
         );
     }
-  }, [iconComponent, theme.icon.size.md, theme.snackBar, variant, i18n]);
+  }, [iconComponent, variant, i18n, theme.icon.size.md, theme.snackBar]);
 
   const handleMouseEnter = () => {
-    if (progressAnimation?.state === 'running') {
-      progressAnimation.pause();
-    }
+    progressAnimation?.pause();
   };
 
   const handleMouseLeave = () => {
-    if (progressAnimation?.state === 'paused') {
-      progressAnimation.play();
-    }
+    progressAnimation?.play();
   };
 
   const sanitizedMessage = sanitizeMessageToRenderInSnackbar(message);
@@ -221,10 +222,12 @@ export const SnackBar = ({
       role={role}
       data-globally-prevent-click-outside
     >
-      <StyledProgressBar
-        barColor={theme.snackBar[variant].backgroundColor}
-        value={progressValue}
-      />
+      <StyledProgressBarContainer>
+        <ProgressBar
+          barColor={theme.snackBar[variant].backgroundColor}
+          value={progressValue}
+        />
+      </StyledProgressBarContainer>
       <StyledHeader>
         <StyledIcon>{icon}</StyledIcon>
         <StyledMessage>{sanitizedMessage ?? ''}</StyledMessage>
@@ -239,14 +242,21 @@ export const SnackBar = ({
       {isDefined(sanitizedDetailedMessage) && (
         <StyledDescription>{sanitizedDetailedMessage}</StyledDescription>
       )}
-      {actionText && actionTo && (
-        <StyledLink to={actionTo}>{actionText}</StyledLink>
-      )}
-      {actionText && actionOnClick && !actionTo && (
-        <StyledActionButton>
-          <LightButton title={actionText} onClick={actionOnClick} />
-        </StyledActionButton>
-      )}
+      {isDefined(buttonLabel) &&
+        (isDefined(buttonOnClick) || isDefined(buttonTo)) && (
+          <StyledBottomActionContainer>
+            <HorizontalSeparator noMargin />
+            <StyledBottomAction>
+              {isDefined(buttonTo) ? (
+                <UndecoratedLink to={buttonTo}>
+                  <LightButton title={buttonLabel} />
+                </UndecoratedLink>
+              ) : (
+                <LightButton title={buttonLabel} onClick={buttonOnClick} />
+              )}
+            </StyledBottomAction>
+          </StyledBottomActionContainer>
+        )}
     </StyledContainer>
   );
 };

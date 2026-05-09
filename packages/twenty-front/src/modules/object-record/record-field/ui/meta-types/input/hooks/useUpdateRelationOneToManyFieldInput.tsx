@@ -1,5 +1,4 @@
-import { useContext } from 'react';
-import { useRecoilCallback } from 'recoil';
+import { useCallback, useContext } from 'react';
 
 import { useObjectMetadataItem } from '@/object-metadata/hooks/useObjectMetadataItem';
 import { useRecordOneToManyFieldAttachTargetRecord } from '@/object-record/hooks/useRecordOneToManyFieldAttachTargetRecord';
@@ -8,7 +7,10 @@ import { FieldContext } from '@/object-record/record-field/ui/contexts/FieldCont
 import { assertFieldMetadata } from '@/object-record/record-field/ui/types/guards/assertFieldMetadata';
 import { isFieldRelation } from '@/object-record/record-field/ui/types/guards/isFieldRelation';
 import { type RecordPickerPickableMorphItem } from '@/object-record/record-picker/types/RecordPickerPickableMorphItem';
-import { computeMorphRelationFieldName, isDefined } from 'twenty-shared/utils';
+import {
+  computeMorphRelationGqlFieldName,
+  isDefined,
+} from 'twenty-shared/utils';
 import { FieldMetadataType } from '~/generated-metadata/graphql';
 
 export const useUpdateRelationOneToManyFieldInput = () => {
@@ -49,8 +51,8 @@ export const useUpdateRelationOneToManyFieldInput = () => {
   const { recordOneToManyFieldAttachTargetRecord } =
     useRecordOneToManyFieldAttachTargetRecord();
 
-  const updateRelation = useRecoilCallback(
-    () => async (morphItem: RecordPickerPickableMorphItem) => {
+  const updateRelation = useCallback(
+    async (morphItem: RecordPickerPickableMorphItem) => {
       if (
         !fieldDefinition.metadata?.relationObjectMetadataNameSingular ||
         !fieldDefinition.metadata?.targetFieldMetadataName
@@ -73,7 +75,7 @@ export const useUpdateRelationOneToManyFieldInput = () => {
 
       let targetGQLFieldName: string;
       if (targetFieldMetadata.type === FieldMetadataType.MORPH_RELATION) {
-        targetGQLFieldName = computeMorphRelationFieldName({
+        targetGQLFieldName = computeMorphRelationGqlFieldName({
           fieldName: fieldDefinition.metadata.targetFieldMetadataName,
           relationType: targetFieldMetadata.settings?.relationType,
           targetObjectMetadataNameSingular:

@@ -11,6 +11,11 @@ type MetadataRequiredForValidation = {
   };
 };
 
+export type MetadataRelatedMetadataNameForValidation<
+  T extends AllMetadataName,
+> = keyof (typeof ALL_METADATA_REQUIRED_METADATA_FOR_VALIDATION)[T];
+
+// TODO deprecate in favor of ALL_METADATA_SERIALIZED_RELATION
 export const ALL_METADATA_REQUIRED_METADATA_FOR_VALIDATION = {
   fieldMetadata: {
     objectMetadata: true,
@@ -26,6 +31,10 @@ export const ALL_METADATA_REQUIRED_METADATA_FOR_VALIDATION = {
     view: true,
     fieldMetadata: true,
     objectMetadata: true,
+    viewFieldGroup: true,
+  },
+  viewFieldGroup: {
+    view: true,
   },
   index: {
     objectMetadata: true,
@@ -44,6 +53,10 @@ export const ALL_METADATA_REQUIRED_METADATA_FOR_VALIDATION = {
   viewFilterGroup: {
     view: true,
   },
+  viewSort: {
+    fieldMetadata: true,
+    view: true,
+  },
   role: {},
   roleTarget: {
     role: true,
@@ -56,10 +69,24 @@ export const ALL_METADATA_REQUIRED_METADATA_FOR_VALIDATION = {
   commandMenuItem: {
     objectMetadata: true,
     frontComponent: true,
+    pageLayout: true,
   },
   navigationMenuItem: {
     objectMetadata: true,
     view: true,
+    pageLayout: true,
+  },
+  permissionFlag: {
+    role: true,
+  },
+  objectPermission: {
+    role: true,
+    objectMetadata: true,
+  },
+  fieldPermission: {
+    role: true,
+    objectMetadata: true,
+    fieldMetadata: true,
   },
   pageLayout: {
     objectMetadata: true,
@@ -71,6 +98,7 @@ export const ALL_METADATA_REQUIRED_METADATA_FOR_VALIDATION = {
   pageLayoutWidget: {
     objectMetadata: true,
     pageLayoutTab: true,
+    frontComponent: true,
   },
   rowLevelPermissionPredicate: {
     fieldMetadata: true,
@@ -84,4 +112,6 @@ export const ALL_METADATA_REQUIRED_METADATA_FOR_VALIDATION = {
   },
   frontComponent: {},
   webhook: {},
+  applicationVariable: {},
+  connectionProvider: {},
 } as const satisfies MetadataRequiredForValidation;

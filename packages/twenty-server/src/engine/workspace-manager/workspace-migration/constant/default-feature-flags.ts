@@ -1,7 +1,6 @@
-import { FeatureFlagKey } from 'src/engine/core-modules/feature-flag/enums/feature-flag-key.enum';
+import { FeatureFlagKey } from 'twenty-shared/types';
 
 export const DEFAULT_FEATURE_FLAGS = [
-  FeatureFlagKey.IS_TIMELINE_ACTIVITY_MIGRATED,
-  FeatureFlagKey.IS_ATTACHMENT_MIGRATED,
-  FeatureFlagKey.IS_RECORD_PAGE_LAYOUT_ENABLED,
+  FeatureFlagKey.IS_RECORD_PAGE_LAYOUT_GLOBAL_EDITION_ENABLED,
+  FeatureFlagKey.IS_RECORD_PAGE_LAYOUT_EDITING_ENABLED,
 ] as const satisfies FeatureFlagKey[];

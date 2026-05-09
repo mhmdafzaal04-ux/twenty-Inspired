@@ -1,26 +1,16 @@
 import { UseGuards } from '@nestjs/common';
-import {
-  Args,
-  Mutation,
-  Parent,
-  Query,
-  ResolveField,
-  Resolver,
-} from '@nestjs/graphql';
+import { Args, Mutation, Parent, Query, ResolveField } from '@nestjs/graphql';
 
 import { type QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { PermissionFlagType } from 'twenty-shared/constants';
 
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
+import { MetadataResolver } from 'src/engine/api/graphql/graphql-config/decorators/metadata-resolver.decorator';
 import { ApiKeyEntity } from 'src/engine/core-modules/api-key/api-key.entity';
-import { CreateApiKeyInput } from 'src/engine/core-modules/api-key/dtos/create-api-key.dto';
-import { GetApiKeyInput } from 'src/engine/core-modules/api-key/dtos/get-api-key.dto';
-import { RevokeApiKeyInput } from 'src/engine/core-modules/api-key/dtos/revoke-api-key.dto';
-import { UpdateApiKeyInput } from 'src/engine/core-modules/api-key/dtos/update-api-key.dto';
-import {
-  ApiKeyException,
-  ApiKeyExceptionCode,
-} from 'src/engine/core-modules/api-key/exceptions/api-key.exception';
+import { CreateApiKeyInput } from 'src/engine/core-modules/api-key/dtos/create-api-key.input';
+import { GetApiKeyInput } from 'src/engine/core-modules/api-key/dtos/get-api-key.input';
+import { RevokeApiKeyInput } from 'src/engine/core-modules/api-key/dtos/revoke-api-key.input';
+import { UpdateApiKeyInput } from 'src/engine/core-modules/api-key/dtos/update-api-key.input';
 import { apiKeyGraphqlApiExceptionHandler } from 'src/engine/core-modules/api-key/utils/api-key-graphql-api-exception-handler.util';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import { AuthWorkspace } from 'src/engine/decorators/auth/auth-workspace.decorator';
@@ -31,7 +21,7 @@ import { RoleDTO } from 'src/engine/metadata-modules/role/dtos/role.dto';
 import { ApiKeyRoleService } from './services/api-key-role.service';
 import { ApiKeyService } from './services/api-key.service';
 
-@Resolver(() => ApiKeyEntity)
+@MetadataResolver(() => ApiKeyEntity)
 @UseGuards(
   WorkspaceAuthGuard,
   SettingsPermissionGuard(PermissionFlagType.API_KEYS_AND_WEBHOOKS),
@@ -132,20 +122,9 @@ export class ApiKeyResolver {
     @Parent() apiKey: ApiKeyEntity,
     @AuthWorkspace() workspace: WorkspaceEntity,
   ): Promise<RoleDTO> {
-    const rolesMap = await this.apiKeyRoleService.getRolesByApiKeys({
-      apiKeyIds: [apiKey.id],
+    return this.apiKeyRoleService.getRoleDtoByApiKeyId({
+      apiKeyId: apiKey.id,
       workspaceId: workspace.id,
     });
-
-    const role = rolesMap.get(apiKey.id);
-
-    if (!role) {
-      throw new ApiKeyException(
-        `API key ${apiKey.id} has no role assigned`,
-        ApiKeyExceptionCode.API_KEY_NO_ROLE_ASSIGNED,
-      );
-    }
-
-    return role;
   }
 }

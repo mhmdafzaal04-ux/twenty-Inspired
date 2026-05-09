@@ -1,27 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { useFilteredObjectMetadataItems } from '@/object-metadata/hooks/useFilteredObjectMetadataItems';
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
 import { ObjectFields } from '@/settings/data-model/object-details/components/tabs/ObjectFields';
 import { ObjectIndexes } from '@/settings/data-model/object-details/components/tabs/ObjectIndexes';
+import { ObjectLayout } from '@/settings/data-model/object-details/components/tabs/ObjectLayout';
 import { ObjectSettings } from '@/settings/data-model/object-details/components/tabs/ObjectSettings';
 import { SubMenuTopBarContainer } from '@/ui/layout/page/components/SubMenuTopBarContainer';
 import { TabList } from '@/ui/layout/tab-list/components/TabList';
 import { isAdvancedModeEnabledState } from '@/ui/navigation/navigation-drawer/states/isAdvancedModeEnabledState';
+import { useAtomState } from '@/ui/utilities/state/jotai/hooks/useAtomState';
+import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
 import { useIsFeatureEnabled } from '@/workspace/hooks/useIsFeatureEnabled';
-import styled from '@emotion/styled';
-import { useRecoilState, useRecoilValue } from 'recoil';
-import { AppPath, SettingsPath } from 'twenty-shared/types';
+import { styled } from '@linaria/react';
+import {
+  AppPath,
+  CoreObjectNameSingular,
+  SettingsPath,
+} from 'twenty-shared/types';
 
+import { isDDLLockedState } from '@/client-config/states/isDDLLockedState';
 import { isObjectMetadataReadOnly } from '@/object-record/read-only/utils/isObjectMetadataReadOnly';
 import { activeTabIdComponentState } from '@/ui/layout/tab-list/states/activeTabIdComponentState';
-import { useRecoilComponentValue } from '@/ui/utilities/state/component-state/hooks/useRecoilComponentValue';
-import { useTheme } from '@emotion/react';
+import { useAtomComponentStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomComponentStateValue';
 import { useLingui } from '@lingui/react/macro';
-import { getSettingsPath, isDefined } from 'twenty-shared/utils';
+import { getAppPath, getSettingsPath, isDefined } from 'twenty-shared/utils';
 import {
+  IconArrowUpRight,
   IconCodeCircle,
+  IconLayout,
   IconListDetails,
   IconPlus,
   IconPoint,
@@ -29,46 +37,52 @@ import {
 } from 'twenty-ui/display';
 import { Button } from 'twenty-ui/input';
 import { UndecoratedLink } from 'twenty-ui/navigation';
-import { FeatureFlagKey } from '~/generated/graphql';
+import { ThemeContext } from 'twenty-ui/theme-constants';
+import { FeatureFlagKey } from '~/generated-metadata/graphql';
 import { useNavigateApp } from '~/hooks/useNavigateApp';
 import { SETTINGS_OBJECT_DETAIL_TABS } from '~/pages/settings/data-model/constants/SettingsObjectDetailTabs';
 import { updatedObjectNamePluralState } from '~/pages/settings/data-model/states/updatedObjectNamePluralState';
 
 const StyledContentContainer = styled.div`
   flex: 1;
-  width: 100%;
   padding-left: 0;
+  width: 100%;
 `;
 
 export const SettingsObjectDetailPage = () => {
+  const { theme } = useContext(ThemeContext);
   const navigateApp = useNavigateApp();
   const { t } = useLingui();
-  const theme = useTheme();
-
   const { objectNamePlural = '' } = useParams();
 
   const { findObjectMetadataItemByNamePlural } =
     useFilteredObjectMetadataItems();
 
-  const [updatedObjectNamePlural, setUpdatedObjectNamePlural] = useRecoilState(
+  const [updatedObjectNamePlural, setUpdatedObjectNamePlural] = useAtomState(
     updatedObjectNamePluralState,
   );
   const objectMetadataItem =
     findObjectMetadataItemByNamePlural(objectNamePlural) ??
     findObjectMetadataItemByNamePlural(updatedObjectNamePlural);
 
-  const readonly = isObjectMetadataReadOnly({
-    objectMetadataItem,
-  });
+  const isDDLLocked = useAtomStateValue(isDDLLockedState);
 
-  const activeTabId = useRecoilComponentValue(
+  const readonly =
+    isObjectMetadataReadOnly({
+      objectMetadataItem,
+    }) || isDDLLocked;
+
+  const activeTabId = useAtomComponentStateValue(
     activeTabIdComponentState,
     SETTINGS_OBJECT_DETAIL_TABS.COMPONENT_INSTANCE_ID,
   );
 
-  const isAdvancedModeEnabled = useRecoilValue(isAdvancedModeEnabledState);
+  const isAdvancedModeEnabled = useAtomStateValue(isAdvancedModeEnabledState);
   const isUniqueIndexesEnabled = useIsFeatureEnabled(
     FeatureFlagKey.IS_UNIQUE_INDEXES_ENABLED,
+  );
+  const isRecordPageLayoutEditingEnabled = useIsFeatureEnabled(
+    FeatureFlagKey.IS_RECORD_PAGE_LAYOUT_EDITING_ENABLED,
   );
 
   const [isDeleting, setIsDeleting] = useState(false);
@@ -105,6 +119,15 @@ export const SettingsObjectDetailPage = () => {
       hide: false,
     },
     {
+      id: SETTINGS_OBJECT_DETAIL_TABS.TABS_IDS.LAYOUT,
+      title: t`Layout`,
+      Icon: IconLayout,
+      hide:
+        !isRecordPageLayoutEditingEnabled ||
+        objectMetadataItem.isRemote ||
+        objectMetadataItem.nameSingular === CoreObjectNameSingular.Dashboard,
+    },
+    {
       id: SETTINGS_OBJECT_DETAIL_TABS.TABS_IDS.INDEXES,
       title: t`Indexes`,
       Icon: IconCodeCircle,
@@ -131,6 +154,8 @@ export const SettingsObjectDetailPage = () => {
             setIsDeleting={setIsDeleting}
           />
         );
+      case SETTINGS_OBJECT_DETAIL_TABS.TABS_IDS.LAYOUT:
+        return <ObjectLayout objectMetadataItem={objectMetadataItem} />;
       case SETTINGS_OBJECT_DETAIL_TABS.TABS_IDS.INDEXES:
         return <ObjectIndexes objectMetadataItem={objectMetadataItem} />;
       default:
@@ -175,6 +200,17 @@ export const SettingsObjectDetailPage = () => {
             tabs={tabs}
             componentInstanceId={
               SETTINGS_OBJECT_DETAIL_TABS.COMPONENT_INSTANCE_ID
+            }
+            rightComponent={
+              <Button
+                Icon={IconArrowUpRight}
+                title={t`See records`}
+                variant="tertiary"
+                size="small"
+                to={getAppPath(AppPath.RecordIndexPage, {
+                  objectNamePlural: objectMetadataItem.namePlural,
+                })}
+              />
             }
           />
           <StyledContentContainer>

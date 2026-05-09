@@ -9,10 +9,6 @@ const meta: Meta<typeof ColorSample> = {
   component: ColorSample,
   decorators: [ComponentDecorator],
   args: { colorName: 'green' },
-  argTypes: {
-    as: { control: false },
-    theme: { control: false },
-  },
 };
 
 export default meta;
@@ -22,4 +18,8 @@ export const Default: Story = {};
 
 export const Pipeline: Story = {
   args: { variant: 'pipeline' },
+};
+
+export const Circle: Story = {
+  args: { variant: 'circle' },
 };

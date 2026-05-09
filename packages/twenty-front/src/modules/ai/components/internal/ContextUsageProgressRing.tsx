@@ -1,5 +1,5 @@
-import { useTheme } from '@emotion/react';
-import styled from '@emotion/styled';
+import { styled } from '@linaria/react';
+import { themeCssVariables } from 'twenty-ui/theme-constants';
 
 type ContextUsageProgressRingProps = {
   percentage: number;
@@ -13,7 +13,11 @@ const StyledSvg = styled.svg`
 
 const StyledBackgroundCircle = styled.circle`
   fill: none;
-  stroke: ${({ theme }) => theme.background.quaternary};
+  stroke: color-mix(
+    in srgb,
+    ${themeCssVariables.border.color.strong} 50%,
+    ${themeCssVariables.background.quaternary} 50%
+  );
 `;
 
 const StyledProgressCircle = styled.circle`
@@ -26,8 +30,6 @@ export const ContextUsageProgressRing = ({
   size = 16,
   strokeWidth = 2,
 }: ContextUsageProgressRingProps) => {
-  const theme = useTheme();
-
   const normalizedPercentage = Math.min(Math.max(percentage, 0), 100);
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -36,10 +38,10 @@ export const ContextUsageProgressRing = ({
 
   const progressColor =
     normalizedPercentage > 80
-      ? theme.color.red
+      ? themeCssVariables.color.red
       : normalizedPercentage > 60
-        ? theme.color.orange
-        : theme.color.blue;
+        ? themeCssVariables.color.orange
+        : themeCssVariables.color.blue;
 
   return (
     <StyledSvg width={size} height={size}>
@@ -54,7 +56,7 @@ export const ContextUsageProgressRing = ({
         cy={size / 2}
         r={radius}
         strokeWidth={strokeWidth}
-        stroke={progressColor}
+        style={{ stroke: progressColor }}
         strokeDasharray={circumference}
         strokeDashoffset={strokeDashoffset}
         strokeLinecap="round"

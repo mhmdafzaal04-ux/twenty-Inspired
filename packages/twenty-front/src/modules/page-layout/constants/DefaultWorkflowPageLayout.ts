@@ -1,6 +1,11 @@
 import { DEFAULT_WORKFLOW_PAGE_LAYOUT_ID } from '@/page-layout/constants/DefaultWorkflowPageLayoutId';
 import { type PageLayout } from '@/page-layout/types/PageLayout';
-import { PageLayoutType, WidgetType } from '~/generated/graphql';
+import {
+  PageLayoutTabLayoutMode,
+  PageLayoutType,
+  WidgetConfigurationType,
+  WidgetType,
+} from '~/generated-metadata/graphql';
 
 /**
  * Default Workflow PageLayout.
@@ -19,10 +24,12 @@ export const DEFAULT_WORKFLOW_PAGE_LAYOUT: PageLayout = {
     // Flow tab (position 100)
     {
       __typename: 'PageLayoutTab',
+      applicationId: '',
       id: 'workflow-tab-flow',
+      isActive: true,
       title: 'Flow',
       position: 100,
-      layoutMode: 'canvas',
+      layoutMode: PageLayoutTabLayoutMode.CANVAS,
       icon: 'IconSettings',
       pageLayoutId: DEFAULT_WORKFLOW_PAGE_LAYOUT_ID,
       createdAt: new Date().toISOString(),
@@ -31,7 +38,9 @@ export const DEFAULT_WORKFLOW_PAGE_LAYOUT: PageLayout = {
       widgets: [
         {
           __typename: 'PageLayoutWidget',
+          applicationId: '',
           id: 'workflow-widget-flow',
+          isActive: true,
           pageLayoutTabId: 'workflow-tab-flow',
           title: 'Flow',
           type: WidgetType.WORKFLOW,
@@ -43,10 +52,14 @@ export const DEFAULT_WORKFLOW_PAGE_LAYOUT: PageLayout = {
             rowSpan: 12,
             columnSpan: 12,
           },
+          position: {
+            __typename: 'PageLayoutWidgetCanvasPosition',
+            layoutMode: PageLayoutTabLayoutMode.CANVAS,
+          },
           configuration: {
             __typename: 'FieldsConfiguration',
-            configurationType: 'FIELDS',
-            sections: [],
+            configurationType: WidgetConfigurationType.FIELDS,
+            viewId: null,
           },
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),

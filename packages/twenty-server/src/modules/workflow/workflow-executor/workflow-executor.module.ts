@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 
 import { BillingModule } from 'src/engine/core-modules/billing/billing.module';
+import { WorkspaceCacheModule } from 'src/engine/workspace-cache/workspace-cache.module';
 import { FeatureFlagModule } from 'src/engine/core-modules/feature-flag/feature-flag.module';
+import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { ToolModule } from 'src/engine/core-modules/tool/tool.module';
 import { WorkflowCommonModule } from 'src/modules/workflow/common/workflow-common.module';
 import { WorkflowActionFactory } from 'src/modules/workflow/workflow-executor/factories/workflow-action.factory';
@@ -29,6 +31,7 @@ import { WorkflowRunModule } from 'src/modules/workflow/workflow-runner/workflow
     RecordCRUDActionModule,
     FormActionModule,
     BillingModule,
+    WorkspaceCacheModule,
     FilterActionModule,
     IfElseActionModule,
     IteratorActionModule,
@@ -36,6 +39,7 @@ import { WorkflowRunModule } from 'src/modules/workflow/workflow-runner/workflow
     EmptyActionModule,
     FeatureFlagModule,
     ToolModule,
+    MetricsModule,
   ],
   providers: [
     WorkflowExecutorWorkspaceService,

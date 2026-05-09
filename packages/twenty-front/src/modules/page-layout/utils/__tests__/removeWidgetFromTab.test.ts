@@ -1,16 +1,18 @@
+import { type PageLayoutTab } from '@/page-layout/types/PageLayoutTab';
+import { removeWidgetFromTab } from '@/page-layout/utils/removeWidgetFromTab';
 import {
   AggregateOperations,
   GraphOrderBy,
   WidgetConfigurationType,
   WidgetType,
 } from '~/generated-metadata/graphql';
-import { type PageLayoutTab } from '@/page-layout/types/PageLayoutTab';
-import { removeWidgetFromTab } from '@/page-layout/utils/removeWidgetFromTab';
 
 describe('removeWidgetFromTab', () => {
   const mockTabs: PageLayoutTab[] = [
     {
       id: 'tab-1',
+      applicationId: '',
+      isActive: true,
       title: 'Tab 1',
       position: 0,
       pageLayoutId: 'layout-1',
@@ -18,6 +20,8 @@ describe('removeWidgetFromTab', () => {
         {
           __typename: 'PageLayoutWidget' as const,
           id: 'widget-1',
+          applicationId: '',
+          isActive: true,
           pageLayoutTabId: 'tab-1',
           title: 'Widget 1',
           type: WidgetType.GRAPH,
@@ -36,6 +40,8 @@ describe('removeWidgetFromTab', () => {
         {
           __typename: 'PageLayoutWidget' as const,
           id: 'widget-2',
+          applicationId: '',
+          isActive: true,
           pageLayoutTabId: 'tab-1',
           title: 'Widget 2',
           type: WidgetType.GRAPH,
@@ -60,6 +66,8 @@ describe('removeWidgetFromTab', () => {
     },
     {
       id: 'tab-2',
+      applicationId: '',
+      isActive: true,
       title: 'Tab 2',
       position: 1,
       pageLayoutId: 'layout-1',
@@ -67,6 +75,8 @@ describe('removeWidgetFromTab', () => {
         {
           __typename: 'PageLayoutWidget' as const,
           id: 'widget-3',
+          applicationId: '',
+          isActive: true,
           pageLayoutTabId: 'tab-2',
           title: 'Widget 3',
           type: WidgetType.IFRAME,

@@ -1,6 +1,6 @@
 ---
 title: Rádio
-image: /images/user-guide/create-workspace/workspace-cover.png
+icon: circle-dot
 ---
 
 <Frame>
@@ -10,50 +10,58 @@ image: /images/user-guide/create-workspace/workspace-cover.png
 Usado quando os usuários podem escolher apenas uma opção de uma série de opções.
 
 <Tabs>
-  <Tab title="Uso">
-    ```jsx
-    import { Radio } from "twenty-ui/display";
+<Tab title="Uso">
 
-    export const MyComponent = () => {
+```jsx
+import { Radio } from "twenty-ui/display";
 
-      const handleRadioChange = (event) => {
-        console.log("Radio button changed:", event.target.checked);
-      };
+export const MyComponent = () => {
 
-      const handleCheckedChange = (checked) => {
-        console.log("Checked state changed:", checked);
-      };
+  const handleRadioChange = (event) => {
+    console.log("Radio button changed:", event.target.checked);
+  };
+
+  const handleCheckedChange = (checked) => {
+    console.log("Checked state changed:", checked);
+  };
 
 
-      return (
-        <Radio
-          checked={true}
-          value="Option 1"
-          onChange={handleRadioChange}
-          onCheckedChange={handleCheckedChange}
-          size="large"
-          disabled={false}
-          labelPosition="right"
-        />
-      );
-    };
+  return (
+    <Radio
+      checked={true}
+      value="Option 1"
+      onChange={handleRadioChange}
+      onCheckedChange={handleCheckedChange}
+      size="large"
+      disabled={false}
+      labelPosition="right"
+    />
+  );
+};
 
-    ```
-  </Tab>
+```
 
-  <Tab title="Propriedades">
-    | Propriedades      | Tipo                     | Descrição                                                                                          |
-    | ----------------- | ------------------------ | -------------------------------------------------------------------------------------------------- |
-    | estilo            | propriedades `React.CSS` | Estilos extras em linha para o componente                                                          |
-    | className         | string                   | Classe CSS opcional para estilização adicional                                                     |
-    | marcado           | booleano                 | Indica se o botão de rádio está marcado                                                            |
-    | valor             | string                   | O rótulo ou texto associado ao botão de rádio                                                      |
-    | onChange          | função                   | A função chamada quando o botão de rádio selecionado é alterado                                    |
-    | onCheckedChange   | função                   | A função chamada quando o estado `marcado` do botão de rádio muda                                  |
-    | tamanho           | string                   | O tamanho do botão de rádio. As opções incluem: `grande` e `pequeno`                               |
-    | desativado        | booleano                 | Se `verdadeiro`, o botão de rádio está desativado e não clicável                                   |
-    | posição do rótulo | string                   | A posição do texto do rótulo em relação ao botão de rádio. Tem duas opções: `esquerda` e `direita` |
-  </Tab>
+
+</Tab>
+<Tab title="Propriedades">
+
+
+| Propriedades      | Tipo                     | Descrição                                                                                          |
+| ----------------- | ------------------------ | -------------------------------------------------------------------------------------------------- |
+| estilo            | propriedades `React.CSS` | Estilos extras em linha para o componente                                                          |
+| className         | string                   | Classe CSS opcional para estilização adicional                                                     |
+| marcado           | booleano                 | Indica se o botão de rádio está marcado                                                            |
+| valor             | string                   | O rótulo ou texto associado ao botão de rádio                                                      |
+| onChange          | função                   | A função chamada quando o botão de rádio selecionado é alterado                                    |
+| onCheckedChange   | função                   | A função chamada quando o estado `marcado` do botão de rádio muda                                  |
+| tamanho           | string                   | O tamanho do botão de rádio. As opções incluem: `grande` e `pequeno`                               |
+| desativado        | booleano                 | Se `verdadeiro`, o botão de rádio está desativado e não clicável                                   |
+| posição do rótulo | string                   | A posição do texto do rótulo em relação ao botão de rádio. Tem duas opções: `esquerda` e `direita` |
+
+
+
+
+</Tab>
 </Tabs>
 
 ## Grupo de Rádio
@@ -61,37 +69,45 @@ Usado quando os usuários podem escolher apenas uma opção de uma série de op�
 Agrupa juntos botões de rádio relacionados.
 
 <Tabs>
-  <Tab title="Uso">
-    ```jsx
-    import React, { useState } from "react";
-    import { Radio, RadioGroup } from "twenty-ui/display";
+<Tab title="Uso">
 
-    export const MyComponent = () => {
+```jsx
+import React, { useState } from "react";
+import { Radio, RadioGroup } from "twenty-ui/display";
 
-      const [selectedValue, setSelectedValue] = useState("Option 1");
+export const MyComponent = () => {
 
-      const handleChange = (event) => {
-        setSelectedValue(event.target.value);
-      };
-      
-      return (
-        <RadioGroup value={selectedValue} onChange={handleChange}>
-          <Radio value="Option 1" />
-          <Radio value="Option 2" />
-          <Radio value="Option 3" />
-        </RadioGroup>
-      );
-    };
+  const [selectedValue, setSelectedValue] = useState("Option 1");
 
-    ```
-  </Tab>
+  const handleChange = (event) => {
+    setSelectedValue(event.target.value);
+  };
+  
+  return (
+    <RadioGroup value={selectedValue} onChange={handleChange}>
+      <Radio value="Option 1" />
+      <Radio value="Option 2" />
+      <Radio value="Option 3" />
+    </RadioGroup>
+  );
+};
 
-  <Tab title="Propriedades">
-    | Propriedades  | Tipo              | Descrição                                                                               |
-    | ------------- | ----------------- | --------------------------------------------------------------------------------------- |
-    | valor         | string            | O valor do botão de rádio atualmente selecionado                                        |
-    | onChange      | função            | A função de retorno de chamada disparada quando o botão de rádio é alterado             |
-    | onValueChange | função            | A função de retorno de chamada disparada quando o valor selecionado no grupo muda.      |
-    | filhos        | `React.ReactNode` | Permite que você passe componentes React (como Rádio) como filhos para o Grupo de Rádio |
-  </Tab>
+```
+
+</Tab>
+<Tab title="Propriedades">
+
+
+| Propriedades  | Tipo              | Descrição                                                                               |
+| ------------- | ----------------- | --------------------------------------------------------------------------------------- |
+| valor         | string            | O valor do botão de rádio atualmente selecionado                                        |
+| onChange      | função            | A função de retorno de chamada disparada quando o botão de rádio é alterado             |
+| onValueChange | função            | A função de retorno de chamada disparada quando o valor selecionado no grupo muda.      |
+| filhos        | `React.ReactNode` | Permite que você passe componentes React (como Rádio) como filhos para o Grupo de Rádio |
+
+
+
+
+</Tab>
+
 </Tabs>

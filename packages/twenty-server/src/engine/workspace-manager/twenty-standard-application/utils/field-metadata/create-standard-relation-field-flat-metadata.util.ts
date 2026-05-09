@@ -33,7 +33,6 @@ export type CreateStandardMorphOrRelationFieldContext<
   icon: string;
   targetObjectName: T;
   targetFieldName: AllStandardObjectFieldName<T>;
-  isSystem?: boolean;
   isNullable?: boolean;
   isUIReadOnly?: boolean;
   defaultValue?: FieldMetadataDefaultValueForAnyType;
@@ -63,7 +62,6 @@ export const createStandardRelationFieldFlatMetadata = <
     icon,
     targetObjectName,
     targetFieldName,
-    isSystem = false,
     isNullable = true,
     isUIReadOnly = false,
     defaultValue = null,
@@ -100,7 +98,7 @@ export const createStandardRelationFieldFlatMetadata = <
     icon,
     isCustom: false,
     isActive: true,
-    isSystem,
+    isSystem: false,
     isNullable,
     isUnique: false,
     isUIReadOnly,
@@ -115,6 +113,7 @@ export const createStandardRelationFieldFlatMetadata = <
     morphId,
     viewFieldIds: [],
     viewFilterIds: [],
+    fieldPermissionIds: [],
     kanbanAggregateOperationViewIds: [],
     calendarViewIds: [],
     mainGroupByFieldMetadataViewIds: [],
@@ -129,9 +128,12 @@ export const createStandardRelationFieldFlatMetadata = <
       targetFieldDefinition.universalIdentifier,
     viewFilterUniversalIdentifiers: [],
     viewFieldUniversalIdentifiers: [],
+    fieldPermissionUniversalIdentifiers: [],
     kanbanAggregateOperationViewUniversalIdentifiers: [],
     calendarViewUniversalIdentifiers: [],
     mainGroupByFieldMetadataViewUniversalIdentifiers: [],
+    viewSortIds: [],
+    viewSortUniversalIdentifiers: [],
     universalSettings: settings,
   };
 };

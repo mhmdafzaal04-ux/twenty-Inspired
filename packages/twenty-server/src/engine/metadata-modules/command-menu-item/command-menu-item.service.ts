@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
+import type DataLoader from 'dataloader';
+import { type APP_LOCALES, SOURCE_LOCALE } from 'twenty-shared/translations';
 import { isDefined } from 'twenty-shared/utils';
 
-import { ApplicationService } from 'src/engine/core-modules/application/services/application.service';
+import { ApplicationService } from 'src/engine/core-modules/application/application.service';
+import { I18nService } from 'src/engine/core-modules/i18n/i18n.service';
+import { type ObjectMetadataLoaderPayload } from 'src/engine/dataloaders/dataloader.service';
 import {
   CommandMenuItemException,
   CommandMenuItemExceptionCode,
@@ -10,7 +14,11 @@ import {
 import { type CommandMenuItemDTO } from 'src/engine/metadata-modules/command-menu-item/dtos/command-menu-item.dto';
 import { type CreateCommandMenuItemInput } from 'src/engine/metadata-modules/command-menu-item/dtos/create-command-menu-item.input';
 import { type UpdateCommandMenuItemInput } from 'src/engine/metadata-modules/command-menu-item/dtos/update-command-menu-item.input';
+import { EngineComponentKey } from 'src/engine/metadata-modules/command-menu-item/enums/engine-component-key.enum';
+import { isObjectMetadataCommandMenuItemPayload } from 'src/engine/metadata-modules/command-menu-item/utils/is-object-metadata-command-menu-item-payload.util';
+import { interpolateNavigationCommandMenuItemField } from 'src/engine/metadata-modules/command-menu-item/utils/interpolate-navigation-command-menu-item-field.util';
 import { type FlatCommandMenuItem } from 'src/engine/metadata-modules/flat-command-menu-item/types/flat-command-menu-item.type';
+import { type ObjectMetadataDTO } from 'src/engine/metadata-modules/object-metadata/dtos/object-metadata.dto';
 import { fromCreateCommandMenuItemInputToFlatCommandMenuItemToCreate } from 'src/engine/metadata-modules/flat-command-menu-item/utils/from-create-command-menu-item-input-to-flat-command-menu-item-to-create.util';
 import { fromDeleteCommandMenuItemInputToFlatCommandMenuItemOrThrow } from 'src/engine/metadata-modules/flat-command-menu-item/utils/from-delete-command-menu-item-input-to-flat-command-menu-item-or-throw.util';
 import { fromFlatCommandMenuItemToCommandMenuItemDto } from 'src/engine/metadata-modules/flat-command-menu-item/utils/from-flat-command-menu-item-to-command-menu-item-dto.util';
@@ -27,6 +35,7 @@ export class CommandMenuItemService {
     private readonly workspaceMigrationValidateBuildAndRunService: WorkspaceMigrationValidateBuildAndRunService,
     private readonly workspaceManyOrAllFlatEntityMapsCacheService: WorkspaceManyOrAllFlatEntityMapsCacheService,
     private readonly applicationService: ApplicationService,
+    private readonly i18nService: I18nService,
   ) {}
 
   async findAll(workspaceId: string): Promise<CommandMenuItemDTO[]> {
@@ -38,9 +47,9 @@ export class CommandMenuItemService {
         },
       );
 
-    return Object.values(flatCommandMenuItemMaps.byId)
+    return Object.values(flatCommandMenuItemMaps.byUniversalIdentifier)
       .filter(isDefined)
-      .sort((a, b) => a.label.localeCompare(b.label))
+      .sort((a, b) => a.position - b.position)
       .map(fromFlatCommandMenuItemToCommandMenuItemDto);
   }
 
@@ -88,6 +97,22 @@ export class CommandMenuItemService {
     input: CreateCommandMenuItemInput,
     workspaceId: string,
   ): Promise<CommandMenuItemDTO> {
+    const {
+      flatObjectMetadataMaps,
+      flatFrontComponentMaps,
+      flatPageLayoutMaps,
+    } =
+      await this.workspaceManyOrAllFlatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+        {
+          workspaceId,
+          flatMapsKeys: [
+            'flatObjectMetadataMaps',
+            'flatFrontComponentMaps',
+            'flatPageLayoutMaps',
+          ],
+        },
+      );
+
     const { workspaceCustomFlatApplication } =
       await this.applicationService.findWorkspaceTwentyStandardAndCustomApplicationOrThrow(
         { workspaceId },
@@ -97,7 +122,10 @@ export class CommandMenuItemService {
       fromCreateCommandMenuItemInputToFlatCommandMenuItemToCreate({
         createCommandMenuItemInput: input,
         workspaceId,
-        applicationId: workspaceCustomFlatApplication.id,
+        flatApplication: workspaceCustomFlatApplication,
+        flatObjectMetadataMaps,
+        flatFrontComponentMaps,
+        flatPageLayoutMaps,
       });
 
     const validateAndBuildResult =
@@ -117,7 +145,7 @@ export class CommandMenuItemService {
         },
       );
 
-    if (isDefined(validateAndBuildResult)) {
+    if (validateAndBuildResult.status === 'fail') {
       throw new WorkspaceMigrationBuilderException(
         validateAndBuildResult,
         'Multiple validation errors occurred while creating command menu item',
@@ -149,18 +177,27 @@ export class CommandMenuItemService {
         { workspaceId },
       );
 
-    const { flatCommandMenuItemMaps: existingFlatCommandMenuItemMaps } =
-      await this.workspaceManyOrAllFlatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
-        {
-          workspaceId,
-          flatMapsKeys: ['flatCommandMenuItemMaps'],
-        },
-      );
+    const {
+      flatCommandMenuItemMaps: existingFlatCommandMenuItemMaps,
+      flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
+      flatPageLayoutMaps: existingFlatPageLayoutMaps,
+    } = await this.workspaceManyOrAllFlatEntityMapsCacheService.getOrRecomputeManyOrAllFlatEntityMaps(
+      {
+        workspaceId,
+        flatMapsKeys: [
+          'flatCommandMenuItemMaps',
+          'flatObjectMetadataMaps',
+          'flatPageLayoutMaps',
+        ],
+      },
+    );
 
     const flatCommandMenuItemToUpdate =
       fromUpdateCommandMenuItemInputToFlatCommandMenuItemToUpdateOrThrow({
         flatCommandMenuItemMaps: existingFlatCommandMenuItemMaps,
         updateCommandMenuItemInput: input,
+        flatObjectMetadataMaps: existingFlatObjectMetadataMaps,
+        flatPageLayoutMaps: existingFlatPageLayoutMaps,
       });
 
     const validateAndBuildResult =
@@ -180,7 +217,7 @@ export class CommandMenuItemService {
         },
       );
 
-    if (isDefined(validateAndBuildResult)) {
+    if (validateAndBuildResult.status === 'fail') {
       throw new WorkspaceMigrationBuilderException(
         validateAndBuildResult,
         'Multiple validation errors occurred while updating command menu item',
@@ -240,7 +277,7 @@ export class CommandMenuItemService {
         },
       );
 
-    if (isDefined(validateAndBuildResult)) {
+    if (validateAndBuildResult.status === 'fail') {
       throw new WorkspaceMigrationBuilderException(
         validateAndBuildResult,
         'Multiple validation errors occurred while deleting command menu item',
@@ -263,9 +300,65 @@ export class CommandMenuItemService {
         },
       );
 
-    return Object.values(flatCommandMenuItemMaps.byId)
+    return Object.values(flatCommandMenuItemMaps.byUniversalIdentifier)
       .filter(isDefined)
-      .sort((a, b) => a.label.localeCompare(b.label));
+      .sort((a, b) => a.position - b.position);
+  }
+
+  async loadNavigationObjectMetadata({
+    commandMenuItem,
+    objectMetadataLoader,
+    workspaceId,
+  }: {
+    commandMenuItem: CommandMenuItemDTO;
+    objectMetadataLoader: DataLoader<
+      ObjectMetadataLoaderPayload,
+      ObjectMetadataDTO | null
+    >;
+    workspaceId: string;
+  }): Promise<ObjectMetadataDTO | null> {
+    if (
+      commandMenuItem.engineComponentKey !== EngineComponentKey.NAVIGATION ||
+      !isObjectMetadataCommandMenuItemPayload(commandMenuItem.payload)
+    ) {
+      return null;
+    }
+
+    return objectMetadataLoader.load({
+      objectMetadataId: commandMenuItem.payload.objectMetadataItemId,
+      workspaceId,
+    });
+  }
+
+  async resolveNavigationField({
+    commandMenuItem,
+    fieldName,
+    objectMetadataLoader,
+    workspaceId,
+    locale,
+  }: {
+    commandMenuItem: CommandMenuItemDTO;
+    fieldName: 'label' | 'shortLabel' | 'icon';
+    objectMetadataLoader: DataLoader<
+      ObjectMetadataLoaderPayload,
+      ObjectMetadataDTO | null
+    >;
+    workspaceId: string;
+    locale: keyof typeof APP_LOCALES | undefined;
+  }): Promise<string | undefined> {
+    const objectMetadata = await this.loadNavigationObjectMetadata({
+      commandMenuItem,
+      objectMetadataLoader,
+      workspaceId,
+    });
+
+    return interpolateNavigationCommandMenuItemField({
+      commandMenuItem,
+      fieldName,
+      objectMetadata,
+      locale,
+      i18nInstance: this.i18nService.getI18nInstance(locale ?? SOURCE_LOCALE),
+    });
   }
 
   async findByWorkflowVersionId(
@@ -281,7 +374,7 @@ export class CommandMenuItemService {
       );
 
     const flatCommandMenuItem = Object.values(
-      flatCommandMenuItemMaps.byId,
+      flatCommandMenuItemMaps.byUniversalIdentifier,
     ).find(
       (item) => isDefined(item) && item.workflowVersionId === workflowVersionId,
     );
