@@ -1,7 +1,7 @@
 import { ArrowRightUpIcon, SOCIAL_ICONS } from '@/icons';
+import { getServerI18n } from '@/lib/i18n/utils/get-server-i18n';
 import type { MessageDescriptor } from '@lingui/core';
 import type { FooterSocialLinkType } from '@/sections/Footer/types';
-import { LocaleSwitcher } from '@/sections/Footer/components/LocaleSwitcher';
 import { theme } from '@/theme';
 import { Separator } from '@base-ui/react/separator';
 import { styled } from '@linaria/react';
@@ -86,15 +86,14 @@ const SocialLink = styled.a`
 type BottomProps = {
   copyright: MessageDescriptor;
   links: FooterSocialLinkType[];
-  renderText: (descriptor: MessageDescriptor) => string;
 };
 
-export function Bottom({ copyright, links, renderText }: BottomProps) {
+export function Bottom({ copyright, links }: BottomProps) {
+  const i18n = getServerI18n();
   return (
     <BottomGrid>
       <CopyrightRow>
-        <Copyright>{renderText(copyright)}</Copyright>
-        <LocaleSwitcher />
+        <Copyright>{i18n._(copyright)}</Copyright>
       </CopyrightRow>
       <SocialNav aria-label="Social media">
         {links.map((link, index) => {

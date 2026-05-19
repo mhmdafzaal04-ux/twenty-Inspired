@@ -231,6 +231,8 @@ export class CommonGroupByQueryRunnerService extends CommonBaseQueryRunnerServic
         recordFilterGroupId: viewFilter.viewFilterGroupId,
         positionInRecordFilterGroup: viewFilter.positionInViewFilterGroup,
         subFieldName: viewFilter.subFieldName as CompositeFieldSubFieldName,
+        relationTargetFieldMetadataId:
+          viewFilter.relationTargetFieldMetadataId ?? null,
       };
     });
 
@@ -257,7 +259,11 @@ export class CommonGroupByQueryRunnerService extends CommonBaseQueryRunnerServic
     const filtersFromView = computeRecordGqlOperationFilter({
       recordFilters,
       recordFilterGroups: recordFilterGroups,
-      fields,
+      findFieldMetadataItemById: (id) =>
+        findFlatEntityByIdInFlatEntityMaps({
+          flatEntityId: id,
+          flatEntityMaps: flatFieldMetadataMaps,
+        }),
       filterValueDependencies: {
         timeZone: 'UTC', // TODO: see if we use workspace member timezone here
       },
@@ -412,7 +418,11 @@ export class CommonGroupByQueryRunnerService extends CommonBaseQueryRunnerServic
     args: CommonInput<GroupByQueryArgs>,
     queryRunnerContext: CommonBaseQueryRunnerContext,
   ): Promise<CommonInput<GroupByQueryArgs>> {
-    const { flatObjectMetadata, flatFieldMetadataMaps } = queryRunnerContext;
+    const {
+      flatObjectMetadata,
+      flatObjectMetadataMaps,
+      flatFieldMetadataMaps,
+    } = queryRunnerContext;
 
     return {
       ...args,
@@ -428,6 +438,7 @@ export class CommonGroupByQueryRunnerService extends CommonBaseQueryRunnerServic
       filter: this.filterArgProcessor.process({
         filter: args.filter,
         flatObjectMetadata,
+        flatObjectMetadataMaps,
         flatFieldMetadataMaps,
       }),
     };

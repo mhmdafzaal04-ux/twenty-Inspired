@@ -1,7 +1,6 @@
 import {
   type CompositeFieldSubFieldName,
   type FilterableAndTSVectorFieldType,
-  type PartialFieldMetadataItem,
   RecordFilterGroupLogicalOperator,
   type RecordFilterValueDependencies,
   type RecordGqlOperationFilter,
@@ -9,7 +8,10 @@ import {
 } from '@/types';
 
 import { isDefined } from '@/utils';
-import { turnRecordFilterIntoRecordGqlOperationFilter } from '@/utils/filter/turnRecordFilterIntoGqlOperationFilter';
+import {
+  type FindFieldMetadataItemById,
+  turnRecordFilterIntoRecordGqlOperationFilter,
+} from '@/utils/filter/turnRecordFilterIntoGqlOperationFilter';
 
 export type RecordFilter = {
   id: string;
@@ -19,6 +21,7 @@ export type RecordFilter = {
   recordFilterGroupId?: string | null;
   operand: ViewFilterOperand;
   subFieldName?: CompositeFieldSubFieldName | null | undefined;
+  relationTargetFieldMetadataId?: string | null | undefined;
 };
 
 export type RecordFilterGroup = {
@@ -30,13 +33,13 @@ export type RecordFilterGroup = {
 export const turnRecordFilterGroupsIntoGqlOperationFilter = ({
   filterValueDependencies,
   filters,
-  fields,
+  findFieldMetadataItemById,
   recordFilterGroups,
   currentRecordFilterGroupId,
 }: {
   filterValueDependencies: RecordFilterValueDependencies;
   filters: Omit<RecordFilter, 'id'>[];
-  fields: PartialFieldMetadataItem[];
+  findFieldMetadataItemById: FindFieldMetadataItemById;
   recordFilterGroups: RecordFilterGroup[];
   currentRecordFilterGroupId?: string;
 }): RecordGqlOperationFilter | undefined => {
@@ -57,7 +60,7 @@ export const turnRecordFilterGroupsIntoGqlOperationFilter = ({
       turnRecordFilterIntoRecordGqlOperationFilter({
         filterValueDependencies,
         recordFilter: recordFilter,
-        fieldMetadataItems: fields,
+        findFieldMetadataItemById,
       }),
     )
     .filter(isDefined);
@@ -72,7 +75,7 @@ export const turnRecordFilterGroupsIntoGqlOperationFilter = ({
       turnRecordFilterGroupsIntoGqlOperationFilter({
         filterValueDependencies,
         filters,
-        fields,
+        findFieldMetadataItemById,
         recordFilterGroups,
         currentRecordFilterGroupId: subRecordFilterGroup.id,
       }),
